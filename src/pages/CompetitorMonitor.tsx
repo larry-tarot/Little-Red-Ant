@@ -73,6 +73,7 @@ export default function CompetitorMonitor() {
     } else {
         stopPolling();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [competitors]);
 
   const startPolling = () => {

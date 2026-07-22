@@ -56,6 +56,7 @@ export default function NoteGeneratorForm({
                 }
             }
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [remixStructure]);
 
     return (

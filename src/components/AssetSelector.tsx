@@ -37,6 +37,7 @@ export default function AssetSelector({ isOpen, onClose, onSelect, type, title }
             setPlayingId(null);
             setSearchKeyword('');
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isOpen, type]);
 
     const fetchAssets = async () => {

@@ -1,35 +1,44 @@
 
-import { getNextPendingTask, completeTask, failTask, taskEvents } from './services/queue.js';
+import { getNextPendingTask, completeTask, failTask, taskEvents, emitTaskProgress } from './services/queue.js';
 import { TaskRegistry } from './services/tasks/TaskRegistry.js';
 import { VideoProjectService } from './services/video/VideoProjectService.js';
+import type { TaskProgressEvent } from './services/tasks/TaskHandler.js';
 
 const CONCURRENCY_LIMIT = 3; // Allow 3 tasks to run in parallel
 let activeWorkers = 0;
 
 export function startWorker() {
     console.log('[Worker] Background task processor started (Concurrency: ' + CONCURRENCY_LIMIT + ').');
-    
+
     const processTask = async () => {
         // Concurrency Control
         if (activeWorkers >= CONCURRENCY_LIMIT) return;
-        
+
         try {
             // Attempt to fetch task (Hybrid: Memory -> DB)
             const task = getNextPendingTask();
-            
+
             if (!task) return;
-            
+
             // Found a task, increment counter and process asynchronously
             activeWorkers++;
             console.log(`[Worker] Processing task ${task.id} (${task.type})... Active: ${activeWorkers}/${CONCURRENCY_LIMIT}`);
-            
+
+            // Sprint 2: inject a progress callback that funnels through emitTaskProgress
+            // so SSE subscribers get real-time updates and the DB tasks.progress stays in sync.
+            const onProgress = (event: TaskProgressEvent) => {
+                if (event && event.taskId === task.id) {
+                    emitTaskProgress({ ...event, taskId: task.id });
+                }
+            };
+
             try {
                 const handler = TaskRegistry.getHandler(task.type);
-                const result = await handler.handle(task);
-                
+                const result = await handler.handle(task, onProgress);
+
                 completeTask(task.id, result);
                 console.log(`[Worker] Task ${task.id} completed successfully.`);
-                
+
             } catch (error: any) {
                 console.error(`[Worker] Task ${task.id} failed:`, error);
                 failTask(task.id, error.message || 'Unknown error');

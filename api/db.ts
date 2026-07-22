@@ -6,17 +6,36 @@ import fs from 'fs';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Ensure data directory exists
+// Ensure data directory exists (no-op when in test mode below).
 const dataDir = path.join(__dirname, '../data');
 if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir);
 }
 
-const dbPath = path.join(dataDir, 'app.db');
+// Sprint 5: tests can opt into an in-memory database by setting
+// LITTLE_RED_ANT_TEST=1 (done in tests/setup.ts before any consumer imports).
+// This avoids the need to vi.mock api/db.js from many different relative paths.
+// When the test env var is set, we use a shared :memory: connection that
+// survives across module imports within a single test process.
+// SAFETY: if NODE_ENV=production, ignore this env var — data loss is unacceptable.
+const isTest = process.env.LITTLE_RED_ANT_TEST === '1' && process.env.NODE_ENV !== 'production';
+
+const dbPath = isTest ? ':memory:' : path.join(dataDir, 'app.db');
 const db = new Database(dbPath, { timeout: 5000 }); // Increase busy timeout to 5s
-db.pragma('journal_mode = WAL');
+if (!isTest) {
+  db.pragma('journal_mode = WAL');
+}
 db.pragma('synchronous = NORMAL'); // Balance between safety and speed
 db.pragma('busy_timeout = 5000'); // Explicitly set busy timeout
+
+// Test mode: ensure all tables exist as soon as the module loads. In production
+// this is handled explicitly by server.ts (which calls initDB() during boot),
+// but tests that import the module directly need the schema ready immediately.
+if (isTest) {
+  // initDB is hoisted via the function declaration below; this runs synchronously
+  // because better-sqlite3 is sync.
+  initDB();
+}
 
 // Initialize tables
 export function initDB() {
@@ -227,6 +246,7 @@ export function initDB() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       note_id TEXT,
       competitor_id INTEGER, -- Added for filtering
+      account_id INTEGER, -- Sprint 1: closed-loop writeback from PublishHandler
       views INTEGER DEFAULT 0,
       likes INTEGER DEFAULT 0,
       comments INTEGER DEFAULT 0,
@@ -235,6 +255,16 @@ export function initDB() {
       record_time DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  // Migration: add account_id to note_stats_history if it pre-dates Sprint 1
+  try {
+      const columns = db.prepare("PRAGMA table_info(note_stats_history)").all() as any[];
+      if (!columns.map((c: any) => c.name).includes('account_id')) {
+          db.prepare("ALTER TABLE note_stats_history ADD COLUMN account_id INTEGER").run();
+      }
+  } catch (e) {
+      console.error('Migration note_stats_history.account_id failed:', e);
+  }
 
   // Migration: Fix Foreign Key Mismatch for existing table
   try {
@@ -632,6 +662,7 @@ export function initDB() {
       script_content TEXT, -- JSON Structure of the script
       status TEXT DEFAULT 'DRAFT', -- 'DRAFT', 'GENERATING', 'COMPLETED'
       final_video_url TEXT, -- Stitched video result
+      created_by INTEGER, -- admin_users.id — Sprint 8: IDOR fix
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
@@ -673,6 +704,10 @@ export function initDB() {
       if (!columnNames.includes('note_id')) {
         console.log('Migrating video_projects table: Adding note_id...');
         db.prepare("ALTER TABLE video_projects ADD COLUMN note_id TEXT").run();
+      }
+      if (!columnNames.includes('created_by')) {
+        console.log('Migrating video_projects table: Adding created_by (IDOR fix)...');
+        db.prepare("ALTER TABLE video_projects ADD COLUMN created_by INTEGER").run();
       }
   } catch (e) {
       console.error('Migration video_projects failed:', e);
@@ -787,6 +822,14 @@ export function initDB() {
           console.log('Migrating trending_notes: Adding images...');
           db.prepare("ALTER TABLE trending_notes ADD COLUMN images TEXT").run(); // JSON Array
       }
+      if (!trendCols.includes('search_keyword')) {
+          console.log('Migrating trending_notes: Adding search_keyword...');
+          db.prepare("ALTER TABLE trending_notes ADD COLUMN search_keyword TEXT").run();
+      }
+      if (!trendCols.includes('topic_tags')) {
+          console.log('Migrating trending_notes: Adding topic_tags...');
+          db.prepare("ALTER TABLE trending_notes ADD COLUMN topic_tags TEXT").run(); // JSON Array
+      }
 
   } catch (e) {
       console.error('Final Consistency Migration failed:', e);
@@ -844,6 +887,38 @@ export function initDB() {
           rules.forEach(r => stmt.run(r.c, r.k, r.l, r.s));
       }
   } catch (e) { console.error('Init compliance rules failed', e); }
+
+  // --- Performance Indexes ---
+  // These significantly speed up the most common queries.
+  // Each CREATE INDEX is idempotent — IF NOT EXISTS is the default.
+  try {
+    // Tasks: status-based queries (task list, active tasks, scheduled tasks)
+    db.exec('CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status, scheduled_at)');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_tasks_type ON tasks(type)');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_tasks_created ON tasks(created_at)');
+
+    // Accounts: active account lookup
+    db.exec('CREATE INDEX IF NOT EXISTS idx_accounts_active ON accounts(is_active)');
+
+    // Comments: per-account queries with time ordering
+    db.exec('CREATE INDEX IF NOT EXISTS idx_comments_account ON comments(account_id, create_time)');
+
+    // Note stats: per-account analytics queries
+    db.exec('CREATE INDEX IF NOT EXISTS idx_note_stats_account ON note_stats(account_id, record_date)');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_note_stats_draft ON note_stats(draft_id)');
+
+    // Trending notes: keyword search, type filtering
+    db.exec('CREATE INDEX IF NOT EXISTS idx_trending_notes_keyword ON trending_notes(search_keyword)');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_trending_notes_type ON trending_notes(type)');
+
+    // Drafts: sorting by update time
+    db.exec('CREATE INDEX IF NOT EXISTS idx_drafts_updated ON drafts(updated_at)');
+
+    // Competitors: per-competitor note queries
+    db.exec('CREATE INDEX IF NOT EXISTS idx_competitor_notes_competitor ON competitor_notes(competitor_id)');
+  } catch (e) {
+    console.error('Failed to create indexes:', e);
+  }
 
   console.log('Database initialized.');
 }

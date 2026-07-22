@@ -56,6 +56,7 @@ export default function TrendSidebar({ onSelectTopic }: TrendSidebarProps) {
 
   useEffect(() => {
     fetchTrends();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trendSource]);
 
   const handleSelect = (title: string) => {

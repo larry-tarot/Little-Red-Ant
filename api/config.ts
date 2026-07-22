@@ -45,6 +45,11 @@ export const config = {
         db: path.join(DATA_DIR, 'app.db'),
     },
 
+    rpa: {
+        // 'playwright' (default) | 'camoufox' (experimental, requires camoufox-js)
+        driver: process.env.RPA_DRIVER || 'playwright',
+    },
+
     security: {
         jwtSecret: process.env.JWT_SECRET || (() => {
             if (process.env.NODE_ENV === 'production') {

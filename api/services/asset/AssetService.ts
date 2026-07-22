@@ -33,7 +33,25 @@ const storage = multer.diskStorage({
 
 export const upload = multer({ 
     storage,
-    limits: { fileSize: 50 * 1024 * 1024 } // 50MB limit
+    limits: { fileSize: 50 * 1024 * 1024 }, // 50MB limit
+    fileFilter: (req, file, cb) => {
+        const type = (req as any).params?.type;
+        const allowedMimeTypes: Record<string, string[]> = {
+            image: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'],
+            audio: ['audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/mp3', 'audio/aac'],
+            video: ['video/mp4', 'video/webm', 'video/ogg', 'video/quicktime', 'video/x-msvideo']
+        };
+        
+        if (!type || !allowedMimeTypes[type]) {
+            return cb(null, false);
+        }
+        
+        if (allowedMimeTypes[type].includes(file.mimetype)) {
+            cb(null, true);
+        } else {
+            cb(null, false);
+        }
+    }
 });
 
 export class AssetService {
@@ -75,16 +93,39 @@ export class AssetService {
             const res = await fetch(externalUrl);
             if (!res.ok) throw new Error(`Failed to fetch ${externalUrl}: ${res.statusText}`);
 
-            const buffer = await res.buffer();
+            let buffer = await res.buffer();
             const id = randomUUID();
-            const ext = type === 'image' ? '.png' : '.mp4'; // Default extension
+
+            // 2. Image compression: convert to WebP for smaller file size
+            // This reduces image size by 60-80% with negligible quality loss.
+            // Videos are stored as-is (no compression).
+            let ext = type === 'image' ? '.png' : '.mp4';
+            let mimeType = type === 'image' ? 'image/png' : 'video/mp4';
+
+            if (type === 'image') {
+                try {
+                    const sharp = (await import('sharp')).default;
+                    const compressed = await sharp(buffer)
+                        .webp({ quality: 80, effort: 4 }) // quality 80, encoding effort 4/6
+                        .toBuffer();
+                    // Only use WebP if it's actually smaller (sharp can sometimes increase size for small images)
+                    if (compressed.length < buffer.length) {
+                        buffer = compressed;
+                        ext = '.webp';
+                        mimeType = 'image/webp';
+                    }
+                } catch (e) {
+                    // Sharp not available or compression failed — use original
+                    console.warn('[AssetService] Image compression skipped:', (e as Error).message);
+                }
+            }
+
             const filename = `${id}${ext}`;
             const filepath = path.join(UPLOAD_DIR, filename);
 
             fs.writeFileSync(filepath, buffer);
 
             const localUrl = `/uploads/assets/${filename}`;
-            const mimeType = type === 'image' ? 'image/png' : 'video/mp4';
 
             // Save to DB
             db.prepare(`

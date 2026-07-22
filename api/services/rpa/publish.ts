@@ -31,12 +31,13 @@ async function takeProgressScreenshot(page: Page, taskId: string) {
     }
 }
 
-export async function openPublishPageWithContent(note: { 
-    title: string, content: string, tags: string[], imageData?: string[], videoPath?: string, autoPublish?: boolean, accountId?: number, contentType?: string 
-}, taskId?: string) {
+export async function openPublishPageWithContent(note: {
+    title: string, content: string, tags: string[], imageData?: string[], videoPath?: string, autoPublish?: boolean, accountId?: number, contentType?: string
+}, taskId?: string, onStage?: (stage: string) => void) {
   // Use BrowserService for unified session management
   const session = await BrowserService.getInstance().getAuthenticatedPage('CREATOR', true, note.accountId); // Headless = true
   let { browser, page } = session; // Changed to let to allow reassignment
+  onStage?.('打开创作中心');
   
   // Inject polyfills for environment compatibility
   await RPAUtils.initPage(page);
@@ -46,7 +47,7 @@ export async function openPublishPageWithContent(note: {
   let capturedNoteUrl: string | undefined;
 
   // Listen for publish API response
-  page.on('response', async (response) => {
+  const responseHandler = async (response: any) => {
       try {
           const url = response.url();
           // Match publish endpoints (cover v1/feed/post, v3/note/post, etc.)
@@ -69,7 +70,8 @@ export async function openPublishPageWithContent(note: {
       } catch (e) {
           // Ignore json parse errors or others
       }
-  });
+  };
+  page.on('response', responseHandler);
   // ---------------------------------------------------------
 
   await takeProgressScreenshot(page, taskId!);
@@ -167,6 +169,10 @@ export async function openPublishPageWithContent(note: {
                     await newPage.waitForLoadState('domcontentloaded');
                     await newPage.bringToFront();
                     
+                    // 迁移监听器：从旧页面移除，添加到新页面
+                    page.off('response', responseHandler);
+                    newPage.on('response', responseHandler);
+                    
                     // Reassign the page variable to the new page
                     page = newPage;
                     await RPAUtils.initPage(page); // Re-init utils for new page
@@ -239,7 +245,8 @@ export async function openPublishPageWithContent(note: {
     if (!isArticle && filePaths.length > 0) {
         // Use generalized upload helper
         const uploadSelector = Selectors.Publish.Upload.FileInput;
-        
+        onStage?.('上传图片');
+
         // Wait for input to be attached
         try {
             await page.waitForSelector(uploadSelector, { timeout: 10000, state: 'attached' });
@@ -331,7 +338,8 @@ export async function openPublishPageWithContent(note: {
 
         // Fill Title
         const titleSelector = Selectors.Publish.Form.TitleInputImage || Selectors.Publish.Form.TitleInput;
-        
+        onStage?.('填写标题');
+
         // Extra wait for Image mode
         try {
             await page.waitForSelector(titleSelector, { state: 'visible', timeout: 10000 });
@@ -340,9 +348,10 @@ export async function openPublishPageWithContent(note: {
         }
 
         await RPAUtils.safeType(page, titleSelector, note.title);
-        
+
         // Fill Content
         const fullContent = `${note.content}\n\n${note.tags.map(t => `#${t}`).join(' ')}`;
+        onStage?.('填写正文');
         const contentEditor = page.locator(Selectors.Publish.Form.ContentEditor).first();
         if (await contentEditor.isVisible()) {
             await contentEditor.click();
@@ -372,6 +381,7 @@ export async function openPublishPageWithContent(note: {
     // Auto Publish
     if (note.autoPublish) {
         const publishBtnSelector = Selectors.Publish.Form.PublishButton;
+        onStage?.('提交发布');
         // More robust selector matching "发布" with optional whitespace
         const publishBtn = page.locator(publishBtnSelector).filter({ hasText: /^\s*发布\s*$/ }).first();
         
@@ -408,6 +418,7 @@ export async function openPublishPageWithContent(note: {
         }
         
         // Confirm Success
+        onStage?.('等待发布回执');
         try {
              await Promise.race([
                  page.waitForSelector(Selectors.Publish.Form.SuccessIndicator, { timeout: 15000 }), 
@@ -482,6 +493,7 @@ export async function openPublishPageWithContent(note: {
       throw e; 
   } finally {
       if (page) {
+          page.off('response', responseHandler);
           try { await page.close(); } catch(e) {}
       }
   }

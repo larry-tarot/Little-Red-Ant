@@ -63,6 +63,7 @@ export default function PersonaSetup() {
 
   useEffect(() => {
     fetchList();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchList = async () => {

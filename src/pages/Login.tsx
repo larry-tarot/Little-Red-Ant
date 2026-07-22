@@ -23,6 +23,7 @@ export default function Login() {
             navigate('/');
         }
         checkInit();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const checkInit = async () => {
@@ -51,14 +52,10 @@ export default function Login() {
                 toast.success('欢迎回来！');
                 navigate('/');
             } else {
-                if (hasUsers) {
-                    toast.success('注册成功，请登录');
-                    setIsLogin(true);
-                } else {
-                    toast.success('管理员账号创建成功！请登录');
-                    setIsLogin(true);
-                    setHasUsers(true);
-                }
+                // 注册成功后自动登录,避免用户需要手动切 Tab
+                login(res.data.token, res.data.user);
+                toast.success('注册成功，欢迎使用！');
+                navigate('/');
             }
         } catch (err: any) {
             const msg = err.response?.data?.error || '操作失败';

@@ -29,7 +29,7 @@ router.get('/status', (req, res) => {
 router.post('/login', async (req, res) => {
   try {
     // Start background process for new account binding
-    startCreatorLogin(); 
+    startCreatorLogin().catch(err => console.error('[Publish] Background login failed:', err)); 
     res.json({ success: true, message: 'Login process started' });
   } catch (error: any) {
     res.status(500).json({ error: error.message });

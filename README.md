@@ -1,240 +1,125 @@
-# Little Red Ant (小红蚁) - AI 智能小红书运营助手
+# 🐜 小红蚁 (Little Red Ant) — AI 小红书运营助手
 
-Little Red Ant 是一个集成了 **AI 内容创作**、**RPA 自动化发布**、**数据趋势分析** 和 **账号矩阵管理** 的全栈小红书运营辅助工具。它旨在帮助创作者和运营团队高效地生成爆款内容、管理多个账号，并基于数据驱动决策。
-
-## 🚀 核心功能
-
-### 1. 🤖 AI 智能创作 (AI Content Generation)
-- **多模型支持**：基于 Provider 模式，支持 **Aliyun (通义千问/万相/Wan2.6)** 和 **DeepSeek** 等大模型。
-- **去 AI 化引擎**：独家"防 AI"算法，屏蔽逻辑连接词，支持"闺蜜唠嗑"、"疯狂安利"等 8 种特调风格。
-- **矩阵人设管理**：支持创建无限个"内容马甲"（Persona），一键切换美妆、宠物、探店等不同人设。
-- **图文/长文/视频生成**：
-    - **图文**：一键生成小红书风格的标题、正文、标签，并自动匹配 AI 配图 (Aliyun Wanx)。
-    - **长文**：深度长文模式，支持 Markdown 格式，适合知识分享与深度解析。
-    - **视频**：基于 **Wan2.6** 模型，支持图生视频、文本生成分镜脚本，打造爆款视频工厂。
-- **多版本管理**：支持生成多个版本并保存历史记录，不满意的可以重新生成。
-- **所见即所得**：内置卡片生成器，预览笔记效果。
-- **资源本地化 (Asset Persistence)**：AI 生成的图片/视频自动下载至本地服务器，防止云端链接失效 (404)。
-- **统一交互体验**：所有创作 Tab 采用一致的 3:9 网格布局，左侧提示栏 + 右侧创作区，降低学习成本。
-
-### 2. ⚡ 异步任务中心 (Task Center)
-- **全异步架构**：耗时操作（如 AI 生成、爬虫抓取、自动发布）全部通过后台队列处理，前端不再阻塞。
-- **实时状态**：在任务中心查看任务进度、耗时和结果。
-- **结果回溯**：生成完成后，可直接从任务列表跳转查看结果。
-
-### 3. 📊 数据洞察与趋势 (Analytics & Trends)
-- **热点追踪**：聚合微博、百度热搜及 **小红书热搜笔记**，辅助选题。(注：知乎/抖音热搜暂未开放)
-- **智能代理 (Smart Proxy)**：内置图片反防盗链代理，解决小红书/微博外链图片 403 裂图问题，实现秒级加载。
-- **数据大盘**：可视化展示账号的阅读、点赞、收藏、评论数据，支持趋势对比。
-- **Excel 导出**：支持将笔记数据导出为 Excel 报表，便于二次分析。
-- **数据概览卡片**：优化的数据卡片设计，带趋势指示器和彩色图标，一目了然。
-
-### 4. 🤖 RPA 自动化 (Automation Core v2.0)
-- **一键发布**：自动操作浏览器上传图片、填写文案、发布笔记，支持定时与自动重试。
-- **互动中心 (Engagement Pro)**：
-    - **全量同步**：支持回溯抓取 7 天内的所有评论与交互，自动处理懒加载与分页。
-    - **智能回复**：精准定位历史评论，支持拟人化输入与自动回车发送，解决“幽灵回复”问题。
-    - **AI 辅助**：(开发中) 自动分析评论意图并生成高情商回复建议。
-- **竞品监控 (Spy Pro)**：自动拆解对标账号的爆款逻辑、关键词与选题策略，AI 生成模仿建议。
-- **账号矩阵**：支持多账号 Cookie 管理与切换，自动检测登录状态，Cookie 失效自动报警。
-- **安全风控**：
-    - **智能频控**：内置 Daily Limit 策略，限制单账号每日发布数量，防止高频操作封号。
-    - **指纹混淆**：Stealth 隐身模式 + Canvas 噪音，通过 Playwright 模拟真实设备特征。
-    - **拟人化操作**：模拟真实鼠标轨迹与随机延迟，拒绝机械化行为。
-
-### 5. ⚙️ 系统设置 (Settings)
-- **可视化配置**：无需修改 `.env` 文件，直接在页面配置 API Key 和模型参数。
-- **数据库管理**：基于 SQLite 的轻量级数据存储，无需安装额外数据库服务。
-- **现代化登录界面**：渐变背景、Tab 切换、密码可见性切换，提升首次使用体验。
+一键生成爆款笔记、自动发布、数据分析、竞品监控。**免费开源，开箱即用。**
 
 ---
 
-### 6. 🐳 容器化部署 (Docker Support)
-- 提供标准 `Dockerfile` 与 `docker-compose.yml`。
-- 支持一键部署到云服务器，实现 24 小时无人值守运行。
-- 自动处理 Playwright 系统依赖，开箱即用。
+## 🚀 30 秒快速开始
 
-### 7. 🔐 安全与权限 (Security & Auth)
-- **多用户支持**：内置 JWT 认证系统，支持管理员注册与登录。
-- **接口防护**：核心 API 全局鉴权，防止未授权访问。
-- **密码加密**：使用 bcrypt 强加密存储，保障账户安全。
-
-### 8. 🔍 竞品深度分析 (Competitor Spy)
-- **爆款拆解**：自动抓取对标账号的 Top 10 笔记，分析其标题套路和封面风格。
-- **策略复刻**：AI 生成具体的“抄作业”建议，包括选题方向、关键词布局和避坑指南。
-- **数据追踪**：定期监控竞品数据变化，发现流量新趋势。
-
-### 9. 🚀 工程化 (DevOps)
-- **CI/CD**: 集成 GitHub Actions，自动进行 TypeScript 类型检查与 Docker 镜像构建。
-- **Linting**: 严格的 ESLint 规则，保持代码风格统一。
-
-### 10. 💻 命令行工具 (CLI & Headless)
-内置强大的 CLI 工具，支持通过自然语言指令完成几乎所有操作，适合开发者集成或无头模式运行。
-
-- **自然语言交互**：
-  - `npm run ai -- say 抓取热搜 weibo`
-  - `npm run ai -- say 一键发布 主题:春季穿搭 预览`
-  - `npm run ai -- say 竞品列表`
-  - `npm run ai -- say 评论列表`
-- **核心能力**：
-  - **Do 模式**：`npm run ai -- do scrape-trends --source weibo`
-  - **Dry Run**：所有高风险操作均支持 `--dry-run` 预览 Payload。
-  - **完整矩阵**：覆盖草稿管理、任务查询、竞品分析、评论互动等 30+ 种原子能力。
-
-## 🛠️ 技术栈 (Tech Stack)
-
-- **Frontend**: React, TypeScript, Vite, Tailwind CSS, Lucide Icons, Recharts
-- **Backend**: Node.js, Express
-- **Database**: Better-SQLite3
-- **Automation**: Playwright (Headless/Headed Browser)
-- **AI Integration**: OpenAI SDK (Compatible), Aliyun SDK
-
----
-
-## 📦 安装与运行
-
-### 前置要求
-- Node.js >= 18
-- Chrome/Edge 浏览器 (用于 RPA)
-
-### 1. 克隆项目与安装依赖
 ```bash
-git clone https://github.com/magicCzc/Little-Red-Ant.git
-cd Little-Red-Ant
+# 方式一:一键启动(推荐)
+双击 start.bat   # Windows 用户直接双击运行
+
+# 方式二:命令行启动
+git clone https://github.com/czc20021009/小红蚁.git
+cd 小红蚁
 npm install
-```
-
-### 2. 环境配置
-虽然系统支持 UI 配置，但首次启动建议检查 `.env` 文件（可选）：
-```env
-PORT=3000
-# 初始 API Key 可在此配置，也可在启动后通过“设置”页面配置
-ALIYUN_API_KEY=your_key
-DEEPSEEK_API_KEY=your_key
-```
-
-### 3. 启动开发服务器
-```bash
 npm run dev
 ```
-此命令将同时启动前端 (Vite) 和后端 (Express Server)。
-- 前端地址: `http://localhost:5173`
-- 后端 API: `http://localhost:3000`
+
+打开浏览器访问 `http://localhost:5173` → 注册 → 开始使用。
 
 ---
 
-## 📂 项目结构
+## 📸 功能预览
 
-```
-.
-├── api/                # 后端源码
-│   ├── routes/         # API 路由 (generate, tasks, publish, etc.)
-│   ├── services/       # 业务逻辑
-│   │   ├── ai/         # AI Providers (Aliyun, DeepSeek)
-│   │   ├── crawler/    # 爬虫 (Baidu, Weibo, etc.)
-│   │   ├── rpa/        # 浏览器自动化 (Playwright)
-│   │   └── queue.js    # 任务队列服务
-│   ├── db.ts           # 数据库初始化与连接
-│   └── worker.ts       # 后台任务消费者
-├── src/                # 前端源码
-│   ├── components/     # UI 组件
-│   ├── pages/          # 页面 (ContentGeneration, Tasks, Analytics...)
-│   └── App.tsx         # 路由配置
-├── data/               # SQLite 数据库文件与临时文件
-├── docs/               # 项目文档
-└── package.json
-```
-
-## 📝 待办与计划 (Roadmap)
-详情请查看 [docs/ROADMAP.md](./docs/ROADMAP.md)
+| 功能 | 说明 |
+|------|------|
+| ✏️ **AI 智能创作** | 输入主题,AI 自动生成小红书文案,支持 8 种风格 |
+| 🎨 **AI 配图** | 根据文案自动生成配图,支持图生图、文生图 |
+| 🚀 **一键发布** | 自动打开浏览器,填写文案,上传图片,点击发布 |
+| 📊 **数据看板** | 阅读量、点赞、评论、收藏趋势分析 |
+| 👥 **矩阵账号** | 管理多个小红书账号,每人设独立人设 |
+| 🎯 **竞品监控** | 自动追踪对标账号,AI 分析爆款逻辑 |
+| 💬 **互动中心** | 评论管理、AI 智能回复建议 |
+| 🔥 **热点追踪** | 微博/百度热搜聚合,辅助选题 |
 
 ---
 
-## � 维护指南 (Maintenance Guide)
+## ⚙️ 配置
 
-> 本项目采用 VibeCoding 风格，追求简单可维护。以下指南帮助你在出现问题时快速定位和修复。
+首次使用需要在设置页面填写 API Key:
 
-### 常见问题排查
-
-#### 1. 竞品抓取失败 / 数据获取为空
-
-**现象**：任务显示 "All scraping strategies failed"
-
-**排查步骤**：
-```bash
-# 查看终端日志，关注以下关键信息：
-# - Page title: 页面标题
-# - Page URL: 页面地址（如果被重定向到 /login 说明 Cookie 过期）
-# - Debug info: nameFound/avatarFound/notesFound 是否为 true
-```
-
-**解决方案**：
-- **Cookie 过期**：进入"账号矩阵"页面，重新绑定"浏览/互动权限"
-- **页面改版**：检查 `api/services/scraper/strategies/DomScrapeStrategy.ts` 中的选择器是否需要更新
-- **被反爬**：增加等待时间或降低抓取频率
-
-#### 2. 发布失败 / RPA 操作超时
-
-**现象**：发布任务失败，提示选择器找不到元素
-
-**排查步骤**：
-```bash
-# 1. 检查账号是否已登录
-# 2. 查看 debug/ 目录下的截图和 HTML
-# 3. 对比 selectors.ts 中的选择器与实际页面结构
-```
-
-**解决方案**：
-- 更新 `api/services/rpa/config/selectors.ts` 中的对应选择器
-- 重新绑定"创作/发布权限"
-
-#### 3. 如何选择器更新
-
-选择器采用"多备选项"策略，用逗号分隔：
-```typescript
-// 在 selectors.ts 中
-Name: '.user-name, .nickname, [class*="name"], h1',
-// 系统会依次尝试，直到找到匹配的元素
-```
-
-当页面改版时：
-1. 打开浏览器开发者工具（F12）
-2. 找到对应元素的新 class 或属性
-3. 添加到选择器字符串中
-4. 重启服务即可生效
-
-#### 4. 日志查看
-
-```bash
-# 开发模式实时查看
-npm run server:dev
-
-# 查看特定模块日志
-grep "RPA:Competitor"   # 竞品相关
-grep "RPA:Publish"      # 发布相关
-grep "RPA:Strategy"     # 抓取策略相关
-```
-
-#### 5. 数据库查看
-
-```bash
-# SQLite 命令行
-sqlite3 data/app.db
-
-# 常用查询
-SELECT * FROM accounts;           # 查看账号
-SELECT * FROM tasks ORDER BY created_at DESC LIMIT 10;  # 最近任务
-SELECT * FROM competitors;        # 查看竞品
-```
-
-### 设计原则
-
-1. **简单优先**：能用 SQLite 就不用 PostgreSQL，能本地存储就不用 OSS
-2. **日志即文档**：关键操作都有日志，出问题先看日志
-3. **优雅降级**：Cookie 过期自动转匿名模式，一个选择器失效自动试下一个
-4. **不追求完美**：80% 自动化 + 20% 人工兜底，比 100% 自动化但经常坏更实用
+1. **AI 生成功能必填**:申请 [阿里云通义千问](https://dashscope.aliyun.com/) API Key
+2. **可选**:申请 [DeepSeek](https://platform.deepseek.com/) API Key 作为备选
 
 ---
 
-## �� License
+## 🖥️ 系统要求
+
+- **Node.js** 18+ (推荐 20)
+- **Chrome 浏览器**(用于 RPA 自动发布,可自动安装)
+- 支持 **Windows / macOS / Linux**
+
+---
+
+## 📦 技术栈
+
+| 前端 | 后端 | 数据库 | 自动化 |
+|------|------|--------|--------|
+| React 18 | Node.js 20 | SQLite | Playwright |
+| Vite 6 | Express | Drizzle ORM | puppeteer-extra |
+| Tailwind | TypeScript | better-sqlite3 | stealth 插件 |
+| Recharts | JWT 认证 | 文件存储 | Circuit Breaker |
+
+---
+
+## 🏗️ 项目结构
+
+```
+xiaohongyi/
+├── api/          # 后端 (Express + SQLite)
+│   ├── routes/   # 23 个 API 路由
+│   ├── services/ # 84 个服务
+│   └── db.ts     # 数据库初始化
+├── src/          # 前端 (React + Vite)
+│   ├── pages/    # 23 个页面
+│   ├── components/ # 20+ 组件
+│   └── hooks/    # 自定义 Hooks
+├── tests/        # 测试 (44 个)
+│   ├── unit/     # 后端单元测试
+│   ├── frontend/ # 前端单元测试
+│   └── e2e/      # 端到端测试
+└── AI/           # CLI 命令行工具
+```
+
+---
+
+## 🧪 测试
+
+```bash
+npm test                 # 后端测试 (25 个)
+npm run test:frontend    # 前端测试 (9 个)
+npm run test:coverage    # 覆盖率报告
+```
+
+---
+
+## 🐳 Docker 部署
+
+```bash
+docker build -t xiaohongyi .
+docker run -p 3000:3000 xiaohongyi
+```
+
+---
+
+## 📄 License
+
 MIT
+
+---
+
+## 🙋 常见问题
+
+**Q: 需要编程基础吗?**
+A: 不需要。双击 `start.bat` 即可启动,打开浏览器就能用。
+
+**Q: 需要配置什么?**
+A: 首次使用需要在设置页填写 API Key。不配置也能浏览大部分功能。
+
+**Q: 支持多账号吗?**
+A: 支持。可以添加多个小红书账号,每个账号独立管理。
+
+**Q: 会封号吗?**
+A: 工具内置了频控策略(每日发布上限、操作间隔、随机延迟),模拟真人操作,降低风险。

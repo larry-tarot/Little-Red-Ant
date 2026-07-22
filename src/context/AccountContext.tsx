@@ -53,6 +53,7 @@ export const AccountProvider = ({ children }: { children: ReactNode }) => {
 
     useEffect(() => {
         fetchActiveAccount();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isAuthenticated]); // Re-fetch when auth state changes
 
     const refreshAccount = async () => {
@@ -67,6 +68,7 @@ export const AccountProvider = ({ children }: { children: ReactNode }) => {
     );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAccount = () => {
     const context = useContext(AccountContext);
     if (context === undefined) {

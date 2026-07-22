@@ -6,7 +6,6 @@ import { RPAUtils } from './utils/RPAUtils.js';
 export * from './auth.js';
 export * from './publish.js';
 export * from './stats.js';
-export * from './browser.js';
 export * from './trends.js';
 
 /**
@@ -204,4 +203,17 @@ export async function scrapeNoteDetail(noteId: string, accountId?: number, force
              try { await page.close(); } catch(e) {}
         }
     }
+}
+
+/**
+ * Open a specific note in the persistent browser for manual inspection.
+ * Sprint 4: this was previously in rpa/browser.ts (since deleted) and
+ * re-exported from here. Inlined to keep xiaohongshu.ts as the single
+ * entry point for cross-cutting XHS flows.
+ */
+export async function openNoteInBrowser(noteId: string) {
+    const session = await BrowserService.getInstance().getAuthenticatedPage('MAIN_SITE', false);
+    const { page } = session;
+    await page.goto(`https://www.xiaohongshu.com/explore/${noteId}`, { waitUntil: 'domcontentloaded' });
+    return { success: true };
 }

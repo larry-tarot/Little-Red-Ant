@@ -106,6 +106,41 @@ The system uses a **Task Registry** pattern. Do NOT add logic directly to `worke
 *   Use `better-sqlite3` synchronous methods.
 *   For complex writes, wrap in `db.transaction(() => { ... })`.
 *   Always use Prepared Statements (`db.prepare(...)`) to prevent SQL injection.
+*   For schema migrations, use `PRAGMA table_info(table_name)` to check column existence before `ALTER TABLE ADD COLUMN`.
+
+## 4.1 Reusing Existing Tables (Example: Topic Mining)
+When adding a new feature that stores similar data to an existing table, prefer adding a column over creating a new table.
+
+**Example**: The "Topic Mining" feature stores search results by keyword. Instead of creating a new `niche_notes` table, it reuses `trending_notes` and adds a `search_keyword` column.
+
+**Migration in `api/db.ts`**:
+```typescript
+const trendCols = db.prepare("PRAGMA table_info(trending_notes)").all().map((c: any) => c.name);
+if (!trendCols.includes('search_keyword')) {
+    db.prepare("ALTER TABLE trending_notes ADD COLUMN search_keyword TEXT").run();
+}
+```
+
+**Benefits**: Avoids duplicate schema, unified query interface, consistent data model.
+
+## 4.2 Extending AI Services (Example: Topic Classification)
+When adding new AI capabilities, extend the existing `ContentService` facade rather than creating new service files.
+
+**Example**: The "Topic Classification" feature adds `classifyNoteTopics()` to `ContentService`, reusing the same `AIFactory.getTextProvider()` pattern.
+
+```typescript
+// In ContentService.ts
+static async classifyNoteTopics(notes, categories?) {
+    const provider = AIFactory.getTextProvider();
+    // Use provider.generateJSON() for structured output
+}
+```
+
+**Principles**:
+- Reuse existing AI provider infrastructure
+- Use `generateJSON()` for structured AI outputs
+- Keep batch sizes small (5-10 items) to avoid token limits
+- Process in batches with delays to respect rate limits
 
 ## 5. Asset Handling Guidelines (New in v2.1)
 

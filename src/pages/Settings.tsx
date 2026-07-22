@@ -13,6 +13,7 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<'system' | 'profile'>('profile');
+  const [testing, setTesting] = useState<string | null>(null);
   
   // Profile State
   const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
@@ -75,6 +76,22 @@ export default function SettingsPage() {
 
   const handleChange = (key: string, value: string) => {
     setSettings(prev => ({ ...prev, [key]: value }));
+  };
+
+  const testConnection = async (key: string) => {
+      setTesting(key);
+      try {
+        const res = await axios.post('/api/settings/test-connection', { key });
+        if (res.data.success) {
+          toast.success(`✅ ${key} 连接成功`);
+        } else {
+          toast.error(`❌ ${key}: ${res.data.message || '连接失败'}`);
+        }
+      } catch (e: any) {
+        toast.error(`❌ ${key}: ${e.response?.data?.message || e.message || '无法连接到服务器'}`);
+      } finally {
+        setTesting(null);
+      }
   };
 
   const handleSave = async () => {
@@ -383,6 +400,13 @@ export default function SettingsPage() {
                       placeholder="sk-..."
                       className="pl-10 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm h-10 border px-3"
                     />
+                    <button
+                      onClick={() => testConnection('aliyun_api_key')}
+                      disabled={testing === 'aliyun_api_key'}
+                      className="absolute right-2 top-1/2 transform -translate-y-1/2 text-xs text-indigo-600 hover:text-indigo-800 disabled:text-gray-400 px-2 py-1 rounded"
+                    >
+                      {testing === 'aliyun_api_key' ? '测试中...' : '测试连接'}
+                    </button>
                 </div>
                 <p className="mt-1 text-xs text-gray-500">如果不填，默认读取环境变量 .env 中的配置</p>
               </div>
@@ -536,6 +560,13 @@ export default function SettingsPage() {
                       placeholder="sk-..."
                       className="pl-10 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm h-10 border px-3"
                     />
+                    <button
+                      onClick={() => testConnection('deepseek_api_key')}
+                      disabled={testing === 'deepseek_api_key'}
+                      className="absolute right-2 top-1/2 transform -translate-y-1/2 text-xs text-indigo-600 hover:text-indigo-800 disabled:text-gray-400 px-2 py-1 rounded"
+                    >
+                      {testing === 'deepseek_api_key' ? '测试中...' : '测试连接'}
+                    </button>
                 </div>
               </div>
 

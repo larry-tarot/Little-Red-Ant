@@ -93,6 +93,7 @@ export default function Engagement() {
 
   useEffect(() => {
     fetchComments();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, filter]);
 
   const handleScrape = async () => {
@@ -165,22 +166,28 @@ export default function Engagement() {
     }
   };
 
-  const generateAiReply = (content: string) => {
+  const generateAiReply = async (commentId: string, content: string) => {
     // If there is already a suggestion, use it first
-    const comment = comments.find(c => c.content === content);
+    const comment = comments.find(c => c.id === commentId);
     if (comment && comment.ai_reply_suggestion) {
         setReplyContent(comment.ai_reply_suggestion);
         return;
     }
 
-    // Mock AI Reply for now, or call an endpoint
-    const replies = [
-        "感谢关注！我们会继续努力的 💪",
-        "哈哈，你说得对！😂",
-        "宝子很有眼光哦 ✨",
-        "收到建议啦，这就去改！🫡"
-    ];
-    setReplyContent(replies[Math.floor(Math.random() * replies.length)]);
+    // Call the backend AI suggestion endpoint
+    try {
+        const res = await axios.get(`/api/comments/${commentId}/suggestion`);
+        setReplyContent(res.data.suggestion);
+    } catch (e: any) {
+        // Fallback: use mock replies if API fails
+        const replies = [
+            "感谢关注！我们会继续努力的 💪",
+            "哈哈，你说得对！😂",
+            "宝子很有眼光哦 ✨",
+            "收到建议啦，这就去改！🫡"
+        ];
+        setReplyContent(replies[Math.floor(Math.random() * replies.length)]);
+    }
   };
 
   return (
@@ -358,7 +365,7 @@ export default function Engagement() {
                            <div className="flex justify-between items-center mb-2">
                               <span className="text-xs font-semibold text-blue-700">回复 @{comment.user_nickname}</span>
                               <button 
-                                onClick={() => generateAiReply(comment.content)}
+                                onClick={() => generateAiReply(comment.id, comment.content)}
                                 className="text-xs flex items-center text-purple-600 hover:text-purple-800 bg-white px-2 py-1 rounded border border-purple-200 shadow-sm"
                               >
                                 <Bot size={12} className="mr-1" /> AI 帮我想

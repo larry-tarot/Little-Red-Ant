@@ -239,6 +239,7 @@ export default function ContentGeneration() {
              if (state.activeTab === 'video_script') setContentType('video_script');
         }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state]);
 
   // Auto-Save Draft Effect
@@ -264,6 +265,7 @@ export default function ContentGeneration() {
              lastAutoSavedTaskIdRef.current = currentSession.taskId;
          }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentSession, result, draftId, isSaving]);
 
   const lastAutoSavedTaskIdRef = useRef<string | null>(null);
@@ -1073,12 +1075,12 @@ export default function ContentGeneration() {
                     <div>
                         <div className="flex justify-between items-start mb-2">
                         <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">标签</span>
-                        <button onClick={() => copyToClipboard(result.tags.map(t => `#${t}`).join(' '))} className="text-indigo-600 hover:text-indigo-800 text-xs flex items-center">
+                        <button onClick={() => copyToClipboard((result.tags || []).map(t => `#${t}`).join(' '))} className="text-indigo-600 hover:text-indigo-800 text-xs flex items-center">
                             <Copy size={12} className="mr-1" /> 复制
                         </button>
                         </div>
                         <div className="flex flex-wrap gap-2">
-                        {result.tags.map((tag, idx) => (
+                        {(result.tags || []).map((tag, idx) => (
                             <span key={idx} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-800">
                             #{tag}
                             </span>

@@ -6,12 +6,14 @@ const IV_LENGTH = 16; // For AES, this is always 16
 
 export class EncryptionService {
     private static getKey(): Buffer {
-        // Derive a 32-byte key from the secret
-        // Using scrypt or just hashing the secret to ensure length
-        const secret = typeof config.security.jwtSecret === 'string' 
-            ? config.security.jwtSecret 
-            : 'fallback-secret-if-config-fails'; // Should not happen in prod due to config check
-            
+        // Sprint 8: Use a dedicated COOKIE_ENCRYPTION_KEY instead of reusing the JWT secret.
+        // JWT secret and encryption key should be independent — if one is compromised,
+        // the other must remain safe. In production, set COOKIE_ENCRYPTION_KEY in .env.
+        // Fallback to JWT_SECRET for legacy deployments, but always warn.
+        const secret = process.env.COOKIE_ENCRYPTION_KEY || config.security.jwtSecret;
+        if (!process.env.COOKIE_ENCRYPTION_KEY) {
+            console.warn('[Encryption] Using JWT_SECRET as encryption key. Set COOKIE_ENCRYPTION_KEY for better security isolation.');
+        }
         return crypto.createHash('sha256').update(secret).digest();
     }
 

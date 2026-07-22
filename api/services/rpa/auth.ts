@@ -6,13 +6,17 @@ import { Logger } from '../LoggerService.js';
 import axios from 'axios';
 import { Selectors } from './config/selectors.js';
 import { EncryptionService } from '../core/EncryptionService.js';
+import { AccountService } from '../core/AccountService.js';
 import { BrowserService } from './BrowserService.js';
+import fs from 'fs';
+import path from 'path';
 
 // Login State Management
 let loginState: {
   status: 'IDLE' | 'WAITING_FOR_SCAN' | 'SUCCESS' | 'FAILED';
   type?: 'CREATOR' | 'MAIN_SITE';
   message?: string;
+  qrCodeUrl?: string;
 } = { status: 'IDLE' };
 
 export function getLoginState() {
@@ -21,7 +25,7 @@ export function getLoginState() {
 
 export async function checkAllAccountsHealth() {
     Logger.info('Auth', 'Starting daily account health check...');
-    const accounts = db.prepare('SELECT id, nickname, creator_cookies, main_site_cookies FROM accounts WHERE is_active = 1 OR creator_cookies IS NOT NULL OR main_site_cookies IS NOT NULL').all() as any[];
+    const accounts = AccountService.getAccountsWithCookies();
     
     for (const acc of accounts) {
         Logger.info('Auth', `Checking account: ${acc.nickname || acc.id}`);
@@ -47,7 +51,7 @@ export async function checkAllAccountsHealth() {
                     // Check if redirected to login
                     if (page.url().includes('/login')) {
                         Logger.warn('Auth', `Creator Cookie Expired: ${acc.nickname || acc.id}`);
-                        db.prepare("UPDATE accounts SET creator_cookies = NULL WHERE id = ?").run(acc.id);
+                        AccountService.clearCreatorCookies(acc.id);
                     } else {
                         // Double check if we are really logged in
                         const isLoggedIn = await page.evaluate((selectors: any) => {
@@ -58,7 +62,7 @@ export async function checkAllAccountsHealth() {
                             Logger.info('Auth', `Creator Cookie Valid: ${acc.nickname || acc.id}`);
                         } else {
                             Logger.warn('Auth', `Creator Cookie Suspicious: ${acc.nickname || acc.id}`);
-                            db.prepare("UPDATE accounts SET creator_cookies = NULL WHERE id = ?").run(acc.id);
+                            AccountService.clearCreatorCookies(acc.id);
                         }
                     }
                 } catch (e: any) {
@@ -91,7 +95,7 @@ export async function checkAllAccountsHealth() {
 
                     if (isLoggedOut || !isLoggedIn) {
                         Logger.warn('Auth', `Main Site Cookie Expired: ${acc.nickname || acc.id}`);
-                        db.prepare("UPDATE accounts SET main_site_cookies = NULL WHERE id = ?").run(acc.id);
+                        AccountService.clearMainSiteCookies(acc.id);
                     } else {
                         Logger.info('Auth', `Main Site Cookie Valid: ${acc.nickname || acc.id}`);
                     }
@@ -128,12 +132,29 @@ export async function startCreatorLogin(accountId?: number): Promise<void> {
   
   let browser: Browser | null = null;
   try {
-    browser = await launchBrowser(false);
+    // 自动检测无图形环境，Docker / Linux 服务器使用 headless 模式
+    const isHeadless = process.env.HEADLESS === 'true' || (process.platform === 'linux' && !process.env.DISPLAY);
+    browser = await launchBrowser(isHeadless);
     const context = await createBrowserContext(browser);
     const page = await context.newPage();
     
     console.log('Navigating to Xiaohongshu Creator Center login...');
     await page.goto('https://creator.xiaohongshu.com/publish/publish', { waitUntil: 'domcontentloaded' });
+
+    // 无图形环境下截图二维码，供前端展示
+    if (isHeadless) {
+      try {
+        const qrDir = path.join(process.cwd(), 'public', 'qr-codes');
+        if (!fs.existsSync(qrDir)) fs.mkdirSync(qrDir, { recursive: true });
+        const qrPath = path.join(qrDir, `creator-login-${Date.now()}.png`);
+        await page.waitForTimeout(2000);
+        await page.screenshot({ path: qrPath, fullPage: true });
+        loginState.qrCodeUrl = `/qr-codes/${path.basename(qrPath)}`;
+        console.log(`[Creator Login] Headless mode QR screenshot saved: ${loginState.qrCodeUrl}`);
+      } catch (e) {
+        console.error('[Creator Login] Failed to capture QR screenshot:', e);
+      }
+    }
     
     // Check loop: 5 minutes
     for (let i = 0; i < 150; i++) {
@@ -222,12 +243,29 @@ export async function startMainSiteLogin(accountId: number): Promise<void> {
   
   let browser: Browser | null = null;
   try {
-    browser = await launchBrowser(false);
+    // 自动检测无图形环境，Docker / Linux 服务器使用 headless 模式
+    const isHeadless = process.env.HEADLESS === 'true' || (process.platform === 'linux' && !process.env.DISPLAY);
+    browser = await launchBrowser(isHeadless);
     const context = await createBrowserContext(browser);
     const page = await context.newPage();
     
     console.log('Navigating to Xiaohongshu Main Site login...');
     await page.goto('https://www.xiaohongshu.com', { waitUntil: 'domcontentloaded' });
+
+    // 无图形环境下截图二维码，供前端展示
+    if (isHeadless) {
+      try {
+        const qrDir = path.join(process.cwd(), 'public', 'qr-codes');
+        if (!fs.existsSync(qrDir)) fs.mkdirSync(qrDir, { recursive: true });
+        const qrPath = path.join(qrDir, `main-site-login-${Date.now()}.png`);
+        await page.waitForTimeout(2000);
+        await page.screenshot({ path: qrPath, fullPage: true });
+        loginState.qrCodeUrl = `/qr-codes/${path.basename(qrPath)}`;
+        console.log(`[Main Site Login] Headless mode QR screenshot saved: ${loginState.qrCodeUrl}`);
+      } catch (e) {
+        console.error('[Main Site Login] Failed to capture QR screenshot:', e);
+      }
+    }
     
     for (let i = 0; i < 150; i++) {
       if (loginState.status === 'FAILED') break;
@@ -282,24 +320,42 @@ export function getCookies(type: 'CREATOR' | 'MAIN_SITE', accountId?: number) {
     if (type === 'CREATOR') {
         const cookieStr = account.creator_cookies || account.cookies;
         if (cookieStr) {
-            const decrypted = EncryptionService.decrypt(cookieStr);
-            const parsed = JSON.parse(decrypted);
-            // Handle Playwright Storage State format { cookies: [...], origins: [...] }
-            if (parsed.cookies && Array.isArray(parsed.cookies)) {
-                return parsed.cookies;
-            }
-            // Handle raw array format
-            if (Array.isArray(parsed)) {
-                return parsed;
+            try {
+                const decrypted = EncryptionService.decrypt(cookieStr);
+                const parsed = JSON.parse(decrypted);
+                // Handle Playwright Storage State format { cookies: [...], origins: [...] }
+                if (parsed.cookies && Array.isArray(parsed.cookies)) {
+                    return parsed.cookies;
+                }
+                // Handle raw array format
+                if (Array.isArray(parsed)) {
+                    return parsed;
+                }
+            } catch (e) {
+                console.error('[Auth] Failed to parse creator cookies:', e);
             }
             return null;
         }
     } else {
-        if (account.main_site_cookies) {
-            const parsed = JSON.parse(account.main_site_cookies);
-            if (parsed.cookies && Array.isArray(parsed.cookies)) return parsed.cookies;
-            if (Array.isArray(parsed)) return parsed;
-            return null;
+        // For MAIN_SITE, prefer main_site_cookies but fallback to creator_cookies
+        // because XHS creator platform and main site share login session
+        const cookieStr = account.main_site_cookies || account.creator_cookies || account.cookies;
+        if (cookieStr) {
+            try {
+                const decrypted = EncryptionService.decrypt(cookieStr);
+                const parsed = JSON.parse(decrypted);
+                if (parsed.cookies && Array.isArray(parsed.cookies)) return parsed.cookies;
+                if (Array.isArray(parsed)) return parsed;
+            } catch (e) {
+                // If decryption fails, try parsing directly (may be unencrypted)
+                try {
+                    const parsed = JSON.parse(cookieStr);
+                    if (parsed.cookies && Array.isArray(parsed.cookies)) return parsed.cookies;
+                    if (Array.isArray(parsed)) return parsed;
+                } catch (e2) {
+                    return null;
+                }
+            }
         }
     }
     return null;

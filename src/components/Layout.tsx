@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
-  Menu, X, LogOut, Home, Users, Sparkles, PenTool, Layout as LayoutIcon, 
-  MessageSquare, Target, FileText, BarChart, PlayCircle, Settings, ShieldCheck, Bell, ChevronLeft, ChevronRight, Flame, Database, Library, TrendingUp
+  Menu, X, LogOut, Home, Users, Sparkles, PenTool, Layout as LayoutIcon,
+  MessageSquare, Target, FileText, BarChart, PlayCircle, Settings, ShieldCheck, Bell, ChevronLeft, ChevronRight, Flame, Database, Library, TrendingUp, Search
 } from 'lucide-react';
 import { useAuthStore } from '../store/useAuthStore';
 import axios from 'axios';
@@ -59,6 +59,7 @@ export default function Layout({ children }: LayoutProps) {
       title: '爆款库',
       items: [
         { title: '发现爆款', icon: Flame, path: '/gallery' },
+        { title: '选题挖掘', icon: Search, path: '/topic-mining' },
         { title: '我的爆款', icon: Database, path: '/knowledge' },
       ]
     },
@@ -274,7 +275,7 @@ export default function Layout({ children }: LayoutProps) {
       )}
 
       {/* Main Content */}
-      <main className="flex-1 overflow-auto md:p-8 p-4 w-full">
+      <main className={`flex-1 overflow-auto md:p-8 p-4 w-full transition-all duration-200 ${isSidebarCollapsed ? 'md:ml-20' : 'md:ml-64'}`}>
         <div className="max-w-7xl mx-auto">
            {children}
         </div>

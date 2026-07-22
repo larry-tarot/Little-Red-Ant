@@ -162,8 +162,7 @@ export default function HotTrends() {
         {loading ? (
           <div className="text-center py-20">
             <Loader2 className="animate-spin h-10 w-10 mx-auto mb-4 text-indigo-600" />
-            <p className="text-gray-500">正在抓取{currentSource === 'douyin' ? '抖音' : ''}最新热点...</p>
-            {currentSource === 'douyin' && <p className="text-xs text-gray-400 mt-2">抖音数据抓取可能需要较长时间，请耐心等待</p>}
+            <p className="text-gray-500">正在抓取最新热点...</p>
           </div>
         ) : (
           <div className="overflow-x-auto">

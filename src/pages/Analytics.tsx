@@ -119,6 +119,7 @@ export default function Analytics() {
     const controller = new AbortController();
     fetchNotes(controller.signal);
     return () => controller.abort();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pagination.page, pagination.pageSize]);
 
   const handlePageChange = (newPage: number) => {
@@ -308,28 +309,29 @@ export default function Analytics() {
         {/* Engagement Analysis Section */}
         {engagement && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                {/* 1. Reply Rate Card */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6 flex flex-col justify-between">
-                    <div>
-                        <h3 className="text-lg font-medium text-gray-900 mb-2 flex items-center">
-                           <MessageCircle className="mr-2 text-indigo-600" size={20} />
-                           互动响应率
-                        </h3>
-                        <p className="text-sm text-gray-500">已回复评论占比</p>
+                {engagement?.replyStats && (
+                    <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6 flex flex-col justify-between">
+                        <div>
+                            <h3 className="text-lg font-medium text-gray-900 mb-2 flex items-center">
+                               <MessageCircle className="mr-2 text-indigo-600" size={20} />
+                               互动响应率
+                            </h3>
+                            <p className="text-sm text-gray-500">已回复评论占比</p>
+                        </div>
+                        <div className="mt-4 flex items-end">
+                            <span className="text-4xl font-bold text-gray-900">{engagement.replyStats.rate}%</span>
+                            <span className="text-sm text-gray-500 ml-2 mb-1">
+                                ({engagement.replyStats.replied} / {engagement.replyStats.total})
+                            </span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2.5 mt-4">
+                            <div 
+                                className="bg-indigo-600 h-2.5 rounded-full" 
+                                style={{ width: `${engagement.replyStats.rate}%` }}
+                            ></div>
+                        </div>
                     </div>
-                    <div className="mt-4 flex items-end">
-                        <span className="text-4xl font-bold text-gray-900">{engagement.replyStats.rate}%</span>
-                        <span className="text-sm text-gray-500 ml-2 mb-1">
-                            ({engagement.replyStats.replied} / {engagement.replyStats.total})
-                        </span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2.5 mt-4">
-                        <div 
-                            className="bg-indigo-600 h-2.5 rounded-full" 
-                            style={{ width: `${engagement.replyStats.rate}%` }}
-                        ></div>
-                    </div>
-                </div>
+                )}
 
                 {/* 2. Intent Distribution Pie Chart */}
                 <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">

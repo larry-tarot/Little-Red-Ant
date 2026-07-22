@@ -14,6 +14,7 @@ export interface VideoProject {
     description?: string;
     publish_status?: 'UNPUBLISHED' | 'PUBLISHING' | 'PUBLISHED' | 'FAILED';
     publish_task_id?: string;
+    created_by?: number; // admin_users.id — Sprint 8: IDOR fix
     created_at: string;
     updated_at: string;
     scenes?: VideoScene[];
@@ -36,15 +37,15 @@ export interface VideoScene {
 export class VideoProjectService {
     
     // Create a new project from a generated script
-    static createProject(title: string, scriptContent: any, characterDesc?: string, tags?: string[], description?: string): VideoProject {
+    static createProject(title: string, scriptContent: any, characterDesc?: string, tags?: string[], description?: string, createdBy?: number): VideoProject {
         const id = uuidv4();
         const scriptJson = JSON.stringify(scriptContent);
         const tagsJson = tags ? JSON.stringify(tags) : '[]';
-        
+
         db.prepare(`
-            INSERT INTO video_projects (id, title, script_content, status, character_desc, tags, description)
-            VALUES (?, ?, ?, 'DRAFT', ?, ?, ?)
-        `).run(id, title, scriptJson, characterDesc || null, tagsJson, description || null);
+            INSERT INTO video_projects (id, title, script_content, status, character_desc, tags, description, created_by)
+            VALUES (?, ?, ?, 'DRAFT', ?, ?, ?, ?)
+        `).run(id, title, scriptJson, characterDesc || null, tagsJson, description || null, createdBy ?? null);
 
         // Parse script and create scenes
         // Assuming scriptContent is the array of scene objects directly, or part of the larger object
@@ -75,7 +76,12 @@ export class VideoProjectService {
         const project = db.prepare('SELECT * FROM video_projects WHERE id = ?').get(id) as any;
         if (!project) return null;
 
-        project.script_content = JSON.parse(project.script_content);
+        try {
+            project.script_content = JSON.parse(project.script_content);
+        } catch (e) {
+            console.error(`[VideoProjectService] Failed to parse script_content for project ${id}:`, e);
+            project.script_content = {};
+        }
         if (project.tags) {
             try {
                 project.tags = JSON.parse(project.tags);

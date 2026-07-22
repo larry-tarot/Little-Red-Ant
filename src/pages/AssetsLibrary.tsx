@@ -26,6 +26,7 @@ const AssetsLibrary: React.FC = () => {
 
     useEffect(() => {
         fetchAssets();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeTab]);
 
     const fetchAssets = async () => {

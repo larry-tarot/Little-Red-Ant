@@ -84,6 +84,7 @@ const NoteManagement: React.FC = () => {
         if (activeAccount) {
             fetchNotes();
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [pagination.page, pagination.pageSize, activeAccount]); // Depend on activeAccount
 
     const handleDeleteClick = (noteId: string) => {

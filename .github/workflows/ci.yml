@@ -29,12 +29,34 @@ jobs:
     - name: Lint (ESLint)
       run: npm run lint
 
+    - name: Run Unit Tests
+      run: npm test
+
     - name: Build Frontend & Backend
       run: npm run build
 
-    # In the future, add unit tests here
-    # - name: Run Tests
-    #   run: npm test
+  e2e-tests:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Playwright browsers
+        run: npx playwright install chromium
+      - name: Start servers & run E2E tests
+        run: |
+          npx tsx api/server.ts &
+          sleep 8
+          npm run client:dev &
+          sleep 8
+          node tests/e2e/verify.mjs
 
   docker-build:
     needs: build-and-test

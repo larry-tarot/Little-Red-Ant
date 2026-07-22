@@ -4,6 +4,34 @@ import fs from 'fs';
 import path from 'path';
 import { randomUUID } from 'crypto';
 
+/**
+ * Check if a URL points to an internal/private network address.
+ * Used to prevent SSRF attacks via the video downloader.
+ * Duplicated from api/routes/assets.ts since it's a critical security function
+ * and should live close to the code that uses it.
+ */
+function isInternalUrl(urlStr: string): boolean {
+    try {
+        const url = new URL(urlStr);
+        const hostname = url.hostname.toLowerCase();
+
+        if (hostname === 'localhost' || hostname === '[::1]' || hostname === '0.0.0.0') return true;
+
+        const parts = hostname.split('.').map(Number);
+        if (parts.length === 4 && parts.every(p => !isNaN(p))) {
+            if (parts[0] === 10) return true;
+            if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
+            if (parts[0] === 192 && parts[1] === 168) return true;
+            if (parts[0] === 127) return true;
+            if (parts[0] === 169 && parts[1] === 254) return true;
+            if (parts[0] === 0) return true;
+        }
+        return false;
+    } catch {
+        return true; // If URL parsing fails, treat as unsafe
+    }
+}
+
 export class VideoDownloader {
     private tempDir: string;
 
@@ -40,9 +68,14 @@ export class VideoDownloader {
             return destPath;
         }
 
-        // 2. Handle Remote URLs
+        // 2. Handle Remote URLs — with SSRF protection
         if (!url || !url.startsWith('http')) {
             throw new Error(`Invalid video URL: ${url}`);
+        }
+
+        // Sprint 8: SSRF protection — block internal network requests
+        if (isInternalUrl(url)) {
+            throw new Error(`Blocked internal URL: ${url}. This prevents SSRF attacks.`);
         }
 
         const ext = '.mp4'; // Assume mp4 for now, or detect from content-type

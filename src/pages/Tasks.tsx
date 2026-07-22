@@ -63,7 +63,7 @@ export default function Tasks() {
 
   useEffect(() => {
     fetchTasks();
-    
+
     // Auto-refresh every 5 seconds if there are active tasks
     const interval = setInterval(() => {
         if (viewMode === 'list') {
@@ -76,9 +76,49 @@ export default function Tasks() {
             });
         }
     }, 5000);
-    
+
     return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewMode, currentDate, page, pageSize]);
+
+  // Sprint 8: Subscribe to a SINGLE SSE stream for ALL task progress updates.
+  // Previously we created one EventSource per PROCESSING task, which could open
+  // dozens of connections. Now we use the unified /api/tasks/active endpoint
+  // with Accept: text/event-stream, which triggers the SSE mode.
+  useEffect(() => {
+    const es = new EventSource('/api/tasks/active', { withCredentials: true });
+    const esRef = { current: es };
+
+    es.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        // Update progress AND stage in the local task list in real-time
+        setTasks(current => current.map(t =>
+          t.id === data.taskId
+            ? {
+                ...t,
+                progress: typeof data.progress === 'number' ? data.progress : t.progress,
+                currentStep: data.stage || t.currentStep,
+              }
+            : t
+        ));
+        // If task reached terminal state, fetch full list to get result
+        if (data.status === 'COMPLETED' || data.status === 'FAILED') {
+          fetchTasks(true);
+        }
+      } catch { /* ignore heartbeat */ }
+    };
+
+    es.onerror = () => {
+      // SSE disconnected — fall back to polling (already running every 5s)
+      es.close();
+    };
+
+    return () => {
+      es.close();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const fetchTasks = async (isBackground = false) => {
     if (!isBackground) setLoading(true);

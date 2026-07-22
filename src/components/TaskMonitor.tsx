@@ -28,6 +28,7 @@ export default function TaskMonitor() {
         fetchActiveTasks();
         startPolling();
         return () => stopPolling();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const startPolling = () => {

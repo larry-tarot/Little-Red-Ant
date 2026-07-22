@@ -34,6 +34,7 @@ api/services/tasks/
 └── handlers/                # Implementation Classes
     ├── PublishHandler.ts    # Publishing Logic
     ├── ScrapeStatsHandler.ts
+    ├── ScrapeSearchNotesHandler.ts # Keyword-based search scraping
     ├── GenerateMediaHandler.ts # Image/Video Generation (with auto-download)
     └── ...
 ```
@@ -75,10 +76,16 @@ To handle the high volatility of external media links (expiration, 403 Forbidden
 1.  **Content Generation**: User Request -> `ContentService` -> LLM -> `ContentGeneration.tsx`.
 2.  **Publishing**: Frontend -> API (`/api/publish`) -> Task Queue -> `PublishHandler` -> `openPublishPageWithContent` -> Playwright -> Xiaohongshu.
 3.  **Analytics**: Worker -> `ScrapeStatsHandler` -> Playwright -> DB -> Frontend Dashboard.
+4.  **Topic Mining (Search)**: Frontend -> API (`/api/niche/search`) -> Task Queue -> `ScrapeSearchNotesHandler` -> `scrapeSearchNotes` (RPA) -> DB -> Frontend (`/topic-mining`).
+     *   **Authentication Requirement**: Search requires valid main-site cookies (`main_site_cookies` in DB). If missing, falls back to `creator_cookies` since XHS creator platform and main site share login session.
+     *   **RPA Strategy**: Navigate to `www.xiaohongshu.com/search_result_ai` and intercept the cross-domain API response from `edith.xiaohongshu.com/api/sns/web/v1/search/notes`. XHS page JS auto-generates X-s/X-t signatures; we capture the response rather than forging requests. DOM extraction is used as fallback when API interception fails.
+     *   **Debug**: When no results are found, screenshots and HTML are saved to `debug/search/` for troubleshooting.
+     *   **Export**: `/api/niche/export` supports Markdown and Excel export for cross-platform publishing.
+5.  **Topic Classification**: Frontend -> API (`/api/niche/classify`) -> Task Queue -> `ClassifyNotesHandler` -> `ContentService.classifyNoteTopics` (AI) -> DB (`topic_tags`).
 
 ## 3. Database Schema (Key Tables)
 *   `accounts`: Stores user cookies, login status, and persona settings.
 *   `tasks`: Async task queue (id, type, payload, status, result).
-*   `trending_notes`: Scraped note data for analysis.
+*   `trending_notes`: Scraped note data for analysis. Includes `search_keyword` field for keyword-based search results and `topic_tags` field for AI-classified sub-topics.
 *   `assets`: Tracks localized files (id, type, filename, original_url).
 *   `drafts`: User content drafts (images field stores local paths).

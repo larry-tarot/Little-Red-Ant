@@ -3,8 +3,6 @@ import { Loader2, RefreshCw, Flame, Eye, Heart, User, ExternalLink, Wand2, Spark
 import { useSafeAsync } from '../hooks/useSafeAsync';
 import axios from 'axios';
 import toast from 'react-hot-toast';
-import * as XLSX from 'xlsx';
-
 import { useNavigate } from 'react-router-dom';
 import NoteAnalysisModal from './NoteAnalysisModal';
 
@@ -83,13 +81,14 @@ const TrendingNotesGallery: React.FC<TrendingNotesGalleryProps> = ({ onSelect, i
   // Use safeRequest from hook if needed, or just use isMounted for simple effects
   const { isMounted } = useSafeAsync();
 
-  const handleBatchExportExcel = () => {
+  const handleBatchExportExcel = async () => {
       const notesToExport = notes.filter(n => selectedNoteIds.has(n.id));
       if (notesToExport.length === 0) {
           toast.error('请先选择要导出的笔记');
           return;
       }
 
+      const XLSX = await import('xlsx');
       const data = notesToExport.map(n => {
           const analysis = n.analysis_result || {};
           return {
@@ -172,10 +171,12 @@ const TrendingNotesGallery: React.FC<TrendingNotesGalleryProps> = ({ onSelect, i
     return () => {
         window.removeEventListener('TASK_COMPLETED', handleTaskComplete as EventListener);
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Run once on mount
 
   useEffect(() => {
     fetchNotes(1);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCategory, selectedDate, selectedType]); // Trigger on category or date change
 
   const handleSearch = (e: React.FormEvent) => {

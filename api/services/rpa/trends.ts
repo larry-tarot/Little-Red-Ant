@@ -197,6 +197,7 @@ export async function scrapeTrending(category: string = 'recommend') {
         throw error;
     } finally {
         if (page) {
+            page.off('response', responseHandler);
             try { await page.close(); } catch(e) {}
         }
     }

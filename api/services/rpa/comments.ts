@@ -4,6 +4,7 @@ import db from '../../db.js';
 import { Logger } from '../LoggerService.js';
 import fs from 'fs';
 import path from 'path';
+import { AccountService } from '../core/AccountService.js';
 import { CommentAnalysisService } from '../ai/CommentAnalysisService.js';
 import { RPAUtils } from './utils/RPAUtils.js';
 import { SettingsService } from '../SettingsService.js';
@@ -40,6 +41,7 @@ export async function scrapeComments(targetNoteId?: string) {
     const debugPath = path.join(process.cwd(), 'data', 'debug_comments_network.json');
     const debugHtmlPath = path.join(process.cwd(), 'data', 'debug_comments_page.html');
     const debugData: any[] = [];
+    let responseHandler: ((response: any) => Promise<void>) | undefined;
 
     try {
         if (targetNoteId) {
@@ -53,7 +55,7 @@ export async function scrapeComments(targetNoteId?: string) {
         let allCapturedItems: any[] = [];
         const SEVEN_DAYS_AGO = Date.now() - (7 * 24 * 60 * 60 * 1000);
         
-        const responseHandler = async (response: any) => {
+        responseHandler = async (response: any) => {
             const url = response.url();
             // Filter for likely API endpoints
             if (url.includes('/api/sns/web/v1/') && response.request().method() === 'GET') {
@@ -279,6 +281,7 @@ export async function scrapeComments(targetNoteId?: string) {
             
             // Dump HTML for diagnosis
             const html = await page.content();
+            if (!fs.existsSync(path.dirname(debugHtmlPath))) fs.mkdirSync(path.dirname(debugHtmlPath), { recursive: true });
             fs.writeFileSync(debugHtmlPath, html);
 
             items = await page.evaluate(() => {
@@ -318,9 +321,9 @@ export async function scrapeComments(targetNoteId?: string) {
 
         // 5. Save to DB
         if (items.length > 0) {
-            const activeAccount = db.prepare('SELECT id FROM accounts WHERE is_active = 1').get() as { id: number };
+            const activeAccountId = AccountService.getActiveAccountId();
             
-            if (!activeAccount) {
+            if (!activeAccountId) {
                 throw new Error('No active account found. Please activate an account in the Account Matrix first.');
             }
 
@@ -342,7 +345,7 @@ export async function scrapeComments(targetNoteId?: string) {
                     const avatar = item.user_avatar || item.from_user?.images || '';
                     const content = item.content || item.target_note?.title || '';
                     
-                    stmt.run(id, nick, avatar, content, item.create_time_str, item.reply_status || 'UNREAD', activeAccount.id, item.type || 'COMMENT', item.root_note_id || '');
+                    stmt.run(id, nick, avatar, content, item.create_time_str, item.reply_status || 'UNREAD', activeAccountId, item.type || 'COMMENT', item.root_note_id || '');
                 }
             });
             insertTransaction(items);
@@ -375,7 +378,8 @@ export async function scrapeComments(targetNoteId?: string) {
         Logger.error('RPA:Comments', `Scrape failed: ${error.message}`, error);
         throw error;
     } finally {
-        if (page) {
+        if (page && responseHandler) {
+            page.off('response', responseHandler);
             try { await page.close(); } catch(e) {}
         }
     }

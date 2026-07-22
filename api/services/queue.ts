@@ -3,9 +3,17 @@ import db from '../db.js';
 import crypto from 'crypto';
 import { NotificationService } from './NotificationService.js';
 import { EventEmitter } from 'events';
+import type { TaskProgressEvent } from './tasks/TaskHandler.js';
 
 // Global Event Bus for Task Notifications
 export const taskEvents = new EventEmitter();
+
+/**
+ * Progress 事件总线 —— SSE 端点订阅它把进度推给前端。
+ * 与 taskEvents 分离,避免新订阅者影响既有 taskEvents 监听器。
+ */
+export const taskProgressEvents = new EventEmitter();
+taskProgressEvents.setMaxListeners(50); // 多用户并发订阅场景
 
 // In-Memory Queue Buffer (for immediate processing without polling)
 const memoryQueue: string[] = [];
@@ -158,10 +166,24 @@ export function getNextPendingTask(): Task | undefined {
 export function updateTaskProgress(id: string, progress: number) {
     const p = Math.max(0, Math.min(100, Math.round(progress)));
     db.prepare(`
-        UPDATE tasks 
-        SET progress = ?, updated_at = ? 
+        UPDATE tasks
+        SET progress = ?, updated_at = ?
         WHERE id = ?
     `).run(p, new Date().toISOString(), id);
+}
+
+/**
+ * 从 Handler 回调入口发射进度事件(同时写 DB + emit 给 SSE 订阅者)。
+ * Worker 通过回调调用,而不是让 Handler 直接 emit —— 这样保持 Handler 纯净。
+ */
+export function emitTaskProgress(event: TaskProgressEvent) {
+    const p = Math.max(0, Math.min(100, Math.round(event.progress)));
+    db.prepare(`
+        UPDATE tasks
+        SET progress = ?, updated_at = ?
+        WHERE id = ?
+    `).run(p, new Date().toISOString(), event.taskId);
+    taskProgressEvents.emit('progress', { ...event, progress: p });
 }
 
 export function completeTask(id: string, result: any = {}) {

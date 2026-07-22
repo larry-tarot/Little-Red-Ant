@@ -21,9 +21,20 @@ export default defineConfig({
       clickUrl: 'https://www.trae.ai/solo?showJoin=1',
       autoTheme: true,
       autoThemeTarget: '#root'
-    }), 
+    }),
     tsconfigPaths(),
   ],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Split heavy vendor libraries into separate chunks so they're
+          // loaded only when the route that needs them is visited.
+          'vendor-recharts': ['recharts'],
+        },
+      },
+    },
+  },
   server: {
     proxy: {
       '/api': {

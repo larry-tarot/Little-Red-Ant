@@ -1,7 +1,7 @@
 
 import { BrowserService } from './BrowserService.js';
 import db from '../../db.js';
-// import { launchBrowser, createBrowserContext } from './utils.js'; // Deprecated
+import { AccountService } from '../core/AccountService.js';
 import { getCookies } from './auth.js';
 import { RPAUtils } from './utils/RPAUtils.js';
 import fs from 'fs';
@@ -35,6 +35,7 @@ export async function scrapeNoteStats(taskId?: string) {
     // 1. Replace dedicated browser launch with Shared Session
     const session = await BrowserService.getInstance().getAuthenticatedPage('CREATOR', true); // Headless = true
     const { page } = session;
+    let responseHandler: ((response: any) => Promise<void>) | undefined;
     
     try {
         // Remove manual context creation as BrowserService handles it
@@ -49,7 +50,7 @@ export async function scrapeNoteStats(taskId?: string) {
         const debugData: any[] = [];
 
         // 1. Setup API Interception
-        page.on('response', async (response: any) => {
+        responseHandler = async (response: any) => {
              const url = response.url();
              if (url.includes('xiaohongshu.com') && (response.request().resourceType() === 'fetch' || response.request().resourceType() === 'xhr')) {
                 try {
@@ -60,6 +61,8 @@ export async function scrapeNoteStats(taskId?: string) {
                     if (url.includes('note')) {
                         debugData.push({ url, data: json });
                         if (debugData.length > 20) debugData.shift();
+                        const debugDir = path.dirname(debugPath);
+                        if (!fs.existsSync(debugDir)) fs.mkdirSync(debugDir, { recursive: true });
                         fs.writeFileSync(debugPath, JSON.stringify(debugData, null, 2));
                     }
 
@@ -150,7 +153,8 @@ export async function scrapeNoteStats(taskId?: string) {
                     }
                 } catch (e) {}
              }
-        });
+        };
+        page.on('response', responseHandler);
 
         // 2. Navigation
         await page.goto('https://creator.xiaohongshu.com/creator/home', { waitUntil: 'domcontentloaded' });
@@ -383,9 +387,9 @@ export async function scrapeNoteStats(taskId?: string) {
 
         if (userId) {
             console.log(`[Scraper] Found User ID: ${userId}, navigating to profile for tokens...`);
-            const activeAccount = db.prepare('SELECT id FROM accounts WHERE is_active = 1').get() as { id: number };
-            if (activeAccount) {
-                db.prepare('UPDATE accounts SET user_id = ? WHERE id = ?').run(userId, activeAccount.id);
+            const activeAccountId = AccountService.getActiveAccountId();
+            if (activeAccountId) {
+                AccountService.updateUserId(activeAccountId, userId);
             }
 
             try {
@@ -435,8 +439,8 @@ export async function scrapeNoteStats(taskId?: string) {
         }
 
         // 6. Save to DB
-        const activeAccount = db.prepare('SELECT id FROM accounts WHERE is_active = 1').get() as { id: number };
-        if (!activeAccount) {
+        const activeAccountId = AccountService.getActiveAccountId();
+        if (!activeAccountId) {
             console.error('[Scraper] No active account found for saving stats.');
             return { success: false, count: 0 };
         }
@@ -449,7 +453,7 @@ export async function scrapeNoteStats(taskId?: string) {
             let insertedCount = 0;
 
             for (const note of notes) {
-                const exists = db.prepare('SELECT * FROM note_stats WHERE note_id = ? AND account_id = ?').get(note.note_id, activeAccount.id) as any;
+                const exists = db.prepare('SELECT * FROM note_stats WHERE note_id = ? AND account_id = ?').get(note.note_id, activeAccountId) as any;
                 
                 if (exists) {
                     const safeViews = (note.views === 0 && exists.views > 10) ? exists.views : note.views;
@@ -471,12 +475,12 @@ export async function scrapeNoteStats(taskId?: string) {
                         note.publish_date || null,
                         note.xsec_token || null, 
                         note.note_id, 
-                        activeAccount.id
+                        activeAccountId
                     );
                     updatedCount++;
                 } else {
                     if (note.title && note.title !== 'Untitled') {
-                        stmt.run(note.note_id, note.title, note.cover_image, note.views, note.likes, note.comments, note.collects, note.publish_date || null, activeAccount.id, note.xsec_token || null);
+                        stmt.run(note.note_id, note.title, note.cover_image, note.views, note.likes, note.comments, note.collects, note.publish_date || null, activeAccountId, note.xsec_token || null);
                         insertedCount++;
                     }
                 }
@@ -501,7 +505,8 @@ export async function scrapeNoteStats(taskId?: string) {
         }
         throw e;
     } finally {
-        if (page) {
+        if (page && responseHandler) {
+            page.off('response', responseHandler);
             try { await page.close(); } catch(e) {}
         }
     }

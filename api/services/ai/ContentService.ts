@@ -72,7 +72,7 @@ export class ContentService {
             try {
                 const contentToCheck = [
                     result.title,
-                    ...result.options.map(o => o.content)
+                    ...(result.options || []).map(o => o.content)
                 ].join('\n');
                 
                 const complianceResult = ComplianceService.check(contentToCheck);
@@ -182,5 +182,76 @@ ${content}
 
     static async analyzeNoteStructure(content: string, title: string, type: string = 'image', videoFrames: string[] = [], audioPath?: string, noteImages: string[] = []): Promise<any> {
         return AnalysisService.analyzeNoteStructure(content, title, type, videoFrames, audioPath, noteImages);
+    }
+
+    /**
+     * Classify notes into sub-topics using AI
+     *
+     * @param notes - Array of notes with title and content
+     * @param categories - Optional predefined category list (e.g. ["口诀", "答题技巧", "重难点"])
+     * @returns Map of note_id -> topic_tags array
+     */
+    static async classifyNoteTopics(
+        notes: Array<{ note_id: string; title: string; content?: string }>,
+        categories?: string[]
+    ): Promise<Record<string, string[]>> {
+        if (!notes || notes.length === 0) return {};
+
+        const provider = AIFactory.getTextProvider();
+
+        const defaultCategories = [
+            "口诀速记",
+            "答题技巧",
+            "重难点梳理",
+            "备考规划",
+            "真题解析",
+            "公式总结",
+            "易错点提醒",
+            "时间规划",
+            "资料推荐",
+            "心态调整",
+            "经验分享",
+            "知识点讲解"
+        ];
+
+        const categoryList = categories && categories.length > 0
+            ? categories
+            : defaultCategories;
+
+        const systemPrompt = `你是一名专业的内容分类专家。你的任务是根据笔记的标题和内容，为每条笔记打上最相关的子主题标签。
+
+【可选标签】
+${categoryList.map(c => `- ${c}`).join('\n')}
+
+【分类规则】
+1. 每条笔记可以打 1-3 个标签，按相关度排序
+2. 只从上述列表中选择，不要自创标签
+3. 如果内容无法明确归类，返回 ["经验分享"]
+4. 必须严格按照输出格式返回
+
+【输出格式】
+返回 JSON 对象，key 为 note_id，value 为标签数组：
+{
+  "note_id_1": ["标签1", "标签2"],
+  "note_id_2": ["标签3"]
+}`;
+
+        const notesText = notes.map(n =>
+            `---\nID: ${n.note_id}\n标题: ${n.title}\n内容: ${(n.content || '').substring(0, 200)}\n---`
+        ).join('\n');
+
+        const userPrompt = `请为以下 ${notes.length} 条笔记分类：\n\n${notesText}\n\n请严格按照 JSON 格式返回结果。`;
+
+        try {
+            Logger.info('ContentService', `Classifying ${notes.length} notes into topics...`);
+            const result = await provider.generateJSON<Record<string, string[]>>([
+                { role: "system", content: systemPrompt },
+                { role: "user", content: userPrompt }
+            ]);
+            return result;
+        } catch (error: any) {
+            Logger.error('ContentService', 'Topic classification failed', error);
+            throw new Error(`Topic classification failed: ${error.message}`);
+        }
     }
 }

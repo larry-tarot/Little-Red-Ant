@@ -43,6 +43,7 @@ interface Account {
     const [scanStatus, setScanStatus] = useState<string | null>(null);
     const [scanType, setScanType] = useState<'ADD' | 'BIND_CREATOR' | 'BIND_MAIN' | null>(null);
     const [scanAccountId, setScanAccountId] = useState<number | null>(null);
+    const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
   const [checkingHealth, setCheckingHealth] = useState(false);
   
   const { isMounted, safeRequest, abortControllerRef } = useSafeAsync();
@@ -75,6 +76,7 @@ interface Account {
     return () => {
       stopPolling();
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const stopPolling = () => {
@@ -178,7 +180,11 @@ interface Account {
               attempts++;
               try {
                   const res = await axios.get('/api/accounts/status');
-                  const { loginState, loginType } = res.data;
+                  const { loginState, loginType, qrCodeUrl } = res.data;
+                  
+                  if (qrCodeUrl && isMounted.current) {
+                      setQrCodeUrl(qrCodeUrl);
+                  }
                   
                   if (loginState === 'SUCCESS') {
                       stopPolling();
@@ -187,6 +193,7 @@ interface Account {
                           setScanStatus(null);
                           setScanType(null);
                           setScanAccountId(null);
+                          setQrCodeUrl(null);
                           fetchAccounts();
                           toast.success('登录成功！', { id: 'scan-toast' });
                       }
@@ -195,6 +202,7 @@ interface Account {
                       if (isMounted.current) {
                           setScanning(false);
                           setScanStatus('登录超时或失败');
+                          setQrCodeUrl(null);
                           toast.error('登录超时或失败', { id: 'scan-toast' });
                           setTimeout(() => {
                               if (isMounted.current) {
@@ -367,6 +375,24 @@ interface Account {
                 </div>
             }
         />
+
+        {/* 扫码登录二维码展示（Docker/无图形环境） */}
+        {qrCodeUrl && (
+            <div className="mb-6 p-4 bg-white rounded-xl border border-indigo-200 shadow-sm">
+                <div className="flex flex-col items-center">
+                    <p className="text-sm text-gray-600 mb-3">
+                        <Loader2 className="inline animate-spin mr-1" size={14} />
+                        检测到无图形环境，请使用小红书 APP 扫描下方二维码登录
+                    </p>
+                    <img 
+                        src={qrCodeUrl} 
+                        alt="扫码登录" 
+                        className="w-48 h-48 object-contain border rounded-lg"
+                    />
+                    <p className="text-xs text-gray-400 mt-2">二维码有效期约 5 分钟，过期后请重新点击添加账号</p>
+                </div>
+            </div>
+        )}
 
         {loading ? (
           <PageLoading message="正在加载账号列表..." />

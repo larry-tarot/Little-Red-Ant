@@ -2,20 +2,23 @@
 import db from '../../../db.js';
 import { ContentService } from '../../ai/ContentService.js';
 import { scrapeNoteDetail } from '../../rpa/xiaohongshu.js';
-import { TaskHandler } from '../TaskHandler.js';
+import { TaskHandler, TaskProgressEvent } from '../TaskHandler.js';
 import { TrendService } from '../../core/TrendService.js';
 import { Logger } from '../../LoggerService.js';
 
 export class AnalyzeNoteHandler implements TaskHandler {
-    async handle(task: any): Promise<any> {
+    async handle(task: any, onProgress?: (e: TaskProgressEvent) => void): Promise<any> {
         const noteId = task.payload.noteId;
+        const report = (p: number, s: string) => onProgress?.({ taskId: task.id, progress: p, stage: s });
         Logger.info('Worker', `Analyzing note ${noteId}...`);
+        report(5, '获取笔记数据');
 
         // 1. Get current note data via Service
         let note = TrendService.getNoteById(noteId);
-        
+
         // 2. If content missing, deep scrape
         if (!note || !note.content) {
+            report(20, '深入抓取笔记详情');
             note = await this.deepScrape(noteId, note);
         }
 
@@ -35,18 +38,21 @@ export class AnalyzeNoteHandler implements TaskHandler {
             contentToAnalyze += `\n\n【视频口播文案 (Transcript)】\n${note.transcript}`;
         }
 
+        report(40, 'AI 分析笔记结构');
         const analysis = await ContentService.analyzeNoteStructure(
-            contentToAnalyze, 
-            note.title || '', 
+            contentToAnalyze,
+            note.title || '',
             note.type || 'image',
             (note as any).videoFrames || [],
             undefined, // audioPath
             note.images ? (typeof note.images === 'string' ? JSON.parse(note.images) : note.images) : []
         );
-        
+
         // 4. Save Analysis via Service
+        report(80, '保存分析结果');
         TrendService.saveAnalysisResult(noteId, analysis);
 
+        report(100, '完成');
         return { noteId, analysis };
     }
 

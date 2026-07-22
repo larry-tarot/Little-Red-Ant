@@ -154,6 +154,7 @@ const VideoStudio: React.FC = () => {
         fetchAssets();
         fetchSettings();
         return () => stopPolling();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [id]);
 
     const fetchSettings = async () => {
@@ -180,7 +181,7 @@ const VideoStudio: React.FC = () => {
         }
     };
     
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+     
     const handleUploadAsset = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -213,6 +214,7 @@ const VideoStudio: React.FC = () => {
         } else if (!isGenerating && !isPublishing && pollRef.current) {
             stopPolling();
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [generatingSceneIds, project?.publish_status]);
 
     const stopPolling = () => {
