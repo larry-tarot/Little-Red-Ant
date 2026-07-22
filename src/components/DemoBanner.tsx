@@ -14,9 +14,8 @@ export default function DemoBanner() {
     useEffect(() => {
         const checkDemo = async () => {
             try {
-                const res = await axios.get('/api/settings');
-                const hasKey = res.data?.aliyun_api_key || res.data?.deepseek_api_key;
-                setShow(!hasKey);
+                const res = await axios.get('/api/auth/demo-mode');
+                setShow(res.data?.demoMode === true);
             } catch {
                 setShow(true);
             }

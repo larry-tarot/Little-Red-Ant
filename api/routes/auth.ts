@@ -79,4 +79,11 @@ router.get('/init-check', (req, res) => {
     }
 });
 
+// Demo Mode Check (public, no auth required)
+router.get('/demo-mode', async (req, res) => {
+    const { DemoService } = await import('../services/DemoService.js');
+    const isDemo = await DemoService.isDemoMode();
+    res.json({ demoMode: isDemo });
+});
+
 export default router;
