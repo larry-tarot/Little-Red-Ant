@@ -6,8 +6,12 @@ import { AnalyticsService } from '../services/core/AnalyticsService.js';
 const router = Router();
 
 // Get Summary Stats
-router.get('/summary', (req, res) => {
+router.get('/summary', async (req, res) => {
     try {
+        const { DemoService } = await import('../services/DemoService.js');
+        if (await DemoService.isDemoMode()) {
+            return res.json(DemoService.getMockAnalytics());
+        }
         const summary = AnalyticsService.getSummary();
         res.json(summary);
     } catch (error: any) {
@@ -39,8 +43,12 @@ router.post('/refresh', async (req, res) => {
 });
 
 // Get History Trend
-router.get('/history', (req, res) => {
+router.get('/history', async (req, res) => {
     try {
+        const { DemoService } = await import('../services/DemoService.js');
+        if (await DemoService.isDemoMode()) {
+            return res.json(DemoService.getMockHistory());
+        }
         const history = AnalyticsService.getHistory();
         res.json(history);
     } catch (error: any) {

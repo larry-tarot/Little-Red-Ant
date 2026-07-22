@@ -105,4 +105,11 @@ router.post('/test-connection', async (req, res) => {
     }
 });
 
+// Check if demo mode (no API keys configured)
+router.get('/demo-mode', async (req, res) => {
+    const { DemoService } = await import('../services/DemoService.js');
+    const isDemo = await DemoService.isDemoMode();
+    res.json({ demoMode: isDemo });
+});
+
 export default router;

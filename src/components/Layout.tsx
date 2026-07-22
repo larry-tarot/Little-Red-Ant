@@ -7,6 +7,7 @@ import {
 import { useAuthStore } from '../store/useAuthStore';
 import axios from 'axios';
 import TaskMonitor from './TaskMonitor';
+import DemoBanner from './DemoBanner';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -148,6 +149,7 @@ export default function Layout({ children }: LayoutProps) {
       )}
 
       {/* Mobile Header */}
+      <DemoBanner />
       <div className="md:hidden bg-gradient-to-r from-indigo-600 to-purple-600 p-4 flex justify-between items-center sticky top-0 z-20 shadow-lg">
         <div className="flex items-center font-bold text-white">
            <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center mr-2 text-lg">

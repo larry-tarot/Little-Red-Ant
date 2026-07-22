@@ -5,6 +5,7 @@ import { Logger } from '../LoggerService.js';
 import { ImageService } from './ImageService.js';
 import { VideoService } from './VideoService.js';
 import { AnalysisService } from './AnalysisService.js';
+import { DemoService } from '../DemoService.js';
 
 export interface GenerateNoteParams extends PromptContext {
   contentType?: 'note' | 'article' | 'video_script';
@@ -33,6 +34,13 @@ export interface GeneratedNote {
  */
 export class ContentService {
     static async generateNote(params: GenerateNoteParams): Promise<GeneratedNote> {
+        // Demo mode: return mock data when no API key is configured
+        const isDemo = await DemoService.isDemoMode();
+        if (isDemo) {
+            Logger.info('ContentService', 'Demo mode: returning mock note');
+            return DemoService.getMockNote();
+        }
+
         let systemPromptTemplate = '';
         
         // Handling Different Content Types

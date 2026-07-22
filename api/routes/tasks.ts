@@ -73,8 +73,12 @@ router.get('/stats', (req, res) => {
 });
 
 // List Tasks (Recent or Range)
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
     try {
+        const { DemoService } = await import('../services/DemoService.js');
+        if (await DemoService.isDemoMode()) {
+            return res.json(DemoService.getMockTasks());
+        }
         const page = parseInt(req.query.page as string) || 1;
         const pageSize = parseInt(req.query.pageSize as string) || 20;
         const startDate = req.query.start_date as string;
