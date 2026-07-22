@@ -319,15 +319,15 @@ export default function Analytics() {
                             <p className="text-sm text-gray-500">已回复评论占比</p>
                         </div>
                         <div className="mt-4 flex items-end">
-                            <span className="text-4xl font-bold text-gray-900">{engagement.replyStats.rate}%</span>
+                            <span className="text-4xl font-bold text-gray-900">{engagement.replyStats?.rate ?? 0}%</span>
                             <span className="text-sm text-gray-500 ml-2 mb-1">
-                                ({engagement.replyStats.replied} / {engagement.replyStats.total})
+                                ({engagement.replyStats?.replied ?? 0} / {engagement.replyStats?.total ?? 0})
                             </span>
                         </div>
                         <div className="w-full bg-gray-200 rounded-full h-2.5 mt-4">
-                            <div 
-                                className="bg-indigo-600 h-2.5 rounded-full" 
-                                style={{ width: `${engagement.replyStats.rate}%` }}
+                            <div
+                                className="bg-indigo-600 h-2.5 rounded-full"
+                                style={{ width: `${engagement.replyStats?.rate ?? 0}%` }}
                             ></div>
                         </div>
                     </div>
