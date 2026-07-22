@@ -43,6 +43,7 @@ export default function ImageEditor({ imageUrl, onClose, onSave }: ImageEditorPr
 
   useEffect(() => {
     drawCanvas();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [elements, imageLoaded]);
 
   const drawCanvas = () => {

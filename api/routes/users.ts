@@ -1,8 +1,6 @@
-
 import { Router } from 'express';
-import bcrypt from 'bcryptjs';
-import db from '../db.js';
 import { authenticateToken, requireAdmin } from '../middleware/auth.js';
+import { AdminUserService } from '../services/core/AdminUserService.js';
 
 const router = Router();
 
@@ -13,7 +11,7 @@ router.use(requireAdmin);
 // Get All Users
 router.get('/', (req, res) => {
     try {
-        const users = db.prepare('SELECT id, username, role, alias, created_at FROM admin_users ORDER BY created_at DESC').all();
+        const users = AdminUserService.getAllAdminUsers();
         res.json(users);
     } catch (error: any) {
         res.status(500).json({ error: error.message });
@@ -26,16 +24,11 @@ router.post('/', async (req, res) => {
     if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
 
     try {
-        const existing = db.prepare('SELECT id FROM admin_users WHERE username = ?').get(username);
-        if (existing) return res.status(400).json({ error: 'Username already exists' });
-
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(password, salt);
-
-        const stmt = db.prepare('INSERT INTO admin_users (username, password_hash, role, alias) VALUES (?, ?, ?, ?)');
-        const info = stmt.run(username, hashedPassword, role || 'editor', alias || username);
-
-        res.json({ success: true, id: info.lastInsertRowid });
+        const result = await AdminUserService.createAdminUser(username, password, role, alias);
+        if (!result.success) {
+            return res.status(400).json({ error: result.error });
+        }
+        res.json({ success: true, id: result.id });
     } catch (error: any) {
         res.status(500).json({ error: error.message });
     }
@@ -45,7 +38,7 @@ router.post('/', async (req, res) => {
 router.put('/:id', (req, res) => {
     const { role, alias } = req.body;
     try {
-        db.prepare('UPDATE admin_users SET role = ?, alias = ? WHERE id = ?').run(role, alias, req.params.id);
+        AdminUserService.updateAdminUser(parseInt(req.params.id), role, alias);
         res.json({ success: true });
     } catch (error: any) {
         res.status(500).json({ error: error.message });
@@ -55,8 +48,10 @@ router.put('/:id', (req, res) => {
 // Delete User
 router.delete('/:id', (req, res) => {
     try {
-        if (req.params.id === '1') return res.status(403).json({ error: 'Cannot delete root admin' });
-        db.prepare('DELETE FROM admin_users WHERE id = ?').run(req.params.id);
+        const result = AdminUserService.deleteAdminUser(req.params.id);
+        if (!result.success) {
+            return res.status(403).json({ error: result.error });
+        }
         res.json({ success: true });
     } catch (error: any) {
         res.status(500).json({ error: error.message });

@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import db from '../db.js';
 import { enqueueTask } from '../services/queue.js';
+import { TrendService } from '../services/core/TrendService.js';
 
 const router = Router();
 
@@ -14,75 +14,77 @@ const MOCK_TRENDS = [
 ];
 
 router.get('/', async (req, res) => {
-  try {
-    const source = (req.query.source as string) || 'weibo';
-    const forceRefresh = req.query.refresh === 'true';
-    const now = Date.now();
-    
-    // 1. Get from DB
-    const row = db.prepare('SELECT * FROM trends WHERE source = ?').get(source) as any;
-    let data = row ? JSON.parse(row.data) : [];
-    const lastUpdate = row ? new Date(row.updated_at).getTime() : 0;
-    
-    // Convert UTC/Server time to timestamp if needed, but Date(row.updated_at) should work if format is standard
-    // sqlite CURRENT_TIMESTAMP is UTC 'YYYY-MM-DD HH:MM:SS'
-    // new Date('YYYY-MM-DD HH:MM:SS') treats as local time in some environments or UTC in others.
-    // Better to rely on relative check or just accept slight skew.
-    
-    // Check staleness (offset by timezone if needed, but relative diff is usually safe if consistent)
-    // Actually, Date.now() is UTC. sqlite CURRENT_TIMESTAMP is UTC.
-    // new Date(string + 'Z') enforces UTC.
-    const lastUpdateTs = row ? new Date(row.updated_at + 'Z').getTime() : 0; 
-    const isStale = (now - lastUpdateTs) > CACHE_DURATION;
+    try {
+        const source = (req.query.source as string) || 'weibo';
+        const forceRefresh = req.query.refresh === 'true';
+        const now = Date.now();
 
-    // 2. Trigger Background Update if needed
-    if (forceRefresh || !row || isStale) {
-        // Check if task already running
-        const pendingTasks = db.prepare(`
-            SELECT payload FROM tasks 
-            WHERE type = 'SCRAPE_TRENDS' AND (status = 'PENDING' OR status = 'PROCESSING')
-        `).all() as any[];
-        
-        const isAlreadyQueued = pendingTasks.some(t => {
-            try {
-                const p = JSON.parse(t.payload);
-                return p.source === source;
-            } catch(e) { return false; }
-        });
-
-        if (!isAlreadyQueued) {
-            console.log(`Triggering background scrape for ${source} (Stale: ${isStale}, Force: ${forceRefresh})`);
-            enqueueTask('SCRAPE_TRENDS', { source });
+        // 抖音来源暂时下线(Web 端反爬极严,Sprint 1 决定:返回空数据,避免空 tab 体验)
+        // See PROJECT_STATUS.md for decision context.
+        // UI side has already hidden the douyin tab in src/components/HotTrends.tsx;
+        // this guard protects any direct API callers.
+        if (source === 'douyin') {
+            return res.json({
+                source: 'douyin',
+                updatedAt: now,
+                data: [],
+                status: 'FRESH'
+            });
         }
-    }
 
-    // 3. Return Response
-    if (!row && data.length === 0) {
-        // Fallback to mock if we have absolutely nothing in DB
+        // 1. 从 Service 获取数据
+        const row = TrendService.getTrendsBySource(source);
+        const data = row ? JSON.parse(row.data) : [];
+
+        // Convert UTC/Server time to timestamp if needed, but Date(row.updated_at) should work if format is standard
+        // sqlite CURRENT_TIMESTAMP is UTC 'YYYY-MM-DD HH:MM:SS'
+        // new Date('YYYY-MM-DD HH:MM:SS') treats as local time in some environments or UTC in others.
+        // Better to rely on relative check or just accept slight skew.
+
+        // Check staleness (offset by timezone if needed, but relative diff is usually safe if consistent)
+        // Actually, Date.now() is UTC. sqlite CURRENT_TIMESTAMP is UTC.
+        // new Date(string + 'Z') enforces UTC.
+        const lastUpdateTs = row ? new Date(row.updated_at + 'Z').getTime() : 0;
+        const isStale = (now - lastUpdateTs) > CACHE_DURATION;
+
+        // 2. Trigger Background Update if needed
+        if (forceRefresh || !row || isStale) {
+            // Check if task already running
+            const isAlreadyQueued = TrendService.isTrendScrapeTaskQueued(source);
+
+            if (!isAlreadyQueued) {
+                console.log(`Triggering background scrape for ${source} (Stale: ${isStale}, Force: ${forceRefresh})`);
+                enqueueTask('SCRAPE_TRENDS', { source });
+            }
+        }
+
+        // 3. Return Response
+        if (!row && data.length === 0) {
+            // Fallback to mock if we have absolutely nothing in DB
+            return res.json({
+                source: 'mock',
+                updatedAt: now,
+                data: MOCK_TRENDS,
+                status: 'UPDATING'
+            });
+        }
+
         return res.json({
+            source: source,
+            updatedAt: lastUpdateTs,
+            data: data,
+            status: isStale ? 'UPDATING' : 'FRESH'
+        });
+
+    } catch (error) {
+        console.error('Error fetching trends:', error);
+        // Fallback to mock
+        res.json({
             source: 'mock',
-            updatedAt: now,
-            data: MOCK_TRENDS,
-            status: 'UPDATING'
+            updatedAt: Date.now(),
+            data: MOCK_TRENDS
         });
     }
-
-    return res.json({
-        source: source,
-        updatedAt: lastUpdateTs,
-        data: data,
-        status: isStale ? 'UPDATING' : 'FRESH'
-    });
-
-  } catch (error) {
-    console.error('Error fetching trends:', error);
-    // Fallback to mock
-    res.json({
-      source: 'mock',
-      updatedAt: Date.now(),
-      data: MOCK_TRENDS
-    });
-  }
 });
 
 export default router;

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Settings, Save, ArrowLeft, Key, Image, Cpu, CheckCircle, AlertCircle, Clock, MessageSquare, Users, Trash2, Plus, UserPlus, Lock, Video, Edit2, Shield } from 'lucide-react';
+import { Settings, Save, ArrowLeft, Key, Image, Cpu, CheckCircle, AlertCircle, Clock, MessageSquare, Users, Trash2, Plus, UserPlus, Lock, Video, Edit2, Shield, Heart } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
 import toast from 'react-hot-toast';
@@ -13,6 +13,7 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<'system' | 'profile'>('profile');
+  const [testing, setTesting] = useState<string | null>(null);
   
   // Profile State
   const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
@@ -75,6 +76,22 @@ export default function SettingsPage() {
 
   const handleChange = (key: string, value: string) => {
     setSettings(prev => ({ ...prev, [key]: value }));
+  };
+
+  const testConnection = async (key: string) => {
+      setTesting(key);
+      try {
+        const res = await axios.post('/api/settings/test-connection', { key });
+        if (res.data.success) {
+          toast.success(`✅ ${key} 连接成功`);
+        } else {
+          toast.error(`❌ ${key}: ${res.data.message || '连接失败'}`);
+        }
+      } catch (e: any) {
+        toast.error(`❌ ${key}: ${e.response?.data?.message || e.message || '无法连接到服务器'}`);
+      } finally {
+        setTesting(null);
+      }
   };
 
   const handleSave = async () => {
@@ -228,8 +245,8 @@ export default function SettingsPage() {
           {/* System Settings Tab */}
           {activeTab === 'system' && (
             <>
-              {/* Engagement Settings */}
-              <div className="bg-white shadow-sm rounded-lg border border-gray-200 overflow-hidden">
+          {/* Engagement Settings */}
+          <div className="bg-white shadow-sm rounded-lg border border-gray-200 overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 flex items-center">
               <MessageSquare className="text-pink-500 mr-2" size={20} />
               <h2 className="text-lg font-medium text-gray-900">互动与同步</h2>
@@ -274,7 +291,7 @@ export default function SettingsPage() {
 
               {/* AI Analysis Limit */}
               {settings.AUTO_REPLY_ENABLED === 'true' && (
-                  <div className="animate-in fade-in slide-in-from-top-2">
+                  <div className="animate-in fade-in slide-in-from-top-2 mb-6">
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       单次同步 AI 分析条数限制
                     </label>
@@ -295,6 +312,70 @@ export default function SettingsPage() {
                     </p>
                   </div>
               )}
+
+              {/* Auto Viral Analysis Settings */}
+              <div className="border-t border-gray-200 pt-4 mt-4">
+                  <div className="flex items-center justify-between py-2 border-b border-gray-100 mb-4 pb-4">
+                     <div>
+                        <label className="text-sm font-medium text-gray-700">启用超级爆款自动拆解</label>
+                        <p className="text-xs text-gray-500">爬取热点时，自动对高赞笔记进行 AI 深度分析</p>
+                     </div>
+                     <div className="flex items-center">
+                        <button 
+                            onClick={() => handleChange('AUTO_ANALYZE_ENABLED', settings.AUTO_ANALYZE_ENABLED === 'true' ? 'false' : 'true')}
+                            className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${settings.AUTO_ANALYZE_ENABLED === 'true' ? 'bg-purple-600' : 'bg-gray-200'}`}
+                        >
+                            <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${settings.AUTO_ANALYZE_ENABLED === 'true' ? 'translate-x-5' : 'translate-x-0'}`} />
+                        </button>
+                     </div>
+                  </div>
+
+                  {settings.AUTO_ANALYZE_ENABLED === 'true' && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              爆款阈值 (点赞数)
+                            </label>
+                            <div className="relative">
+                                <Heart className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+                                <input
+                                  type="number"
+                                  min="1000"
+                                  step="1000"
+                                  value={settings.AUTO_ANALYZE_THRESHOLD || '100000'}
+                                  onChange={(e) => handleChange('AUTO_ANALYZE_THRESHOLD', e.target.value)}
+                                  placeholder="100000"
+                                  className="pl-10 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm h-10 border px-3"
+                                />
+                            </div>
+                            <p className="mt-1 text-xs text-gray-500">
+                               只有点赞数超过此数值的笔记才会自动分析。默认: 100000
+                            </p>
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              单次批次分析上限
+                            </label>
+                            <div className="relative">
+                                <Shield className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+                                <input
+                                  type="number"
+                                  min="1"
+                                  max="20"
+                                  value={settings.AUTO_ANALYZE_LIMIT_PER_BATCH || '3'}
+                                  onChange={(e) => handleChange('AUTO_ANALYZE_LIMIT_PER_BATCH', e.target.value)}
+                                  placeholder="3"
+                                  className="pl-10 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm h-10 border px-3"
+                                />
+                            </div>
+                            <p className="mt-1 text-xs text-gray-500">
+                               每次抓取任务最多自动分析几篇，防止 Token 爆炸。默认: 3篇
+                            </p>
+                          </div>
+                      </div>
+                  )}
+              </div>
 
             </div>
           </div>
@@ -319,6 +400,13 @@ export default function SettingsPage() {
                       placeholder="sk-..."
                       className="pl-10 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm h-10 border px-3"
                     />
+                    <button
+                      onClick={() => testConnection('aliyun_api_key')}
+                      disabled={testing === 'aliyun_api_key'}
+                      className="absolute right-2 top-1/2 transform -translate-y-1/2 text-xs text-indigo-600 hover:text-indigo-800 disabled:text-gray-400 px-2 py-1 rounded"
+                    >
+                      {testing === 'aliyun_api_key' ? '测试中...' : '测试连接'}
+                    </button>
                 </div>
                 <p className="mt-1 text-xs text-gray-500">如果不填，默认读取环境变量 .env 中的配置</p>
               </div>
@@ -472,6 +560,13 @@ export default function SettingsPage() {
                       placeholder="sk-..."
                       className="pl-10 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm h-10 border px-3"
                     />
+                    <button
+                      onClick={() => testConnection('deepseek_api_key')}
+                      disabled={testing === 'deepseek_api_key'}
+                      className="absolute right-2 top-1/2 transform -translate-y-1/2 text-xs text-indigo-600 hover:text-indigo-800 disabled:text-gray-400 px-2 py-1 rounded"
+                    >
+                      {testing === 'deepseek_api_key' ? '测试中...' : '测试连接'}
+                    </button>
                 </div>
               </div>
 

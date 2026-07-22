@@ -1,20 +1,30 @@
 import { Router } from 'express';
-import db from '../db.js';
 import { enqueueTask } from '../services/queue.js';
 import { AssetService } from '../services/asset/AssetService.js';
+import { TrendService } from '../services/core/TrendService.js';
 
 const router = Router();
 
-// Helper to localize cover image
+/**
+ * 功能描述：将笔记封面图片本地化（外部 URL 下载到本地）
+ *
+ * 参数说明：
+ * - note: [any] 笔记对象，需包含 id 和 cover_url 字段
+ *
+ * 返回说明：
+ * - any 处理后的笔记对象（cover_url 可能被更新为本地路径）
+ *
+ * NOTE: 此函数为异步"触发即忘"调用，失败仅记录日志不阻断主流程
+ */
 const localizeCover = async (note: any) => {
     if (!note.cover_url) return note;
-    
-    // Check if it needs localization (external http)
+
+    // 仅对外部 http 链接做本地化（本地路径和 /uploads/ 跳过）
     if (note.cover_url.startsWith('http') && !note.cover_url.includes('localhost') && !note.cover_url.includes('/uploads/')) {
         try {
             const localUrl = await AssetService.downloadAndLocalize(note.cover_url, 'image');
-            // Update DB
-            db.prepare('UPDATE trending_notes SET cover_url = ? WHERE id = ?').run(localUrl, note.id);
+            // 本地化成功后更新数据库记录
+            TrendService.updateCoverUrl(note.id, localUrl);
             note.cover_url = localUrl;
         } catch (e) {
             console.warn(`Failed to localize cover for note ${note.id}:`, e);
@@ -23,88 +33,59 @@ const localizeCover = async (note: any) => {
     return note;
 };
 
+/**
+ * 功能描述：解析笔记的 tags 和 analysis_result 字段（JSON 字符串转对象）
+ *
+ * 参数说明：
+ * - note: [any] 原始笔记对象
+ *
+ * 返回说明：
+ * - any 转换后的笔记对象，tags 和 analysis_result 为数组/对象或空值
+ *
+ * 异常情况：
+ * - JSON 解析失败时抛出异常，由调用方捕获处理
+ */
+const parseNoteFields = (note: any) => {
+    return {
+        ...note,
+        tags: note.tags ? JSON.parse(note.tags) : [],
+        analysis_result: note.analysis_result ? JSON.parse(note.analysis_result) : null
+    };
+};
+
 // Get list of trending notes
 router.get('/', async (req, res) => {
     try {
         const page = parseInt(req.query.page as string) || 1;
         const limit = parseInt(req.query.limit as string) || 20;
-        const offset = (page - 1) * limit;
-        const sort = (req.query.sort as string) || 'scraped_at'; // 'likes_count', 'scraped_at'
-        const category = req.query.category as string; // Optional category filter
-        const search = req.query.search as string; // Optional search filter
-        const date = req.query.date as string; // Optional date filter (YYYY-MM-DD)
-        const analyzed = req.query.analyzed === 'true'; // Filter by analyzed status
+        const sort = (req.query.sort as string) || 'scraped_at';
+        const category = req.query.category as string;
+        const search = req.query.search as string;
+        const date = req.query.date as string;
+        const analyzed = req.query.analyzed === 'true';
+        const type = req.query.type as string;
 
-        let orderBy = 'scraped_at DESC';
-        if (sort === 'likes_count') orderBy = 'likes_count DESC';
+        // 调用 Service 层获取分页数据
+        const result = TrendService.listTrendingNotes({
+            page,
+            limit,
+            sort,
+            category,
+            search,
+            date,
+            analyzed,
+            type
+        });
 
-        let query = 'SELECT * FROM trending_notes';
-        let countQuery = 'SELECT COUNT(*) as count FROM trending_notes';
-        const params: any[] = [];
-        const whereConditions: string[] = [];
+        // 异步本地化封面图片（触发即忘，不阻塞响应）
+        Promise.all(result.data.map(n => localizeCover(n))).catch(e =>
+            console.error('Background localization failed', e)
+        );
 
-        if (category && category !== 'all') {
-            whereConditions.push('category = ?');
-            params.push(category);
-        }
-
-        if (analyzed) {
-            whereConditions.push('analysis_result IS NOT NULL');
-        }
-
-        // Filter out low quality notes by default if not sorting by scraped_at
-        // Or just let the sort handle it.
-        // Let's filter out < 10 likes just to be safe from garbage data
-        // whereConditions.push('likes_count >= 10');
-
-        if (search) {
-            whereConditions.push('(title LIKE ? OR content LIKE ? OR author_name LIKE ?)');
-            const searchPattern = `%${search}%`;
-            params.push(searchPattern, searchPattern, searchPattern);
-        }
-
-        if (date) {
-            whereConditions.push('scraped_at LIKE ?');
-            params.push(`${date}%`);
-        }
-
-        if (whereConditions.length > 0) {
-            const whereClause = ' WHERE ' + whereConditions.join(' AND ');
-            query += whereClause;
-            countQuery += whereClause;
-        }
-
-        // Always sort by likes_count DESC if user didn't specify otherwise
-        // Or if sort is 'scraped_at', maybe secondary sort by likes?
-        if (sort === 'scraped_at') {
-            // Even when sorting by time, we prefer hot notes within that time
-            // But strict time sort is useful for "breaking news"
-            query += ` ORDER BY scraped_at DESC LIMIT ? OFFSET ?`;
-        } else {
-            query += ` ORDER BY likes_count DESC LIMIT ? OFFSET ?`;
-        }
-        
-        const notes = db.prepare(query).all(...params, limit, offset);
-        const total = db.prepare(countQuery).get(...params) as { count: number };
-
-        // Async localize covers for the current page
-        // FIRE AND FORGET: Don't await, let it run in background to keep UI snappy.
-        // The images might be broken initially, but will fix themselves on next refresh/render.
-        // Ideally we should use a placeholder or check status, but for now speed is priority.
-        Promise.all(notes.map(n => localizeCover(n))).catch(e => console.error('Background localization failed', e));
-
+        // 解析 JSON 字段后返回
         res.json({
-            data: notes.map((n: any) => ({
-                ...n,
-                tags: n.tags ? JSON.parse(n.tags) : [],
-                analysis_result: n.analysis_result ? JSON.parse(n.analysis_result) : null
-            })),
-            pagination: {
-                page,
-                limit,
-                total: total.count,
-                totalPages: Math.ceil(total.count / limit)
-            }
+            data: result.data.map(parseNoteFields),
+            pagination: result.pagination
         });
     } catch (error: any) {
         console.error('Error fetching trending notes:', error);
@@ -116,32 +97,19 @@ router.get('/', async (req, res) => {
 router.post('/import', (req, res) => {
     try {
         const { note_id, title, cover_url, author_name, likes_count, note_url, type, video_url } = req.body;
-        
-        // Check if exists
-        const existing = db.prepare('SELECT id FROM trending_notes WHERE note_id = ?').get(note_id) as any;
-        
-        if (existing) {
-            return res.json({ success: true, id: existing.id, message: 'Note already exists' });
-        }
 
-        // Insert
-        const result = db.prepare(`
-            INSERT INTO trending_notes (
-                note_id, title, cover_url, author_name, likes_count, 
-                note_url, type, video_url, scraped_at, category
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 'competitor_import')
-        `).run(
-            note_id, 
-            title || 'Untitled', 
-            cover_url || '', 
-            author_name || 'Unknown', 
-            likes_count || 0, 
-            note_url || '', 
-            type || 'image', 
-            video_url || null
-        );
+        const result = TrendService.importNote({
+            note_id,
+            title,
+            cover_url,
+            author_name,
+            likes_count,
+            note_url,
+            type,
+            video_url
+        });
 
-        res.json({ success: true, id: result.lastInsertRowid, message: 'Note imported' });
+        res.json(result);
     } catch (error: any) {
         console.error('Import note failed:', error);
         res.status(500).json({ error: error.message });
@@ -152,11 +120,10 @@ router.post('/import', (req, res) => {
 router.post('/scrape', async (req, res) => {
     try {
         const { category } = req.body;
-        // Enqueue scraping task
-        const taskId = enqueueTask('SCRAPE_TRENDS', { 
-            source: 'xiaohongshu', 
+        const taskId = enqueueTask('SCRAPE_TRENDS', {
+            source: 'xiaohongshu',
             type: 'notes',
-            category: category || 'recommend' 
+            category: category || 'recommend'
         });
         res.json({ message: 'Scraping task started', taskId });
     } catch (error: any) {
@@ -168,15 +135,16 @@ router.post('/scrape', async (req, res) => {
 // Get single note details
 router.get('/:id', (req, res) => {
     try {
-        const note = db.prepare('SELECT * FROM trending_notes WHERE id = ?').get(req.params.id) as any;
+        const note = TrendService.getTrendingNoteById(req.params.id);
         if (!note) {
             return res.status(404).json({ error: 'Note not found' });
         }
-        res.json({
-            ...note,
-            tags: note.tags ? JSON.parse(note.tags) : [],
-            analysis_result: note.analysis_result ? JSON.parse(note.analysis_result) : null
-        });
+        try {
+            res.json(parseNoteFields(note));
+        } catch (e) {
+            console.error(`[TrendingNotes] Failed to parse note id=${req.params.id}:`, e);
+            res.status(500).json({ error: '数据解析失败，笔记内容可能损坏' });
+        }
     } catch (error: any) {
         res.status(500).json({ error: error.message });
     }
@@ -185,31 +153,30 @@ router.get('/:id', (req, res) => {
 // Trigger analysis for a note
 router.post('/:id/analyze', async (req, res) => {
     try {
-        const noteId = req.params.id; // note_id (string) not the DB integer id
-        // Or if we use DB ID, we should lookup note_id.
-        // The gallery uses DB ID (id) but stores note_id. 
-        // Let's assume the frontend passes the DB ID for consistency, and we look up the note_id.
-        
-        // Actually, gallery has note.note_id. Let's support note_id directly if possible, or lookup.
-        // Let's check if param looks like an integer.
-        
+        const noteId = req.params.id;
+
+        // 兼容前端传入 DB ID 或 note_id 两种情况
         let targetNoteId = noteId;
         if (/^\d+$/.test(noteId)) {
-            // It's likely a DB ID, fetch the note_id
-            const note = db.prepare('SELECT note_id FROM trending_notes WHERE id = ?').get(noteId) as any;
+            // 看起来是 DB ID，查找对应的 note_id
+            const note = TrendService.getNoteIdByDbId(noteId);
             if (note) targetNoteId = note.note_id;
         }
 
-        // Check if already analyzed
-        const existing = db.prepare('SELECT analysis_result FROM trending_notes WHERE note_id = ?').get(targetNoteId) as any;
+        // 检查是否已有分析结果，有则直接返回
+        const existing = TrendService.getAnalysisResult(targetNoteId);
         if (existing && existing.analysis_result) {
-            return res.json({ 
-                status: 'COMPLETED', 
-                result: JSON.parse(existing.analysis_result) 
-            });
+            try {
+                return res.json({
+                    status: 'COMPLETED',
+                    result: JSON.parse(existing.analysis_result)
+                });
+            } catch (e) {
+                console.error(`[TrendingNotes] Failed to parse analysis_result for ${targetNoteId}:`, e);
+            }
         }
 
-        // Enqueue task
+        // 入队分析任务
         const taskId = enqueueTask('ANALYZE_NOTE', { noteId: targetNoteId });
         res.json({ message: 'Analysis started', taskId, status: 'PENDING' });
     } catch (error: any) {
@@ -221,7 +188,7 @@ router.post('/:id/analyze', async (req, res) => {
 // Delete note
 router.delete('/:id', (req, res) => {
     try {
-        db.prepare('DELETE FROM trending_notes WHERE id = ?').run(req.params.id);
+        TrendService.deleteTrendingNote(req.params.id);
         res.json({ success: true });
     } catch (error: any) {
         res.status(500).json({ error: error.message });
@@ -232,14 +199,8 @@ router.delete('/:id', (req, res) => {
 router.post('/batch-delete', (req, res) => {
     try {
         const { ids } = req.body;
-        if (!Array.isArray(ids) || ids.length === 0) {
-            return res.status(400).json({ error: 'Invalid ids provided' });
-        }
-
-        const placeholders = ids.map(() => '?').join(',');
-        db.prepare(`DELETE FROM trending_notes WHERE id IN (${placeholders})`).run(...ids);
-        
-        res.json({ success: true, count: ids.length });
+        const count = TrendService.batchDeleteTrendingNotes(ids);
+        res.json({ success: true, count });
     } catch (error: any) {
         console.error('Batch delete failed:', error);
         res.status(500).json({ error: error.message });
@@ -249,12 +210,12 @@ router.post('/batch-delete', (req, res) => {
 // Refresh note (Force re-scrape)
 router.post('/:id/refresh', async (req, res) => {
     try {
-        const note = db.prepare('SELECT note_id FROM trending_notes WHERE id = ?').get(req.params.id) as any;
+        const note = TrendService.getNoteIdByDbId(req.params.id);
         if (!note) return res.status(404).json({ error: 'Note not found' });
-        
-        // Clear content to force re-scrape in worker
-        db.prepare('UPDATE trending_notes SET content = NULL WHERE id = ?').run(req.params.id);
-        
+
+        // 清空 content 强制重新抓取深度内容
+        TrendService.clearNoteContentForRefresh(req.params.id);
+
         const taskId = enqueueTask('ANALYZE_NOTE', { noteId: note.note_id });
         res.json({ success: true, taskId, message: 'Refresh started' });
     } catch (error: any) {

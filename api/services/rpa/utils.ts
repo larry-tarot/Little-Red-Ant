@@ -20,8 +20,10 @@ export const COMMON_ARGS = [
 ];
 
 export async function launchBrowser(headless: boolean = false) {
+    // 自动检测无图形环境（Docker / Linux 服务器）
+    const isHeadless = headless || process.env.HEADLESS === 'true' || (process.platform === 'linux' && !process.env.DISPLAY);
     return await chromium.launch({
-        headless,
+        headless: isHeadless,
         channel: 'chrome',
         args: COMMON_ARGS
     });

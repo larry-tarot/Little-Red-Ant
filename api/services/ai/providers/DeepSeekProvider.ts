@@ -42,6 +42,15 @@ export class DeepSeekProvider implements AIProvider {
         const client = await this.getClient();
         const dbModel = await SettingsService.get('deepseek_model');
 
+        // DeepSeek 的 json_object 模式要求 prompt 中必须包含英文单词 "json"
+        const jsonInstruction = "IMPORTANT: You must output strictly valid JSON only. Do not wrap in markdown code blocks.";
+        const systemMsgIdx = messages.findIndex(m => m.role === 'system');
+        if (systemMsgIdx > -1) {
+            messages[systemMsgIdx].content += `\n${jsonInstruction}`;
+        } else {
+            messages.unshift({ role: 'system', content: jsonInstruction });
+        }
+
         const completion = await client.chat.completions.create({
             messages,
             model: options?.model || dbModel || 'deepseek-chat',

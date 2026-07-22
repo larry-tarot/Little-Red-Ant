@@ -6,14 +6,36 @@ import fs from 'fs';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Ensure data directory exists
+// Ensure data directory exists (no-op when in test mode below).
 const dataDir = path.join(__dirname, '../data');
 if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir);
 }
 
-const dbPath = path.join(dataDir, 'app.db');
-const db = new Database(dbPath);
+// Sprint 5: tests can opt into an in-memory database by setting
+// LITTLE_RED_ANT_TEST=1 (done in tests/setup.ts before any consumer imports).
+// This avoids the need to vi.mock api/db.js from many different relative paths.
+// When the test env var is set, we use a shared :memory: connection that
+// survives across module imports within a single test process.
+// SAFETY: if NODE_ENV=production, ignore this env var — data loss is unacceptable.
+const isTest = process.env.LITTLE_RED_ANT_TEST === '1' && process.env.NODE_ENV !== 'production';
+
+const dbPath = isTest ? ':memory:' : path.join(dataDir, 'app.db');
+const db = new Database(dbPath, { timeout: 5000 }); // Increase busy timeout to 5s
+if (!isTest) {
+  db.pragma('journal_mode = WAL');
+}
+db.pragma('synchronous = NORMAL'); // Balance between safety and speed
+db.pragma('busy_timeout = 5000'); // Explicitly set busy timeout
+
+// Test mode: ensure all tables exist as soon as the module loads. In production
+// this is handled explicitly by server.ts (which calls initDB() during boot),
+// but tests that import the module directly need the schema ready immediately.
+if (isTest) {
+  // initDB is hoisted via the function declaration below; this runs synchronously
+  // because better-sqlite3 is sync.
+  initDB();
+}
 
 // Initialize tables
 export function initDB() {
@@ -84,6 +106,10 @@ export function initDB() {
           console.log('Migrating drafts table: Adding content_type...');
           db.prepare("ALTER TABLE drafts ADD COLUMN content_type TEXT DEFAULT 'note'").run(); // 'note', 'article', 'video_script'
       }
+      if (!columnNames.includes('meta_data')) {
+          console.log('Migrating drafts table: Adding meta_data...');
+          db.prepare("ALTER TABLE drafts ADD COLUMN meta_data TEXT").run(); // JSON: { topic, keywords, style, remixStructure, customInstructions }
+      }
   } catch (e) {
       console.error('Migration drafts failed:', e);
   }
@@ -153,6 +179,10 @@ export function initDB() {
       }
 
       // Persona Fields
+      if (!columnNames.includes('persona_image_url')) {
+          console.log('Migrating accounts table: Adding persona_image_url...');
+          db.prepare("ALTER TABLE accounts ADD COLUMN persona_image_url TEXT").run();
+      }
       if (!columnNames.includes('persona_desc')) {
           console.log('Migrating accounts table: Adding persona_desc...');
           db.prepare("ALTER TABLE accounts ADD COLUMN persona_desc TEXT").run();
@@ -216,6 +246,7 @@ export function initDB() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       note_id TEXT,
       competitor_id INTEGER, -- Added for filtering
+      account_id INTEGER, -- Sprint 1: closed-loop writeback from PublishHandler
       views INTEGER DEFAULT 0,
       likes INTEGER DEFAULT 0,
       comments INTEGER DEFAULT 0,
@@ -224,6 +255,16 @@ export function initDB() {
       record_time DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  // Migration: add account_id to note_stats_history if it pre-dates Sprint 1
+  try {
+      const columns = db.prepare("PRAGMA table_info(note_stats_history)").all() as any[];
+      if (!columns.map((c: any) => c.name).includes('account_id')) {
+          db.prepare("ALTER TABLE note_stats_history ADD COLUMN account_id INTEGER").run();
+      }
+  } catch (e) {
+      console.error('Migration note_stats_history.account_id failed:', e);
+  }
 
   // Migration: Fix Foreign Key Mismatch for existing table
   try {
@@ -273,6 +314,7 @@ export function initDB() {
       error TEXT, -- Error message
       attempts INTEGER DEFAULT 0,
       scheduled_at DATETIME, -- Scheduled execution time (null = immediate)
+      priority INTEGER DEFAULT 0, -- Higher value = Higher priority
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
@@ -295,6 +337,10 @@ export function initDB() {
       if (!columnNames.includes('progress')) {
           console.log('Migrating tasks table: Adding progress...');
           db.prepare("ALTER TABLE tasks ADD COLUMN progress INTEGER DEFAULT 0").run();
+      }
+      if (!columnNames.includes('priority')) {
+          console.log('Migrating tasks table: Adding priority...');
+          db.prepare("ALTER TABLE tasks ADD COLUMN priority INTEGER DEFAULT 0").run();
       }
   } catch (e) {
       console.error('Migration tasks failed:', e);
@@ -539,9 +585,23 @@ export function initDB() {
       description TEXT,
       template TEXT NOT NULL, -- The system prompt content
       is_default BOOLEAN DEFAULT 0,
+      version INTEGER DEFAULT 1,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  // Migration: Add version to prompt_templates
+  try {
+      const columns = db.prepare("PRAGMA table_info(prompt_templates)").all() as any[];
+      const columnNames = columns.map(c => c.name);
+      
+      if (!columnNames.includes('version')) {
+          console.log('Migrating prompt_templates table: Adding version...');
+          db.prepare("ALTER TABLE prompt_templates ADD COLUMN version INTEGER DEFAULT 1").run();
+      }
+  } catch (e) {
+      console.error('Migration prompt_templates version failed:', e);
+  }
 
   // Notifications Table (System Alerts)
   db.exec(`
@@ -555,6 +615,20 @@ export function initDB() {
     )
   `);
 
+  // Prompt Optimizations Table (AI Feedback Loop)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS prompt_optimizations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      original_template_id INTEGER,
+      target_style TEXT,
+      analysis_report TEXT, -- AI Analysis of why previous prompts worked/failed
+      optimized_template TEXT, -- The new suggested template
+      performance_metrics TEXT, -- JSON: { avg_views: 1000, avg_likes: 50 }
+      status TEXT DEFAULT 'PENDING', -- 'PENDING', 'APPLIED', 'REJECTED'
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
   // Init Default Prompts
   try {
       const count = db.prepare('SELECT COUNT(*) as c FROM prompt_templates').get() as { c: number };
@@ -564,7 +638,16 @@ export function initDB() {
               { name: '干货实用', desc: '结构清晰，强调价值', tpl: '你是一个知识分享博主。风格要求：逻辑严密，干货满满，分点论述，多用✅📌等图标。拒绝废话。' },
               { name: '闺蜜唠嗑', desc: '亲切自然，情感共鸣', tpl: '你是一个邻家大姐姐。风格要求：像和闺蜜聊天一样，多用“宝子们”、“咱就是说”，语气亲切，情感充沛。' },
               { name: '疯狂安利', desc: '情绪激动，强力推荐', tpl: '你是一个带货达人。风格要求：情绪非常激动，多用感叹号！！！多用“绝绝子”、“真的哭死”、“按头安利”。' },
-              { name: '清冷高级', desc: '极简主义，高冷范儿', tpl: '你是一个高冷的生活美学家。风格要求：文字极简，惜字如金。多用短句。不使用浮夸的表情。' }
+              { name: '清冷高级', desc: '极简主义，高冷范儿', tpl: '你是一个高冷的生活美学家。风格要求：文字极简，惜字如金。多用短句。不使用浮夸的表情。' },
+              // Promo Templates
+              { name: 'promo_lazy_mom', desc: '推广-懒人宝妈风', tpl: '你是一个既要带娃又要搞副业的95后宝妈。语气要求：真诚分享、感同身受、稍微带点焦虑但最后给出解决方案。多用Emoji。核心卖点：不费脑、自动干活、解放双手。禁止词汇：脚本、爬虫、RPA。' },
+              { name: 'promo_matrix_op', desc: '推广-矩阵运营风', tpl: '你是一个资深的自媒体运营操盘手。语气要求：专业、犀利、讲效率。核心卖点：闭环系统、批量生产、无人值守、矩阵管理。禁止词汇：脚本、爬虫、RPA。' },
+              // System Prompts
+              { name: 'article_gen', desc: '深度长文生成', tpl: '你是一个资深的公众号/专栏作家。你的任务是根据用户的人设和选题，创作一篇**深度长文 (Long-form Article)**。' },
+              { name: 'video_script_gen', desc: '分镜脚本生成', tpl: '你是一个专业的短视频导演和脚本编剧，精通镜头语言和视听叙事。' },
+              { name: 'note_gen_standard', desc: '标准笔记生成', tpl: '你是一个拥有百万粉丝的小红书爆款文案专家。你的任务是根据用户的账号人设和选题，创作一篇高质量的小红书笔记。' },
+              { name: 'video_prompt_optimizer', desc: '视频提示词优化', tpl: '你是一个专业的 AI 视频提示词工程专家。你的任务是将用户提供的模糊、简单的视频创意，优化为结构完整、细节丰富的 AI 视频生成提示词。' },
+              { name: 'compliance_fixer', desc: '合规内容修复', tpl: '你是一个专业的内容合规审核与优化专家。你的任务是修改用户提供的内容，替换掉其中的违规敏感词。' }
           ];
           const stmt = db.prepare('INSERT INTO prompt_templates (name, description, template, is_default) VALUES (?, ?, ?, 1)');
           defaults.forEach(d => stmt.run(d.name, d.desc, d.tpl));
@@ -579,6 +662,7 @@ export function initDB() {
       script_content TEXT, -- JSON Structure of the script
       status TEXT DEFAULT 'DRAFT', -- 'DRAFT', 'GENERATING', 'COMPLETED'
       final_video_url TEXT, -- Stitched video result
+      created_by INTEGER, -- admin_users.id — Sprint 8: IDOR fix
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
@@ -620,6 +704,10 @@ export function initDB() {
       if (!columnNames.includes('note_id')) {
         console.log('Migrating video_projects table: Adding note_id...');
         db.prepare("ALTER TABLE video_projects ADD COLUMN note_id TEXT").run();
+      }
+      if (!columnNames.includes('created_by')) {
+        console.log('Migrating video_projects table: Adding created_by (IDOR fix)...');
+        db.prepare("ALTER TABLE video_projects ADD COLUMN created_by INTEGER").run();
       }
   } catch (e) {
       console.error('Migration video_projects failed:', e);
@@ -672,6 +760,166 @@ export function initDB() {
     )
   `);
   
+  // Compliance Rules Table (Risk Control)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS compliance_rules (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      category TEXT NOT NULL, -- 'forbidden', 'sensitive', 'ad', 'medical', 'custom'
+      keyword TEXT UNIQUE NOT NULL,
+      level TEXT NOT NULL, -- 'BLOCK', 'WARN'
+      suggestion TEXT,
+      is_enabled BOOLEAN DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Migration: Add updated_at to compliance_rules
+  try {
+      const columns = db.prepare("PRAGMA table_info(compliance_rules)").all() as any[];
+      const columnNames = columns.map(c => c.name);
+      
+      if (!columnNames.includes('updated_at')) {
+          console.log('Migrating compliance_rules table: Adding updated_at...');
+          // SQLite limitation: Cannot add column with dynamic default like CURRENT_TIMESTAMP
+          db.prepare("ALTER TABLE compliance_rules ADD COLUMN updated_at DATETIME").run();
+      }
+  } catch (e) {
+      console.error('Migration compliance_rules failed:', e);
+  }
+
+  // --- Final Consistency Checks (For P0 Closed Loop) ---
+  try {
+      // 1. Fix drafts table for Feedback Loop
+      const draftCols = db.prepare("PRAGMA table_info(drafts)").all().map((c: any) => c.name);
+      if (!draftCols.includes('published_note_id')) {
+          console.log('Migrating drafts: Adding published_note_id...');
+          db.prepare("ALTER TABLE drafts ADD COLUMN published_note_id TEXT").run();
+      }
+      if (!draftCols.includes('published_url')) {
+          console.log('Migrating drafts: Adding published_url...');
+          db.prepare("ALTER TABLE drafts ADD COLUMN published_url TEXT").run();
+      }
+
+      // 2. Fix note_stats table for Feedback Loop
+      const statsCols = db.prepare("PRAGMA table_info(note_stats)").all().map((c: any) => c.name);
+      if (!statsCols.includes('draft_id')) {
+          console.log('Migrating note_stats: Adding draft_id...');
+          db.prepare("ALTER TABLE note_stats ADD COLUMN draft_id INTEGER").run();
+      }
+
+      // 3. Fix trending_notes table for TrendService
+      const trendCols = db.prepare("PRAGMA table_info(trending_notes)").all().map((c: any) => c.name);
+      if (!trendCols.includes('category')) {
+          console.log('Migrating trending_notes: Adding category...');
+          db.prepare("ALTER TABLE trending_notes ADD COLUMN category TEXT").run();
+      }
+      if (!trendCols.includes('video_url')) {
+          console.log('Migrating trending_notes: Adding video_url...');
+          db.prepare("ALTER TABLE trending_notes ADD COLUMN video_url TEXT").run();
+      }
+      if (!trendCols.includes('images')) {
+          console.log('Migrating trending_notes: Adding images...');
+          db.prepare("ALTER TABLE trending_notes ADD COLUMN images TEXT").run(); // JSON Array
+      }
+      if (!trendCols.includes('search_keyword')) {
+          console.log('Migrating trending_notes: Adding search_keyword...');
+          db.prepare("ALTER TABLE trending_notes ADD COLUMN search_keyword TEXT").run();
+      }
+      if (!trendCols.includes('topic_tags')) {
+          console.log('Migrating trending_notes: Adding topic_tags...');
+          db.prepare("ALTER TABLE trending_notes ADD COLUMN topic_tags TEXT").run(); // JSON Array
+      }
+
+  } catch (e) {
+      console.error('Final Consistency Migration failed:', e);
+  }
+
+  // RPA Selectors Table (Dynamic CSS Selectors)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS rpa_selectors (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      platform TEXT DEFAULT 'xiaohongshu',
+      category TEXT NOT NULL,
+      key TEXT NOT NULL,
+      selector TEXT NOT NULL,
+      description TEXT,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(platform, category, key)
+    )
+  `);
+
+  // Seed Default Selectors (Partial Seed - Application will fallback to hardcoded if missing)
+  try {
+      const count = db.prepare('SELECT COUNT(*) as c FROM rpa_selectors').get() as { c: number };
+      if (count.c === 0) {
+          console.log('Seeding default RPA selectors...');
+          const stmt = db.prepare('INSERT INTO rpa_selectors (category, key, selector) VALUES (?, ?, ?)');
+          const defaults = [
+              { c: 'Common.Login', k: 'Container', s: '.login-container, .login-box' },
+              { c: 'Publish.Form', k: 'TitleInput', s: 'input#post-title, .title-input input, input[placeholder="输入标题"]' },
+              { c: 'Publish.Form', k: 'PublishButton', s: 'button.publish-btn, button:has-text("发布")' }
+          ];
+          defaults.forEach(d => stmt.run(d.c, d.k, d.s));
+      }
+  } catch (e) { console.error('Seed selectors failed', e); }
+
+  // Init Default Compliance Rules (Anti-Limiting)
+  try {
+      const count = db.prepare('SELECT COUNT(*) as c FROM compliance_rules').get() as { c: number };
+      if (count.c === 0) {
+          console.log('Initializing default compliance rules...');
+          const stmt = db.prepare('INSERT INTO compliance_rules (category, keyword, level, suggestion) VALUES (?, ?, ?, ?)');
+          const rules = [
+              // Forbidden (Strict Block)
+              { c: 'forbidden', k: '脚本', l: 'BLOCK', s: '自动化/黑科技' },
+              { c: 'forbidden', k: '爬虫', l: 'BLOCK', s: '搜集灵感/看热点' },
+              { c: 'forbidden', k: 'RPA', l: 'BLOCK', s: '小工具/小助手' },
+              { c: 'forbidden', k: '外挂', l: 'BLOCK', s: '辅助工具' },
+              { c: 'forbidden', k: '防封号', l: 'BLOCK', s: '安全稳定' },
+              { c: 'forbidden', k: '引流', l: 'BLOCK', s: '涨粉/获客' },
+              { c: 'forbidden', k: '加V', l: 'BLOCK', s: '私信' },
+              // Sensitive (Warning)
+              { c: 'sensitive', k: '最', l: 'WARN', s: '超/非常/绝' },
+              { c: 'sensitive', k: '第一', l: 'WARN', s: '首选' },
+              { c: 'sensitive', k: '绝对', l: 'WARN', s: '真的' }
+          ];
+          rules.forEach(r => stmt.run(r.c, r.k, r.l, r.s));
+      }
+  } catch (e) { console.error('Init compliance rules failed', e); }
+
+  // --- Performance Indexes ---
+  // These significantly speed up the most common queries.
+  // Each CREATE INDEX is idempotent — IF NOT EXISTS is the default.
+  try {
+    // Tasks: status-based queries (task list, active tasks, scheduled tasks)
+    db.exec('CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status, scheduled_at)');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_tasks_type ON tasks(type)');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_tasks_created ON tasks(created_at)');
+
+    // Accounts: active account lookup
+    db.exec('CREATE INDEX IF NOT EXISTS idx_accounts_active ON accounts(is_active)');
+
+    // Comments: per-account queries with time ordering
+    db.exec('CREATE INDEX IF NOT EXISTS idx_comments_account ON comments(account_id, create_time)');
+
+    // Note stats: per-account analytics queries
+    db.exec('CREATE INDEX IF NOT EXISTS idx_note_stats_account ON note_stats(account_id, record_date)');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_note_stats_draft ON note_stats(draft_id)');
+
+    // Trending notes: keyword search, type filtering
+    db.exec('CREATE INDEX IF NOT EXISTS idx_trending_notes_keyword ON trending_notes(search_keyword)');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_trending_notes_type ON trending_notes(type)');
+
+    // Drafts: sorting by update time
+    db.exec('CREATE INDEX IF NOT EXISTS idx_drafts_updated ON drafts(updated_at)');
+
+    // Competitors: per-competitor note queries
+    db.exec('CREATE INDEX IF NOT EXISTS idx_competitor_notes_competitor ON competitor_notes(competitor_id)');
+  } catch (e) {
+    console.error('Failed to create indexes:', e);
+  }
+
   console.log('Database initialized.');
 }
 

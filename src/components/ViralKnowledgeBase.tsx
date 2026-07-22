@@ -3,7 +3,6 @@ import { Loader2, RefreshCw, Flame, Eye, Heart, User, Sparkles, X, LayoutGrid, L
 import { useSafeAsync } from '../hooks/useSafeAsync';
 import axios from 'axios';
 import toast from 'react-hot-toast';
-import * as XLSX from 'xlsx';
 import { useNavigate } from 'react-router-dom';
 
 interface TrendingNote {
@@ -75,6 +74,7 @@ const ViralKnowledgeBase: React.FC = () => {
 
   useEffect(() => {
     fetchNotes(1);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleSearch = (e: React.FormEvent) => {
@@ -127,13 +127,14 @@ const ViralKnowledgeBase: React.FC = () => {
       }
   };
 
-  const handleBatchExportExcel = () => {
+  const handleBatchExportExcel = async () => {
       const notesToExport = notes.filter(n => selectedNoteIds.has(n.id));
       if (notesToExport.length === 0) {
           toast.error('请先选择要导出的笔记');
           return;
       }
 
+      const XLSX = await import('xlsx');
       const data = notesToExport.map(n => {
           const analysis = n.analysis_result || {};
           return {

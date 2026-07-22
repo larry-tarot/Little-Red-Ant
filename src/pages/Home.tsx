@@ -13,6 +13,8 @@ import {
 import toast from 'react-hot-toast';
 import { format, subDays, isAfter, parseISO, startOfDay, isBefore } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
+import FirstRunGuide from '../components/FirstRunGuide';
+import { HomePageSkeleton } from '../components/Skeleton';
 
 interface SummaryStats {
   account_name: string;
@@ -328,6 +330,9 @@ export default function Home() {
 
   return (
     <div className="space-y-6">
+      {loading ? <HomePageSkeleton /> : (
+      <>
+      <FirstRunGuide />
       {/* Header Section */}
       <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -622,6 +627,8 @@ export default function Home() {
             </div>
         </div>
       </div>
+      </>
+    )}
     </div>
   );
 }

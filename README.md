@@ -1,138 +1,183 @@
-# Little Red Ant (小红蚁) - AI 智能小红书运营助手
+<div align="center">
 
-Little Red Ant 是一个集成了 **AI 内容创作**、**RPA 自动化发布**、**数据趋势分析** 和 **账号矩阵管理** 的全栈小红书运营辅助工具。它旨在帮助创作者和运营团队高效地生成爆款内容、管理多个账号，并基于数据驱动决策。
+# 🐜 小红蚁 (Little Red Ant)
 
-## 🚀 核心功能
+**AI 驱动的智能小红书运营助手** — 内容创作 · 自动发布 · 数据分析 · 竞品监控
 
-### 1. 🤖 AI 智能创作 (AI Content Generation)
-- **多模型支持**：基于 Provider 模式，支持 **Aliyun (通义千问/万相/Wan2.6)** 和 **DeepSeek** 等大模型。
-- **去 AI 化引擎**：独家“防 AI”算法，屏蔽逻辑连接词，支持“闺蜜唠嗑”、“疯狂安利”等 8 种特调风格。
-- **矩阵人设管理**：支持创建无限个“内容马甲”（Persona），一键切换美妆、宠物、探店等不同人设。
-- **图文/长文/视频生成**：
-    - **图文**：一键生成小红书风格的标题、正文、标签，并自动匹配 AI 配图 (Aliyun Wanx)。
-    - **长文**：深度长文模式，支持 Markdown 格式，适合知识分享与深度解析。
-    - **视频**：基于 **Wan2.6** 模型，支持图生视频、文本生成分镜脚本，打造爆款视频工厂。
-- **多版本管理**：支持生成多个版本并保存历史记录，不满意的可以重新生成。
-- **所见即所得**：内置卡片生成器，预览笔记效果。
-- **资源本地化 (Asset Persistence)**：AI 生成的图片/视频自动下载至本地服务器，防止云端链接失效 (404)。
+[![CI](https://github.com/magicCzc/Little-Red-Ant/actions/workflows/ci.yml/badge.svg)](https://github.com/magicCzc/Little-Red-Ant/actions)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Node](https://img.shields.io/badge/node-%3E%3D18-brightgreen)](https://nodejs.org)
+[![PRs](https://img.shields.io/badge/PRs-welcome-brightgreen)](https://github.com/magicCzc/Little-Red-Ant/pulls)
 
-### 2. ⚡ 异步任务中心 (Task Center)
-- **全异步架构**：耗时操作（如 AI 生成、爬虫抓取、自动发布）全部通过后台队列处理，前端不再阻塞。
-- **实时状态**：在任务中心查看任务进度、耗时和结果。
-- **结果回溯**：生成完成后，可直接从任务列表跳转查看结果。
-
-### 3. 📊 数据洞察与趋势 (Analytics & Trends)
-- **热点追踪**：聚合微博、百度热搜及 **小红书热搜笔记**，辅助选题。(注：知乎/抖音热搜暂未开放)
-- **智能代理 (Smart Proxy)**：内置图片反防盗链代理，解决小红书/微博外链图片 403 裂图问题，实现秒级加载。
-- **数据大盘**：可视化展示账号的阅读、点赞、收藏、评论数据。
-- **Excel 导出**：支持将笔记数据导出为 Excel 报表，便于二次分析。
-
-### 4. 🤖 RPA 自动化 (Automation Core v2.0)
-- **一键发布**：自动操作浏览器上传图片、填写文案、发布笔记，支持定时与自动重试。
-- **互动中心 (Engagement Pro)**：
-    - **全量同步**：支持回溯抓取 7 天内的所有评论与交互，自动处理懒加载与分页。
-    - **智能回复**：精准定位历史评论，支持拟人化输入与自动回车发送，解决“幽灵回复”问题。
-    - **AI 辅助**：(开发中) 自动分析评论意图并生成高情商回复建议。
-- **竞品监控 (Spy Pro)**：自动拆解对标账号的爆款逻辑、关键词与选题策略，AI 生成模仿建议。
-- **账号矩阵**：支持多账号 Cookie 管理与切换，自动检测登录状态，Cookie 失效自动报警。
-- **安全风控**：
-    - **智能频控**：内置 Daily Limit 策略，限制单账号每日发布数量，防止高频操作封号。
-    - **指纹混淆**：Stealth 隐身模式 + Canvas 噪音，通过 Playwright 模拟真实设备特征。
-    - **拟人化操作**：模拟真实鼠标轨迹与随机延迟，拒绝机械化行为。
-
-### 5. ⚙️ 系统设置 (Settings)
-- **可视化配置**：无需修改 `.env` 文件，直接在页面配置 API Key 和模型参数。
-- **数据库管理**：基于 SQLite 的轻量级数据存储，无需安装额外数据库服务。
+</div>
 
 ---
 
-### 6. 🐳 容器化部署 (Docker Support)
-- 提供标准 `Dockerfile` 与 `docker-compose.yml`。
-- 支持一键部署到云服务器，实现 24 小时无人值守运行。
-- 自动处理 Playwright 系统依赖，开箱即用。
+## ✨ 功能特性
 
-### 7. 🔐 安全与权限 (Security & Auth)
-- **多用户支持**：内置 JWT 认证系统，支持管理员注册与登录。
-- **接口防护**：核心 API 全局鉴权，防止未授权访问。
-- **密码加密**：使用 bcrypt 强加密存储，保障账户安全。
-
-### 8. 🔍 竞品深度分析 (Competitor Spy)
-- **爆款拆解**：自动抓取对标账号的 Top 10 笔记，分析其标题套路和封面风格。
-- **策略复刻**：AI 生成具体的“抄作业”建议，包括选题方向、关键词布局和避坑指南。
-- **数据追踪**：定期监控竞品数据变化，发现流量新趋势。
-
-### 9. 🚀 工程化 (DevOps)
-- **CI/CD**: 集成 GitHub Actions，自动进行 TypeScript 类型检查与 Docker 镜像构建。
-- **Linting**: 严格的 ESLint 规则，保持代码风格统一。
-
-## 🛠️ 技术栈 (Tech Stack)
-
-- **Frontend**: React, TypeScript, Vite, Tailwind CSS, Lucide Icons, Recharts
-- **Backend**: Node.js, Express
-- **Database**: Better-SQLite3
-- **Automation**: Playwright (Headless/Headed Browser)
-- **AI Integration**: OpenAI SDK (Compatible), Aliyun SDK
+| 功能 | 说明 |
+|------|------|
+| 🤖 **AI 智能创作** | 输入主题,AI 自动生成小红书文案,支持 8 种风格、多版本对比 |
+| 🎨 **AI 配图** | 基于阿里云万相模型,支持文生图、图生图、AI 编辑 |
+| 🚀 **一键发布** | RPA 自动操作浏览器,填写文案、上传图片、点击发布,支持定时发布 |
+| 📊 **数据看板** | 阅读量、点赞、评论、收藏趋势分析,支持 7/30 天对比 |
+| 👥 **矩阵账号** | 管理多个小红书账号,每个账号独立人设、独立 Cookie |
+| 🎯 **竞品监控** | 自动追踪对标账号,AI 分析爆款逻辑,生成模仿建议 |
+| 💬 **互动中心** | 评论全量同步,AI 智能回复建议,自动回复 |
+| 🔥 **热点追踪** | 聚合微博、百度热搜,辅助选题 |
+| 📝 **视频工程** | 视频脚本生成、分镜管理、自动合成 |
+| 📋 **任务中心** | 异步任务队列,SSE 实时进度推送 |
 
 ---
 
-## 📦 安装与运行
+## 🚀 快速开始
 
 ### 前置要求
-- Node.js >= 18
-- Chrome/Edge 浏览器 (用于 RPA)
 
-### 1. 克隆项目与安装依赖
+- **Node.js** >= 18
+- **npm** >= 9
+
+### 安装运行
+
 ```bash
+# 克隆仓库
 git clone https://github.com/magicCzc/Little-Red-Ant.git
 cd Little-Red-Ant
+
+# 安装依赖
 npm install
-```
 
-### 2. 环境配置
-虽然系统支持 UI 配置，但首次启动建议检查 `.env` 文件（可选）：
-```env
-PORT=3000
-# 初始 API Key 可在此配置，也可在启动后通过“设置”页面配置
-ALIYUN_API_KEY=your_key
-DEEPSEEK_API_KEY=your_key
-```
-
-### 3. 启动开发服务器
-```bash
+# 启动开发服务器(前后端同时启动)
 npm run dev
 ```
-此命令将同时启动前端 (Vite) 和后端 (Express Server)。
-- 前端地址: `http://localhost:5173`
-- 后端 API: `http://localhost:3000`
+
+打开浏览器访问 **http://localhost:5173** → 注册 → 开始使用。
+
+### 一键启动(Windows)
+
+双击 `start.bat` 即可自动完成安装依赖和启动服务。
 
 ---
 
-## 📂 项目结构
+## ⚙️ 配置
 
-```
-.
-├── api/                # 后端源码
-│   ├── routes/         # API 路由 (generate, tasks, publish, etc.)
-│   ├── services/       # 业务逻辑
-│   │   ├── ai/         # AI Providers (Aliyun, DeepSeek)
-│   │   ├── crawler/    # 爬虫 (Baidu, Weibo, etc.)
-│   │   ├── rpa/        # 浏览器自动化 (Playwright)
-│   │   └── queue.js    # 任务队列服务
-│   ├── db.ts           # 数据库初始化与连接
-│   └── worker.ts       # 后台任务消费者
-├── src/                # 前端源码
-│   ├── components/     # UI 组件
-│   ├── pages/          # 页面 (ContentGeneration, Tasks, Analytics...)
-│   └── App.tsx         # 路由配置
-├── data/               # SQLite 数据库文件与临时文件
-├── docs/               # 项目文档
-└── package.json
+### AI API Key (必填)
+
+首次使用需要在设置页面配置 AI API Key:
+
+1. **阿里云通义千问** — 申请 [DashScope API Key](https://dashscope.aliyun.com/)
+2. **DeepSeek** (可选) — 申请 [DeepSeek API Key](https://platform.deepseek.com/)
+
+### 环境变量
+
+复制 `.env.example` 为 `.env`:
+
+```bash
+cp .env.example .env
 ```
 
-## 📝 待办与计划 (Roadmap)
-详情请查看 [docs/ROADMAP.md](./docs/ROADMAP.md)
+| 变量 | 说明 | 必填 |
+|------|------|------|
+| `ALIYUN_API_KEY` | 阿里云 DashScope API Key | 是 |
+| `DEEPSEEK_API_KEY` | DeepSeek API Key | 否 |
+| `JWT_SECRET` | JWT 签名密钥,生产环境必须修改 | 推荐 |
+| `COOKIE_ENCRYPTION_KEY` | Cookie 加密密钥,与 JWT_SECRET 独立 | 推荐 |
+
+---
+
+## 📦 技术栈
+
+| 前端 | 后端 | 数据库 | 自动化 |
+|------|------|--------|--------|
+| React 18 + TypeScript | Node.js 20 + Express | SQLite (better-sqlite3) | Playwright |
+| Vite 6 | Drizzle ORM | WAL 模式 | puppeteer-extra-stealth |
+| Tailwind CSS | JWT 认证 | 21 个 Repository | Circuit Breaker |
+| Recharts | Zod 4 校验 | 10 个索引 | 双引擎驱动 |
+| Zustand | SSE 推送 | 文件存储 | 熔断器降级 |
+
+---
+
+## 🏗️ 项目结构
+
+```
+xiaohongyi/
+├── api/                    # 后端
+│   ├── routes/             # 23 个 API 路由
+│   ├── services/           # 84 个服务
+│   │   ├── ai/             # AI 服务 (ContentService, ImageService)
+│   │   ├── rpa/            # RPA 自动化 (Playwright)
+│   │   ├── core/           # 核心业务
+│   │   └── tasks/          # 任务处理器 (12 个 Handler)
+│   ├── middleware/          # 中间件 (auth, validation, errorHandler)
+│   ├── db/                 # Drizzle ORM (schema, client, repositories)
+│   └── worker.ts           # 后台任务消费者
+├── src/                    # 前端
+│   ├── pages/              # 23 个页面
+│   ├── components/         # 20+ 组件
+│   ├── hooks/              # 自定义 Hooks
+│   └── store/              # Zustand 状态管理
+├── tests/                  # 44 个测试
+│   ├── unit/               # 后端单元测试
+│   ├── frontend/           # 前端单元测试
+│   └── e2e/                # 端到端测试
+└── AI/                     # CLI 命令行工具
+```
+
+---
+
+## 🧪 测试
+
+```bash
+# 后端测试 (25 个)
+npm test
+
+# 前端测试 (9 个)
+npm run test:frontend
+
+# E2E 测试 (10 个)
+node tests/e2e/verify.mjs
+
+# 覆盖率报告
+npm run test:coverage
+```
+
+---
+
+## 🐳 Docker 部署
+
+```bash
+docker build -t xiaohongyi .
+docker run -p 3000:3000 -v ./data:/app/data xiaohongyi
+```
+
+> **注意**: Docker 环境不支持 RPA 扫码登录,请先在本地完成账号绑定后再部署。
+
+---
+
+## 📝 已知问题
+
+- **AI 创作**: DeepSeek 作为备选 Provider,网络不稳定时自动降级到 Aliyun
+- **Docker**: 不支持 RPA 扫码登录,需先在本地绑定账号
+- **数据分析**: 首次使用时数据为空,需等待自动同步完成
+
+---
+
+## 🤝 贡献指南
+
+1. Fork 本仓库
+2. 创建特性分支 (`git checkout -b feature/amazing-feature`)
+3. 提交改动 (`git commit -m 'feat: add amazing feature'`)
+4. 推送到分支 (`git push origin feature/amazing-feature`)
+5. 创建 Pull Request
 
 ---
 
 ## 📄 License
-MIT
+
+[MIT](LICENSE)
+
+---
+
+## ⚠️ 免责声明
+
+本工具仅供学习和研究使用。使用者应遵守小红书平台的使用条款和相关法律法规。开发者不对因使用本工具而产生的任何问题承担责任。

@@ -154,6 +154,7 @@ const VideoStudio: React.FC = () => {
         fetchAssets();
         fetchSettings();
         return () => stopPolling();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [id]);
 
     const fetchSettings = async () => {
@@ -180,7 +181,7 @@ const VideoStudio: React.FC = () => {
         }
     };
     
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+     
     const handleUploadAsset = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -213,6 +214,7 @@ const VideoStudio: React.FC = () => {
         } else if (!isGenerating && !isPublishing && pollRef.current) {
             stopPolling();
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [generatingSceneIds, project?.publish_status]);
 
     const stopPolling = () => {
@@ -287,11 +289,21 @@ const VideoStudio: React.FC = () => {
                 ? `(Character Reference: ${characterDesc}) ${scene.script_visual}`
                 : scene.script_visual;
 
+            // Check for Persona Image (Visual Anchor)
+            let visualRefImage = undefined;
+            if (activeAccount?.persona_image_url) {
+                visualRefImage = activeAccount.persona_image_url;
+                // Toast hint
+                toast('已应用人设定妆照进行生成', { icon: '📸', duration: 3000 });
+            }
+
             const res = await axios.post('/api/generate/video', {
                 prompt: finalPrompt,
+                imageUrl: visualRefImage, // Pass the persona image!
                 model: 'wan2.1-t2v-turbo', 
                 duration: scene.duration || 5,
-                sceneId: scene.id // Pass sceneId so worker can update DB directly
+                sceneId: scene.id, // Pass sceneId so worker can update DB directly
+                accountId: activeAccount?.id // Pass accountId for logging/billing
             });
 
             const { taskId } = res.data;
@@ -705,6 +717,34 @@ const VideoStudio: React.FC = () => {
                                         人物/风格描述 (Character Prompt)
                                     </label>
                                     
+                                    {activeAccount?.persona_image_url && (
+                                         <div className="mb-3 bg-blue-50 border border-blue-100 rounded-md p-2">
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <div className="w-8 h-8 rounded-full overflow-hidden border border-blue-200 shrink-0">
+                                                    <img src={activeAccount.persona_image_url} className="w-full h-full object-cover" />
+                                                </div>
+                                                <div className="text-xs text-blue-700">
+                                                    <span className="font-bold">定妆照已激活:</span> 系统将优先使用此照片作为视频主角 (Image-to-Video)。
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2 pl-10">
+                                                <input 
+                                                    type="checkbox" 
+                                                    id="use_persona_img"
+                                                    defaultChecked={true}
+                                                    // Note: Currently backend forces it if persona_image_url exists and prompt matches.
+                                                    // To support toggling, we would need to pass a flag to the backend API.
+                                                    // For now, this is a visual indicator that it's ON.
+                                                    className="rounded text-blue-600 focus:ring-blue-500 w-3 h-3"
+                                                    disabled
+                                                />
+                                                <label htmlFor="use_persona_img" className="text-[10px] text-blue-600 cursor-not-allowed">
+                                                    自动应用 (若提示词包含人物)
+                                                </label>
+                                            </div>
+                                         </div>
+                                    )}
+
                                     {activeAccount?.persona?.desc && (
                                         <button
                                             onClick={() => setCharacterDesc(activeAccount.persona.desc)}

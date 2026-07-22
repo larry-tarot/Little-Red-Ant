@@ -1,104 +1,80 @@
-# Development Guide & Standards
+# 开发指南
 
-> Please follow these guidelines to maintain system stability and scalability.
+## 环境要求
 
-```
+- Node.js >= 18
+- npm >= 9
+
+## 快速开始
+
+```bash
 git clone https://github.com/magicCzc/Little-Red-Ant.git
 cd Little-Red-Ant
 npm install
+npm run dev
 ```
 
-## 1. Adding New Background Tasks
+访问 http://localhost:5173
 
-The system uses a **Task Registry** pattern. Do NOT add logic directly to `worker.ts`.
+## 项目命令
 
-**Step-by-Step:**
+| 命令 | 说明 |
+|------|------|
+| `npm run dev` | 启动前后端开发服务器 |
+| `npm run build` | 构建前端 |
+| `npm test` | 后端测试 (25 个) |
+| `npm run test:frontend` | 前端测试 (9 个) |
+| `npm run lint` | ESLint 检查 |
+| `npm run check` | TypeScript 类型检查 |
+| `npm run ai -- say "..."` | CLI 自然语言命令 |
 
-1.  **Create Handler**:
-    Create a new file in `api/services/tasks/handlers/` implementing the `TaskHandler` interface.
-    ```typescript
-    import { TaskHandler } from '../TaskHandler.js';
+## 测试
 
-    export class MyNewTaskHandler implements TaskHandler {
-        async handle(task: any): Promise<any> {
-            // Your logic here
-            return { success: true };
-        }
-    }
-    ```
+```bash
+# 后端测试
+npm test
 
-2.  **Register Handler**:
-    Add your handler to `api/services/tasks/TaskRegistry.ts`.
-    ```typescript
-    this.register('MY_NEW_TASK_TYPE', new MyNewTaskHandler());
-    ```
+# 前端测试
+npm run test:frontend
 
-3.  **Trigger from API**:
-    Enqueue the task in your API route.
-    ```typescript
-    enqueueTask('MY_NEW_TASK_TYPE', { some: 'data' });
-    ```
+# E2E 测试 (需要先启动前后端)
+node tests/e2e/verify.mjs
+```
 
-## 2. RPA Development Guidelines
+## 数据库
 
-### 2.1 Selector Management
-*   **NEVER** hardcode CSS selectors in logic files.
-*   **ALWAYS** add them to `api/services/rpa/config/selectors.ts`.
-*   Group selectors logically (e.g., `Common.Login`, `Publish.Form`).
+数据文件: `data/app.db`
 
-### 2.2 Interaction Standards
-*   Use `RPAUtils` for interactions to ensure human-like behavior.
-    *   ✅ `await RPAUtils.safeClick(page, Selectors.Btn)`
-    *   ❌ `await page.click('.btn')`
-*   Always implement **Human Delays** between distinct actions.
-    *   `await RPAUtils.humanDelay(page)`
+```bash
+# 查看数据
+sqlite3 data/app.db "SELECT * FROM tasks LIMIT 10;"
+```
 
-### 2.3 Error Handling
-*   RPA actions must be wrapped in `try-catch`.
-*   Always take a **Progress Screenshot** before and after critical steps using `takeProgressScreenshot(page, taskId)`.
-*   Handle "Login Expired" scenarios gracefully (throw error to trigger status update).
+## 环境变量
 
-### 2.4 Browser Context Safety (CRITICAL)
-*   **NEVER use Arrow Functions** `() => {}` inside `page.evaluate()`.
-*   **ALWAYS use Function Expressions** `function() {}`.
-    *   ✅ `await page.evaluate(function() { return window.scrollY; })`
-    *   ❌ `await page.evaluate(() => window.scrollY)`
-*   *Reason*: TypeScript compilation injects `__name` variables into arrow functions which are not accessible in the browser's execution context, causing `ReferenceError`.
+复制 `.env.example` 为 `.env`:
 
-## 3. Frontend Development
+| 变量 | 说明 | 必填 |
+|------|------|------|
+| `ALIYUN_API_KEY` | 阿里云 DashScope API Key | 是 |
+| `DEEPSEEK_API_KEY` | DeepSeek API Key | 否 |
+| `JWT_SECRET` | JWT 签名密钥,生产环境必须修改 | 推荐 |
+| `COOKIE_ENCRYPTION_KEY` | Cookie 加密密钥 | 推荐 |
 
-### 3.1 Async Task Management
-*   Use the `useTaskPoller` hook for all background task operations.
-    *   ✅ `const { startTask } = useTaskPoller(...)`
-    *   ❌ Manually implementing `setInterval` or `while` loops in components.
+## 提交规范
 
-### 3.2 Content Types
-*   When adding new content types (e.g., Article, Video), ensure `contentType` is passed correctly in the API payload.
-*   Update `ContentGeneration.tsx` to hide/show relevant UI components (e.g., hide image generator for Articles).
+```
+feat: 新功能
+fix: Bug 修复
+docs: 文档更新
+refactor: 重构
+test: 测试
+chore: 构建/工具
+```
 
-## 4. Database
-*   Use `better-sqlite3` synchronous methods.
-*   For complex writes, wrap in `db.transaction(() => { ... })`.
-*   Always use Prepared Statements (`db.prepare(...)`) to prevent SQL injection.
+## 分支策略
 
-## 5. Asset Handling Guidelines (New in v2.1)
-
-### 5.1 Internal Assets (AI Generated)
-*   **Rule**: NEVER save external temporary URLs (e.g., from Aliyun OSS) directly to the database.
-*   **Action**: Use `AssetService.downloadAndLocalize(url, type)` immediately after generation.
-*   **Example**:
-    ```typescript
-    // In GenerateMediaHandler
-    const tempUrl = await Provider.generate();
-    const localUrl = await AssetService.downloadAndLocalize(tempUrl, 'image');
-    // Save localUrl to DB
-    ```
-
-### 5.2 External Assets (Scraped)
-*   **Rule**: Do NOT download massive amounts of images from scraped lists (Trends/Spy).
-*   **Action**: Use the Proxy Endpoint to display them in Frontend.
-*   **Frontend**:
-    ```tsx
-    <img src={`/api/assets/proxy?url=${encodeURIComponent(externalUrl)}`} />
-    ```
-
+| 分支 | 说明 |
+|------|------|
+| main | 稳定版本,Web 端 |
+| desktop | 桌面版 (Electron, 实验性) |

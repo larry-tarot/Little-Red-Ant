@@ -8,8 +8,10 @@ import { ScrapeTrendsHandler } from './handlers/ScrapeTrendsHandler.js';
 import { AnalyzeNoteHandler } from './handlers/AnalyzeNoteHandler.js';
 import { GenerateContentHandler } from './handlers/GenerateContentHandler.js';
 import { GenerateMediaHandler } from './handlers/GenerateMediaHandler.js';
-import { HealthCheckHandler } from './handlers/HealthCheckHandler.js';
 import { VideoStitchHandler } from './handlers/VideoStitchHandler.js';
+import { HealthCheckHandler } from './handlers/HealthCheckHandler.js';
+import { ScrapeSearchNotesHandler } from './handlers/ScrapeSearchNotesHandler.js';
+import { ClassifyNotesHandler } from './handlers/ClassifyNotesHandler.js';
 
 export class TaskRegistry {
     private static handlers: Map<string, TaskHandler> = new Map();
@@ -20,7 +22,9 @@ export class TaskRegistry {
         this.register('SCRAPE_COMPETITOR', new ScrapeCompetitorHandler());
         this.register('SCRAPE_COMMENTS', new ScrapeCommentsHandler());
         this.register('SCRAPE_TRENDS', new ScrapeTrendsHandler());
+        this.register('SCRAPE_SEARCH_NOTES', new ScrapeSearchNotesHandler());
         this.register('ANALYZE_NOTE', new AnalyzeNoteHandler());
+        this.register('CLASSIFY_NOTES', new ClassifyNotesHandler());
         this.register('GENERATE_CONTENT', new GenerateContentHandler());
         this.register('GENERATE_IMAGE', new GenerateMediaHandler());
         this.register('GENERATE_VIDEO', new GenerateMediaHandler());
