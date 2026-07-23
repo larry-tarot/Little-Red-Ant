@@ -138,10 +138,16 @@ app.use(express.json({ limit: '50mb' })) // Increase limit for image uploads
 app.use(express.urlencoded({ extended: true, limit: '10mb' }))
 
 // Serve static files from public directory (e.g., uploads, audio)
-app.use(express.static(path.join(process.cwd(), 'public')));
+// 桌面版: 用 __dirname 相对路径(生产环境解析到 asar 内部,开发环境解析到项目根)
+const DIST_DIR = path.join(__dirname, '..', 'dist');
+const PUBLIC_DIR = process.env.XIAOHONGYI_USER_DATA
+    ? path.join(process.env.XIAOHONGYI_USER_DATA, 'public')
+    : path.join(__dirname, '..', 'public');
+
+app.use(express.static(PUBLIC_DIR));
 // 生产模式: 同时提供前端构建产物
 if (process.env.NODE_ENV === 'production') {
-    app.use(express.static(path.join(process.cwd(), 'dist')));
+    app.use(express.static(DIST_DIR));
 }
 
 /**
@@ -202,7 +208,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
     if (req.path.startsWith('/api/')) {
         return next();
     }
-    res.sendFile(path.join(process.cwd(), 'dist', 'index.html'), (err) => {
+    res.sendFile(path.join(DIST_DIR, 'index.html'), (err) => {
         if (err) next();
     });
 });

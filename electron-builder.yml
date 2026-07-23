@@ -1,0 +1,84 @@
+appId: com.magicCzc.xiaohongyi
+productName: LittleRedAnt
+copyright: Copyright © 2026 magicCzc
+artifactName: ${productName}-${version}-${arch}.${ext}
+
+directories:
+  output: release/${version}
+  buildResources: build-resources  # 临时占位,只用来找 build 时的 icon 等
+  # 实际打包用的 resources 目录进 asar
+
+# 打进安装包的文件
+# 用 **/* 包含所有文件,不再手动维护 node_modules 白名单
+# electron-builder 自动排除 node_modules 目录,但 nodeModuleFilePatterns 会处理
+files:
+  - "**/*"
+  - "!browser_data/**/*"
+  - "!src/**/*"
+  - "!**/*.map"
+
+asar: true
+# 必须 unpack 的目录(native 模块需要动态加载,不能从 asar 读)
+asarUnpack:
+  - "node_modules/better-sqlite3/**/*"
+  - "node_modules/sharp/**/*"
+  - "node_modules/playwright/**/*"
+  - "node_modules/playwright-core/**/*"
+  - "node_modules/ffmpeg-static/**/*"
+  - "node_modules/bcryptjs/**/*"
+  - "node_modules/@swc/**/*"
+
+# Windows
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: build-resources/icon.ico
+  # 跳过 winCodeSign(它包含 mac 符号链接,Windows 解压困难)
+  signAndEditExecutable: false
+  # 签名(没证书时注释掉,改用 --publish never)
+  # certificateFile: cert.pfx
+  # certificatePassword: ${env.CSC_KEY_PASSWORD}
+  # signDlls: true
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  allowElevation: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: 小红蚁
+  installerIcon: build-resources/icon.ico
+  uninstallerIcon: build-resources/icon.ico
+  installerHeader: build-resources/installer-sidebar.bmp
+  # 卸载时是否删除用户数据
+  deleteAppDataOnUninstall: false
+  # 自定义 NSIS 脚本(可选)
+  # include: build/installer.nsh
+
+# macOS
+mac:
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+  category: public.app-category.productivity
+  icon: build-resources/icon.png
+  hardenedRuntime: true
+  gatekeeperAssess: false
+
+# Linux
+linux:
+  target:
+    - AppImage
+  category: Utility
+  icon: build-resources/icon.png
+  desktop:
+    Name: 小红蚁
+    Comment: AI 智能小红书运营助手
+
+# 发布渠道(electron-updater 读取)
+publish:
+  - provider: generic
+    url: https://github.com/magicCzc/Little-Red-Ant/releases/latest
+    channel: latest

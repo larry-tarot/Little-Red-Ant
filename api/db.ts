@@ -2,15 +2,15 @@ import Database from 'better-sqlite3';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import { config } from './config.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Ensure data directory exists (no-op when in test mode below).
-const dataDir = path.join(__dirname, '../data');
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir);
-}
+// 优先用 config 提供的 db 路径(它会读 XIAOHONGYI_USER_DATA 环境变量)
+// 桌面版:数据落到 %APPDATA%\小红蚁\data\app.db
+// Web 版:用项目内 data/app.db
+const DB_PATH = config.paths.db;
 
 // Sprint 5: tests can opt into an in-memory database by setting
 // LITTLE_RED_ANT_TEST=1 (done in tests/setup.ts before any consumer imports).
@@ -20,7 +20,7 @@ if (!fs.existsSync(dataDir)) {
 // SAFETY: if NODE_ENV=production, ignore this env var — data loss is unacceptable.
 const isTest = process.env.LITTLE_RED_ANT_TEST === '1' && process.env.NODE_ENV !== 'production';
 
-const dbPath = isTest ? ':memory:' : path.join(dataDir, 'app.db');
+const dbPath = isTest ? ':memory:' : DB_PATH;
 const db = new Database(dbPath, { timeout: 5000 }); // Increase busy timeout to 5s
 if (!isTest) {
   db.pragma('journal_mode = WAL');

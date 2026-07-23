@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'r
 import { Suspense, lazy } from 'react';
 import { Toaster } from 'react-hot-toast';
 import Layout from '@/components/Layout';
+import TitleBar from '@/components/TitleBar';
 import useTheme from '@/hooks/useTheme';
 import { useAuthStore } from '@/store/useAuthStore';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -81,6 +82,7 @@ function App() {
   useTheme();
   return (
     <Router>
+      <TitleBar />
       <Toaster position="top-right" />
       <ErrorBoundary>
         <Suspense fallback={<PageFallback />}>
