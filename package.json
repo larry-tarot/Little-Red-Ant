@@ -20,10 +20,10 @@
     "test:coverage": "vitest run --coverage",
     "test:frontend": "vitest run --config vitest.frontend.config.ts",
     "icons": "node scripts/generate-icons.mjs",
-    "build:api": "node scripts/build-backend.mjs",
+    "build:api": "node scripts/build-api.mjs",
     "build:sidecar": "node scripts/build-sidecar.mjs",
-    "tauri:dev": "cargo tauri dev",
-    "tauri:build": "cargo tauri build",
+    "tauri:dev": "node scripts/sync-tauri-resources.mjs && cargo tauri dev",
+    "tauri:build": "node scripts/sync-tauri-resources.mjs && cargo tauri build",
     "tauri:build:win": "cargo tauri build"
   },
   "dependencies": {
@@ -72,7 +72,6 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.25.0",
-    "@tauri-apps/cli": "^2.11.4",
     "@testing-library/jest-dom": "^7.0.0",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",

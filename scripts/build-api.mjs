@@ -3,7 +3,7 @@
  * 目的:生产环境不再依赖 tsx,可直接 node api-dist/server.mjs 跑起来
  */
 import { build } from 'esbuild';
-import { mkdir, copyFile, readdir, stat } from 'node:fs/promises';
+import { mkdir, copyFile, readdir, stat, symlink, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -74,9 +74,18 @@ console.log(`   输出: ${path.relative(ROOT, OUT_FILE)}`);
 
 const start = Date.now();
 
-// 1. 清空并重建 api-dist
-if (existsSync(OUT_DIR)) {
-  await import('node:fs/promises').then(fs => fs.rm(OUT_DIR, { recursive: true, force: true }));
+// 1. 增量更新: 只删 api-dist 下的源产物(server.mjs / package.json / db/),不动 node_modules
+//    (node_modules 用增量复制,跨构建复用,大幅加速;Tauri 打包前会全量重新走)
+const sourceFiles = ['server.mjs', 'package.json', 'db'];
+for (const f of sourceFiles) {
+  const fp = path.join(OUT_DIR, f);
+  try {
+    if (existsSync(fp)) {
+      await rm(fp, { recursive: true, force: true });
+    }
+  } catch (e) {
+    console.warn(`⚠️  [build-backend] 无法删除 ${fp}: ${e.message}`);
+  }
 }
 await mkdir(OUT_DIR, { recursive: true });
 
@@ -150,6 +159,60 @@ await import('node:fs/promises').then(async fs => {
   );
   console.log('📝 [build-backend] 写入 api-dist/package.json (type=module)');
 });
+
+// 6. 关键:把被标记为 external 的依赖对应的 node_modules 复制到 api-dist/node_modules/
+// 这样 server.mjs 跑时 ESM import 能从 api-dist/ 向上找到 node_modules/
+// Tauri 打包时把整个 api-dist/ 打进 resources,运行时位于 <resource_dir>/api-dist/
+// server.mjs 在 api-dist/server.mjs 跑,会从 ../node_modules 找依赖 → 但 ../node_modules 不在 resources 里
+// 所以我们把 node_modules 平级放在 api-dist/ 旁边
+//   <resource_dir>/api-dist/server.mjs
+//   <resource_dir>/api-dist/node_modules/better-sqlite3/...
+// 这样 import 'better-sqlite3' 会从 ./node_modules 找
+console.log('📦 [build-backend] 复制 external 依赖到 api-dist/node_modules/');
+
+// 6. 关键:把被标记为 external 的依赖物理复制到 api-dist/node_modules/
+// (用 junction 在 dev 阶段方便,但 Tauri 打包时 follow junction 会栈溢出)
+// 所以 build:api 默认用物理复制;dev 阶段用 NODE_PATH 走根目录的 node_modules
+console.log('📦 [build-backend] 复制 external 依赖到 api-dist/node_modules/');
+const externalDeps = new Set(EXTERNAL);
+const projectNodeModules = path.join(ROOT, 'node_modules');
+const targetNodeModules = path.join(OUT_DIR, 'node_modules');
+
+// 用 symlink(开发) 还是 物理复制(打包)?
+// 默认物理复制,因为 Tauri 打包要 embed 进安装包
+const USE_SYMLINK = process.env.DEV_SYMLINK === '1';
+
+if (existsSync(projectNodeModules)) {
+  await mkdir(targetNodeModules, { recursive: true });
+  const projectNm = await readdir(projectNodeModules);
+  for (const pkg of projectNm) {
+    if (!externalDeps.has(pkg) && !pkg.startsWith('@')) continue;
+    const src = path.join(projectNodeModules, pkg);
+    const dest = path.join(targetNodeModules, pkg);
+    const stats = await stat(src);
+    if (stats.isDirectory()) {
+      // 如果目标已存在,跳过(避免 Windows 文件锁 EPERM)
+      if (existsSync(dest)) {
+        console.log(`   ⏭️  ${pkg} (已存在,跳过)`);
+        continue;
+      }
+      if (USE_SYMLINK) {
+        // dev 模式用 junction 软链(节省空间,native 模块 rebuild 后自动同步)
+        if (process.platform === 'win32') {
+          await symlink(src, dest, 'junction');
+        } else {
+          await symlink(src, dest, 'dir');
+        }
+        console.log(`   🔗 ${pkg} → ${path.relative(ROOT, src)}`);
+      } else {
+        // 生产模式物理复制(Tauri 打包友好)
+        await copyDir(src, dest);
+        console.log(`   📁 ${pkg} (复制)`);
+      }
+    }
+  }
+  console.log(`✅ [build-backend] 完成,external 依赖${USE_SYMLINK ? '软链' : '物理复制'}到 api-dist/node_modules/`);
+}
 
 console.log('');
 console.log('✨ [build-backend] 完成。运行方式:');

@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use std::process::Child;
 use std::sync::Mutex;
 use std::time::Duration;
-use tauri::{Manager, State};
+use tauri::{Emitter, Manager, State};
 use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tauri_plugin_shell::ShellExt;
 
@@ -82,15 +82,35 @@ pub fn run() {
 
             println!("[Tauri] userData: {}", user_data_str);
 
-            // 启动 Node sidecar
+            // 启动 Node sidecar (xiaohongyi-backend 实际是 node.exe,带 api-dist/server.mjs 作为参数)
+            // 资源文件在生产环境位于: <resource_dir>/api-dist/server.mjs
+            // api-dist/ 旁边有 node_modules/ 软链,这样 server.mjs 跑时 ESM import 能找到
+            let api_entry = app
+                .path()
+                .resolve(
+                    "api-dist/server.mjs",
+                    tauri::path::BaseDirectory::Resource,
+                )
+                .map_err(|e| format!("找不到 api-dist/server.mjs: {}", e))?;
+
+            // api-dist 目录作为 cwd(让 server.mjs 的相对路径找 node_modules/ 正常)
+            let api_dir = api_entry
+                .parent()
+                .ok_or("api_entry 没有父目录")?
+                .to_path_buf();
+
+            println!("[Tauri] sidecar 入口: {:?}", api_entry);
+            println!("[Tauri] sidecar cwd:  {:?}", api_dir);
+
             let shell = app.shell();
             let sidecar_command = shell
                 .sidecar("xiaohongyi-backend")
                 .map_err(|e| format!("找不到 sidecar: {}", e))?
+                .args(&[api_entry.to_string_lossy().to_string()])
+                .current_dir(&api_dir)
                 .env("XIAOHONGYI_USER_DATA", &user_data_str)
                 .env("PORT", BACKEND_PORT.to_string())
-                .env("NODE_ENV", "production")
-                .env("ELECTRON_RUN_AS_NODE", "1"); // 兼容 node 20
+                .env("NODE_ENV", "production");
 
             let (mut rx, child) = sidecar_command
                 .spawn()
@@ -143,10 +163,12 @@ pub fn run() {
             // 关闭时 kill sidecar
             if let tauri::WindowEvent::CloseRequested { .. } = event {
                 let state: State<SidecarState> = window.state();
-                if let Some(child) = state.child.lock().unwrap().take() {
+                let mut guard = state.child.lock().unwrap();
+                if let Some(child) = guard.take() {
                     println!("[Tauri] 关闭主窗口,kill sidecar");
                     let _ = child.kill();
                 }
+                drop(guard);
             }
         })
         .invoke_handler(tauri::generate_handler![get_backend_url, check_backend_health])

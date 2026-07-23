@@ -64,6 +64,7 @@ release/
 # Tauri 2 (桌面版 v2)
 src-tauri/target/
 src-tauri/Cargo.lock
+src-tauri/resources/    # 运行时由 scripts/sync-tauri-resources.mjs 同步生成
 # sidecar 二进制(构建产物,但保留 .gitkeep 占位)
 src-tauri/binaries/xiaohongyi-backend-x86_64-pc-windows-msvc.exe
 src-tauri/binaries/xiaohongyi-backend-x86_64-unknown-linux-gnu

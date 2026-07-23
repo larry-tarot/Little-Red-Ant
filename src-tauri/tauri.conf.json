@@ -6,8 +6,8 @@
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:3001",
-    "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "npm run build:frontend"
+    "beforeDevCommand": "node scripts/sync-tauri-resources.mjs && npm run dev",
+    "beforeBuildCommand": "node scripts/sync-tauri-resources.mjs && npm run build:frontend && npm run build:api"
   },
   "app": {
     "windows": [
@@ -31,14 +31,18 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
+    "targets": [
+      "nsis"
+    ],
     "icon": [
       "icons/icon.ico"
     ],
     "externalBin": [
       "binaries/xiaohongyi-backend"
     ],
-    "resources": [],
+    "resources": {
+      "resources/api-dist": "api-dist"
+    },
     "copyright": "Copyright © 2026 magicCzc",
     "category": "Productivity",
     "shortDescription": "小红蚁 - AI 智能小红书运营助手",
@@ -48,7 +52,10 @@
         "installerIcon": "icons/icon.ico",
         "installMode": "perMachine",
         "displayLanguageSelector": false,
-        "languages": ["SimpChinese", "English"]
+        "languages": [
+          "SimpChinese",
+          "English"
+        ]
       },
       "webviewInstallMode": {
         "type": "downloadBootstrapper"

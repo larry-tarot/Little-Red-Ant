@@ -1,0 +1,9 @@
+[package]
+name = "glob_test"
+version = "0.1.0"
+edition = "2021"
+[dependencies]
+glob = "0.3"
+[[bin]]
+name = "glob_test"
+path = "glob_test.rs"
