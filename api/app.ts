@@ -67,6 +67,7 @@ const app: express.Application = express()
 const allowedOrigins = [
     'http://localhost:5173',
     'http://localhost:3000',
+    'http://localhost:3001', // 桌面版 Electron 加载地址
     process.env.FRONTEND_URL
 ].filter(Boolean) as string[];
 
@@ -193,6 +194,18 @@ app.use('/api/assets', authenticateToken, assetRoutes)
  * error handler middleware (unified)
  */
 app.use(errorHandler)
+
+/**
+ * SPA fallback: 非 API 路由返回 index.html(支持前端路由刷新)
+ */
+app.use((req: Request, res: Response, next: NextFunction) => {
+    if (req.path.startsWith('/api/')) {
+        return next();
+    }
+    res.sendFile(path.join(process.cwd(), 'dist', 'index.html'), (err) => {
+        if (err) next();
+    });
+});
 
 /**
  * 404 handler

@@ -21,7 +21,7 @@ function startBackend(): Promise<void> {
             // 生产模式: 使用 node --import tsx/esm
             backendProcess = spawn('node', ['--import', 'tsx/esm', backendPath], {
                 stdio: ['ignore', 'pipe', 'pipe'],
-                env: { ...process.env, PORT: String(BACKEND_PORT) },
+                env: { ...process.env, PORT: String(BACKEND_PORT), NODE_ENV: 'production' },
                 cwd: path.resolve(__dirname, '..'),
             });
         } else {
