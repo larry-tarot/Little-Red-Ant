@@ -58,7 +58,9 @@ async function createWindow() {
         await new Promise(r => setTimeout(r, 5000));
         mainWindow.loadURL('http://localhost:5173');
     } else {
-        mainWindow.loadFile(path.resolve(__dirname, '..', 'dist', 'index.html'));
+        // 生产模式: 等待后端启动后加载
+        // 后端 Express 同时提供 API 和前端静态文件
+        mainWindow.loadURL(`http://localhost:${BACKEND_PORT}`);
     }
 
     mainWindow.on('close', (e) => {

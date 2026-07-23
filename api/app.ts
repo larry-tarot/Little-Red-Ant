@@ -138,6 +138,10 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }))
 
 // Serve static files from public directory (e.g., uploads, audio)
 app.use(express.static(path.join(process.cwd(), 'public')));
+// 生产模式: 同时提供前端构建产物
+if (process.env.NODE_ENV === 'production') {
+    app.use(express.static(path.join(process.cwd(), 'dist')));
+}
 
 /**
  * API Routes
