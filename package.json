@@ -10,12 +10,8 @@
     "server:dev": "nodemon",
     "dev": "concurrently -k -n web,api -c blue,green \"npm run client:dev\" \"npm run server:dev\"",
     "ai": "tsx AI/cli.ts",
-
-    "build:backend": "node scripts/build-backend.mjs",
     "build:frontend": "tsc -b && vite build",
-    "build:electron-main": "tsc -p electron/tsconfig.json",
-    "build": "npm run build:backend && npm run build:frontend && npm run build:electron-main",
-
+    "build": "npm run build:frontend && npm run build:api && npm run build:sidecar",
     "lint": "eslint .",
     "preview": "vite preview",
     "check": "tsc --noEmit",
@@ -23,18 +19,12 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:frontend": "vitest run --config vitest.frontend.config.ts",
-
-    "electron:dev": "concurrently -k -n vite,api,electron -c blue,green,magenta \"npm run client:dev\" \"npm run server:dev\" \"wait-on http://localhost:5173 http://localhost:3001 && cross-env NODE_ENV=development electron . --dev\"",
-    "electron:pack": "npm run build && electron-builder --dir",
-    "electron:dist": "npm run build && electron-builder",
-    "electron:dist:win": "npm run build && electron-builder --win",
-    "electron:dist:mac": "npm run build && electron-builder --mac",
-    "electron:dist:linux": "npm run build && electron-builder --linux",
-    "release": "npm run electron:dist:win -- --publish never",
-
-    "rebuild:native": "electron-rebuild -f -w better-sqlite3",
     "icons": "node scripts/generate-icons.mjs",
-    "postinstall": "electron-builder install-app-deps"
+    "build:api": "node scripts/build-backend.mjs",
+    "build:sidecar": "node scripts/build-sidecar.mjs",
+    "tauri:dev": "cargo tauri dev",
+    "tauri:build": "cargo tauri build",
+    "tauri:build:win": "cargo tauri build"
   },
   "dependencies": {
     "@alicloud/pop-core": "^1.8.0",
@@ -50,8 +40,6 @@
     "dotenv": "^17.2.1",
     "drizzle-orm": "^0.45.2",
     "edge-tts": "^1.0.1",
-    "electron-log": "^5.1.5",
-    "electron-updater": "^6.3.9",
     "express": "^4.21.2",
     "express-rate-limit": "^8.5.2",
     "ffmpeg-static": "^5.3.0",
@@ -78,10 +66,11 @@
     "winston-daily-rotate-file": "^5.0.0",
     "xlsx": "^0.18.5",
     "zod": "^4.3.6",
-    "zustand": "^5.0.3"
+    "zustand": "^5.0.3",
+    "@tauri-apps/api": "^2.0.0",
+    "@tauri-apps/plugin-shell": "^2.0.0"
   },
   "devDependencies": {
-    "@electron/rebuild": "^3.7.0",
     "@eslint/js": "^9.25.0",
     "@testing-library/jest-dom": "^7.0.0",
     "@testing-library/react": "^16.3.2",
@@ -104,8 +93,6 @@
     "concurrently": "^9.2.4",
     "cross-env": "^7.0.3",
     "drizzle-kit": "^0.31.10",
-    "electron": "^31.7.7",
-    "electron-builder": "^25.1.8",
     "esbuild": "^0.24.0",
     "eslint": "^9.25.0",
     "eslint-plugin-react-hooks": "^5.2.0",
@@ -121,6 +108,7 @@
     "vite": "^6.3.5",
     "vite-tsconfig-paths": "^5.1.4",
     "vitest": "^4.0.18",
-    "wait-on": "^9.1.0"
+    "wait-on": "^9.1.0",
+    "@tauri-apps/cli": "^2.0.0"
   }
 }

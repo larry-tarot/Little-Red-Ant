@@ -60,3 +60,14 @@ desktop.ini
 
 dist-electron
 release/
+
+# Tauri 2 (桌面版 v2)
+src-tauri/target/
+src-tauri/Cargo.lock
+# sidecar 二进制(构建产物,但保留 .gitkeep 占位)
+src-tauri/binaries/xiaohongyi-backend-x86_64-pc-windows-msvc.exe
+src-tauri/binaries/xiaohongyi-backend-x86_64-unknown-linux-gnu
+src-tauri/binaries/xiaohongyi-backend-aarch64-apple-darwin
+src-tauri/binaries/xiaohongyi-backend-x86_64-apple-darwin
+# api-dist(由 build:api 产出,不入 git)
+api-dist/
