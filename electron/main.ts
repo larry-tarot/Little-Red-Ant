@@ -15,10 +15,22 @@ const BACKEND_PORT = 3001;
 function startBackend(): Promise<void> {
     return new Promise((resolve) => {
         const backendPath = path.resolve(__dirname, '..', 'api', 'server.ts');
-        backendProcess = spawn('npx', ['tsx', backendPath], {
-            stdio: ['ignore', 'pipe', 'pipe'],
-            env: { ...process.env, PORT: String(BACKEND_PORT) },
-        });
+        const isProduction = !process.argv.includes('--dev');
+
+        if (isProduction) {
+            // 生产模式: 使用 node --import tsx/esm
+            backendProcess = spawn('node', ['--import', 'tsx/esm', backendPath], {
+                stdio: ['ignore', 'pipe', 'pipe'],
+                env: { ...process.env, PORT: String(BACKEND_PORT) },
+                cwd: path.resolve(__dirname, '..'),
+            });
+        } else {
+            // 开发模式: 使用 npx tsx
+            backendProcess = spawn('npx', ['tsx', backendPath], {
+                stdio: ['ignore', 'pipe', 'pipe'],
+                env: { ...process.env, PORT: String(BACKEND_PORT) },
+            });
+        }
         backendProcess.stdout?.on('data', (data: Buffer) => {
             if (data.toString().includes('Server ready')) resolve();
         });
