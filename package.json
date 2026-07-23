@@ -28,6 +28,8 @@
   },
   "dependencies": {
     "@alicloud/pop-core": "^1.8.0",
+    "@tauri-apps/api": "^2.11.1",
+    "@tauri-apps/plugin-shell": "^2.3.5",
     "ali-oss": "^6.23.0",
     "axios": "^1.13.2",
     "bcryptjs": "^3.0.3",
@@ -66,19 +68,18 @@
     "winston-daily-rotate-file": "^5.0.0",
     "xlsx": "^0.18.5",
     "zod": "^4.3.6",
-    "zustand": "^5.0.3",
-    "@tauri-apps/api": "^2.0.0",
-    "@tauri-apps/plugin-shell": "^2.0.0"
+    "zustand": "^5.0.3"
   },
   "devDependencies": {
     "@eslint/js": "^9.25.0",
+    "@tauri-apps/cli": "^2.11.4",
     "@testing-library/jest-dom": "^7.0.0",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
     "@types/bcryptjs": "^3.0.0",
     "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.19",
-    "@types/express": "^4.21.21",
+    "@types/express": "^4.17.25",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/multer": "^2.0.0",
     "@types/node": "^22.15.30",
@@ -108,7 +109,6 @@
     "vite": "^6.3.5",
     "vite-tsconfig-paths": "^5.1.4",
     "vitest": "^4.0.18",
-    "wait-on": "^9.1.0",
-    "@tauri-apps/cli": "^2.0.0"
+    "wait-on": "^9.1.0"
   }
 }

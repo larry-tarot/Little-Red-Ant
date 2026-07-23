@@ -1,0 +1,6 @@
+// 这个文件是占位,告诉 Git 保留 binaries/ 目录
+// 实际的 sidecar 二进制由 scripts/build-sidecar.mjs 生成:
+//   xiaohongyi-backend-x86_64-pc-windows-msvc.exe
+//   xiaohongyi-backend-x86_64-unknown-linux-gnu
+//   xiaohongyi-backend-aarch64-apple-darwin
+//   xiaohongyi-backend-x86_64-apple-darwin

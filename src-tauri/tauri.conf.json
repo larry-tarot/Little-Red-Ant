@@ -1,0 +1,58 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "小红蚁",
+  "version": "1.0.0",
+  "identifier": "com.magicCzc.xiaohongyi",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:3001",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build:frontend"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "小红蚁",
+        "width": 1400,
+        "height": 900,
+        "minWidth": 1024,
+        "minHeight": 640,
+        "resizable": true,
+        "fullscreen": false,
+        "decorations": true,
+        "transparent": false,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "icon": [
+      "icons/icon.ico"
+    ],
+    "externalBin": [
+      "binaries/xiaohongyi-backend"
+    ],
+    "resources": [],
+    "copyright": "Copyright © 2026 magicCzc",
+    "category": "Productivity",
+    "shortDescription": "小红蚁 - AI 智能小红书运营助手",
+    "longDescription": "小红蚁是面向小红书博主的 AI 一站式运营助手,支持内容创作、视频工程、竞品监控、数据分析等核心能力。",
+    "windows": {
+      "nsis": {
+        "installerIcon": "icons/icon.ico",
+        "installMode": "perMachine",
+        "displayLanguageSelector": false,
+        "languages": ["SimpChinese", "English"]
+      },
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      }
+    }
+  }
+}
