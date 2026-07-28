@@ -22,11 +22,24 @@ npm run dev
 |------|------|
 | `npm run dev` | 启动前后端开发服务器 |
 | `npm run build` | 构建前端 |
-| `npm test` | 后端测试 (25 个) |
+| `npm test` | 后端测试 (29 个) |
 | `npm run test:frontend` | 前端测试 (9 个) |
 | `npm run lint` | ESLint 检查 |
 | `npm run check` | TypeScript 类型检查 |
 | `npm run ai -- say "..."` | CLI 自然语言命令 |
+| `npm run tauri:dev` | 启动 Tauri 桌面开发模式(Windows/macOS/Linux) |
+| `npm run tauri:build` | 打包 Tauri 桌面安装包(NSIS/.dmg/.deb/.AppImage) |
+| `npm run icons` | 重新生成 Tauri 图标套件 |
+
+## 桌面版开发
+
+桌面版文档见 [`DESKTOP_BUILD.md`](./DESKTOP_BUILD.md),涵盖:
+- 前置依赖(Rust toolchain、WebView2、Linux webkit2gtk)
+- 本地三平台构建命令
+- CI 矩阵(`.github/workflows/ci.yml` 的 `desktop-build` job)
+- sidecar 架构、首次启动 .env bootstrap、数据目录
+
+> 桌面版当前主分支:`desktop-v2-tauri`(从 Electron 迁移到 Tauri 2)
 
 ## 测试
 
@@ -37,8 +50,17 @@ npm test
 # 前端测试
 npm run test:frontend
 
+# TypeScript / ESLint 检查
+npm run check
+npm run lint
+
+# Playwright 驱动自测 (不依赖前后端服务)
+node --import tsx/esm tests/e2e/playwright-self-test.mjs
+
 # E2E 测试 (需要先启动前后端)
 node tests/e2e/verify.mjs
+node tests/e2e/smoke.mjs
+node tests/e2e/functional.mjs
 ```
 
 ## 数据库
@@ -76,5 +98,5 @@ chore: 构建/工具
 
 | 分支 | 说明 |
 |------|------|
-| main | 稳定版本,Web 端 |
-| desktop | 桌面版 (Electron, 实验性) |
+| main | 稳定版本,Web 端 + 共用代码 |
+| desktop-v2-tauri | 桌面版 (Tauri 2, 主分支) |

@@ -12,6 +12,44 @@ node_modules
 dist
 dist-ssr
 *.local
+# Catch scoped packages that might end up outside node_modules
+@*/
+# Known unscoped packages that were mistakenly extracted to root
+/axios/
+/bcryptjs/
+/cheerio/
+/clsx/
+/cookie-parser/
+/cors/
+/date-fns/
+/dotenv/
+/drizzle-orm/
+/edge-tts/
+/express/
+/express-rate-limit/
+/ffmpeg-static/
+/fluent-ffmpeg/
+/ghost-cursor/
+/html2canvas/
+/jsonwebtoken/
+/lucide-react/
+/multer/
+/node-cron/
+/openai/
+/playwright/
+/playwright-core/
+/playwright-extra/
+/puppeteer-extra-plugin-stealth/
+/react/
+/react-dom/
+/react-hot-toast/
+/react-router-dom/
+/recharts/
+/sharp/
+/uuid/
+/winston/
+/xlsx/
+/zod/
 
 # Environment
 .env
@@ -63,7 +101,6 @@ release/
 
 # Tauri 2 (桌面版 v2)
 src-tauri/target/
-src-tauri/Cargo.lock
 src-tauri/resources/    # 运行时由 scripts/sync-tauri-resources.mjs 同步生成
 # sidecar 二进制(构建产物,但保留 .gitkeep 占位)
 src-tauri/binaries/xiaohongyi-backend-x86_64-pc-windows-msvc.exe
@@ -72,3 +109,6 @@ src-tauri/binaries/xiaohongyi-backend-aarch64-apple-darwin
 src-tauri/binaries/xiaohongyi-backend-x86_64-apple-darwin
 # api-dist(由 build:api 产出,不入 git)
 api-dist/
+.pkg-cache/
+resources/
+.scratch/
