@@ -37,13 +37,13 @@ const VideoPreviewSidebar: React.FC<VideoPreviewSidebarProps> = ({
 }) => {
     return (
         <div className="lg:col-span-1 flex flex-col gap-6">
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="p-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
-                    <h3 className="font-bold text-gray-800 flex items-center">
-                        <Layers size={18} className="mr-2 text-indigo-600" />
+            <div className="bg-surface rounded-xl shadow-sm border border-border overflow-hidden">
+                <div className="p-4 border-b border-border bg-surface-muted flex justify-between items-center">
+                    <h3 className="font-bold text-text flex items-center">
+                        <Layers size={18} className="mr-2 text-primary" />
                         合成预览
                     </h3>
-                    <button className="text-xs text-indigo-600 font-medium hover:text-indigo-800">刷新预览</button>
+                    <button className="text-xs text-primary font-medium hover:text-primary-hover">刷新预览</button>
                 </div>
                 <div className="aspect-[9/16] bg-black relative group flex items-center justify-center overflow-hidden">
                     {/* Stitched video preview */}
@@ -63,25 +63,25 @@ const VideoPreviewSidebar: React.FC<VideoPreviewSidebarProps> = ({
                                 onEnded={handlePreviewEnded}
                                 className="w-full h-full object-contain"
                             />
-                            <div className="absolute top-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded">
+                            <div className="absolute top-2 left-2 bg-black/60 text-primary-text text-xs px-2 py-1 rounded">
                                 预览中: 分镜 {project.scenes[previewIndex].scene_index + 1}
                             </div>
                         </div>
                     ) : (
                         completedCount > 0 ? (
-                            <div className="text-center text-gray-400">
+                            <div className="text-center text-text-tertiary">
                                 <Film size={48} className="mx-auto mb-2 opacity-50" />
                                 <p className="text-sm">选择分镜进行预览</p>
                             </div>
                         ) : (
-                            <div className="text-center text-gray-500">
+                            <div className="text-center text-text-tertiary">
                                 <p className="text-sm">生成分镜后开始合成</p>
                             </div>
                         )
                     )}
                 </div>
-                <div className="p-4 bg-white">
-                    <div className="flex justify-between items-center text-sm text-gray-600 mb-2">
+                <div className="p-4 bg-surface">
+                    <div className="flex justify-between items-center text-sm text-text-secondary mb-2">
                         <span>预估时长</span>
                         <span className="font-mono font-bold">~{project.scenes.length * 4}s</span>
                     </div>
@@ -90,7 +90,7 @@ const VideoPreviewSidebar: React.FC<VideoPreviewSidebarProps> = ({
                             onClick={handlePlayAll}
                             disabled={previewIndex !== null}
                             className={`flex-1 py-2 rounded text-sm font-medium flex justify-center items-center transition-colors
-                                ${previewIndex !== null ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}
+                                ${previewIndex !== null ? 'bg-primary-subtle text-primary' : 'bg-surface-muted hover:bg-surface-hover text-text-secondary'}
                             `}
                         >
                             {previewIndex !== null ? (
@@ -105,7 +105,7 @@ const VideoPreviewSidebar: React.FC<VideoPreviewSidebarProps> = ({
                         </button>
                         <button 
                             onClick={() => setShowCharacterModal(true)}
-                            className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded"
+                            className="px-3 py-2 bg-surface-muted hover:bg-surface-hover text-text-secondary rounded"
                             title="配置全局人设"
                         >
                             <Settings size={18} />
@@ -114,18 +114,18 @@ const VideoPreviewSidebar: React.FC<VideoPreviewSidebarProps> = ({
                 </div>
             </div>
 
-            <div className="bg-indigo-50 rounded-xl p-5 border border-indigo-100">
-                 <h4 className="font-bold text-indigo-900 mb-2 flex items-center">
+            <div className="bg-primary-subtle rounded-xl p-5 border border-primary-subtle">
+                 <h4 className="font-bold text-primary mb-2 flex items-center">
                     <Wand2 size={16} className="mr-2" />
                     生产助手
                  </h4>
-                 <p className="text-xs text-indigo-700 mb-4 leading-relaxed">
+                 <p className="text-xs text-primary mb-4 leading-relaxed">
                     已准备好生成视频。 
                     当前共有 <strong>{project.scenes.length} 个分镜</strong>。
                  </p>
                  <button 
                     onClick={handleBatchGenerate}
-                    className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors flex justify-center items-center"
+                    className="w-full py-2 bg-primary hover:bg-primary-hover text-primary-text rounded-lg text-sm font-medium transition-colors flex justify-center items-center"
                  >
                     <Video size={16} className="mr-2" />
                     批量生成所有分镜
@@ -133,22 +133,22 @@ const VideoPreviewSidebar: React.FC<VideoPreviewSidebarProps> = ({
             </div>
 
             {/* Background Music Selector */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+            <div className="bg-surface rounded-xl shadow-sm border border-border p-4">
                 <div className="flex justify-between items-center mb-3">
-                    <h4 className="font-bold text-gray-800 flex items-center text-sm">
-                        <Music size={16} className="mr-2 text-pink-500" />
+                    <h4 className="font-bold text-text flex items-center text-sm">
+                        <Music size={16} className="mr-2 text-primary" />
                         背景音乐 (BGM)
                     </h4>
-                    <div className="flex bg-gray-100 rounded-lg p-0.5">
+                    <div className="flex bg-surface-muted rounded-lg p-0.5">
                         <button 
                             onClick={() => setActiveTab('stock')}
-                            className={`px-2 py-1 text-[10px] font-medium rounded-md transition-all ${activeTab === 'stock' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}
+                            className={`px-2 py-1 text-[10px] font-medium rounded-md transition-all ${activeTab === 'stock' ? 'bg-surface shadow-sm text-text' : 'text-text-tertiary'}`}
                         >
                             推荐
                         </button>
                         <button 
                             onClick={() => setActiveTab('uploads')}
-                            className={`px-2 py-1 text-[10px] font-medium rounded-md transition-all ${activeTab === 'uploads' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}
+                            className={`px-2 py-1 text-[10px] font-medium rounded-md transition-all ${activeTab === 'uploads' ? 'bg-surface shadow-sm text-text' : 'text-text-tertiary'}`}
                         >
                             我的上传
                         </button>
@@ -163,8 +163,8 @@ const VideoPreviewSidebar: React.FC<VideoPreviewSidebarProps> = ({
                                 onClick={() => handleSelectBgm(track.url)}
                                 className={`w-full text-left px-3 py-2 rounded text-xs flex items-center justify-between transition-colors
                                     ${project.bgm_url === track.url 
-                                        ? 'bg-pink-50 text-pink-700 border border-pink-200 font-medium' 
-                                        : 'hover:bg-gray-50 text-gray-600 border border-transparent'
+                                        ? 'bg-primary-subtle text-primary-hover border border-primary-subtle font-medium' 
+                                        : 'hover:bg-surface-muted text-text-secondary border border-transparent'
                                     }`}
                             >
                                 <span className="flex items-center">
@@ -178,14 +178,14 @@ const VideoPreviewSidebar: React.FC<VideoPreviewSidebarProps> = ({
                         <>
                             <button 
                                 onClick={() => openAssetSelector('audio')}
-                                className="flex items-center justify-center w-full px-4 py-2 bg-indigo-50 border border-indigo-100 text-indigo-600 rounded-lg hover:bg-indigo-100 transition-colors mb-2 text-xs font-medium"
+                                className="flex items-center justify-center w-full px-4 py-2 bg-primary-subtle border border-primary-subtle text-primary rounded-lg hover:bg-primary-subtle transition-colors mb-2 text-xs font-medium"
                             >
                                 <Library size={14} className="mr-2" />
                                 从素材库选择
                             </button>
                             
                             {uploadedAssets.length === 0 && (
-                                <div className="text-center py-4 text-gray-400 text-xs">
+                                <div className="text-center py-4 text-text-tertiary text-xs">
                                     暂无上传音乐，请点击上方按钮选择
                                 </div>
                             )}
@@ -196,8 +196,8 @@ const VideoPreviewSidebar: React.FC<VideoPreviewSidebarProps> = ({
                                         onClick={() => handleSelectBgm(asset.url)}
                                         className={`w-full text-left px-3 py-2 rounded text-xs flex items-center justify-between transition-colors
                                             ${project.bgm_url === asset.url 
-                                                ? 'bg-pink-50 text-pink-700 border border-pink-200 font-medium' 
-                                                : 'hover:bg-gray-50 text-gray-600 border border-transparent'
+                                                ? 'bg-primary-subtle text-primary-hover border border-primary-subtle font-medium' 
+                                                : 'hover:bg-surface-muted text-text-secondary border border-transparent'
                                             }`}
                                     >
                                         <span className="flex items-center truncate max-w-[150px]">

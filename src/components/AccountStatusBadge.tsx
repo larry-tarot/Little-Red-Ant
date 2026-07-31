@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
-import axios from 'axios';
-import { AlertCircle, CheckCircle, RefreshCw, XCircle, Loader2 } from 'lucide-react';
+import axios from '@/lib/axios';
+import { AlertCircle, CheckCircle, RefreshCw, XCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useState, useEffect } from "react";
 
 interface AccountStatus {
     id: number;
@@ -11,6 +11,11 @@ interface AccountStatus {
     last_checked: string;
 }
 
+/**
+ * 账号状态徽章
+ *
+ * 展示当前主账号的登录状态，支持手动重新检测。
+ */
 export default function AccountStatusBadge() {
     const [account, setAccount] = useState<AccountStatus | null>(null);
     const [loading, setLoading] = useState(true);
@@ -22,8 +27,7 @@ export default function AccountStatusBadge() {
 
     const fetchStatus = async () => {
         try {
-            // Simplified API call to get primary account status
-            const res = await axios.get('/api/accounts/primary-status'); 
+            const res = await axios.get('/api/accounts/primary-status');
             setAccount(res.data);
         } catch (e) {
             console.error('Failed to fetch account status', e);
@@ -48,7 +52,7 @@ export default function AccountStatusBadge() {
 
     if (!account) {
         return (
-            <Link to="/accounts" className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 text-gray-600 rounded-full text-xs font-medium hover:bg-gray-200 transition-colors">
+            <Link to="/accounts" className="flex items-center gap-2 px-3 py-1.5 bg-surface-muted text-text-secondary rounded-full text-xs font-medium hover:bg-surface-hover transition-colors">
                 <AlertCircle size={14} />
                 <span>未绑定账号</span>
             </Link>
@@ -56,30 +60,30 @@ export default function AccountStatusBadge() {
     }
 
     const statusConfig = {
-        'ACTIVE': { color: 'bg-green-100 text-green-700', icon: CheckCircle, text: '账号状态正常' },
-        'EXPIRED': { color: 'bg-red-100 text-red-700', icon: XCircle, text: 'Cookie 已过期' },
-        'UNKNOWN': { color: 'bg-yellow-100 text-yellow-700', icon: AlertCircle, text: '状态未知' }
+        ACTIVE: { color: 'bg-success-subtle text-success border-success/20', icon: CheckCircle, text: '账号状态正常' },
+        EXPIRED: { color: 'bg-danger-subtle text-danger border-danger/20', icon: XCircle, text: 'Cookie 已过期' },
+        UNKNOWN: { color: 'bg-warning-subtle text-warning border-warning/20', icon: AlertCircle, text: '状态未知' },
     };
 
-    const config = statusConfig[account.status] || statusConfig['UNKNOWN'];
+    const config = statusConfig[account.status] || statusConfig.UNKNOWN;
     const Icon = config.icon;
 
     return (
-        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium ${config.color} border border-transparent`}>
+        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border ${config.color}`}>
             <Icon size={14} />
             <span className="truncate max-w-[100px]">{account.nickname}</span>
             <span className="w-px h-3 bg-current opacity-30 mx-1"></span>
             <span>{config.text}</span>
-            
-            <button 
-                onClick={(e) => { e.preventDefault(); handleRecheck(); }} 
+
+            <button
+                onClick={(e) => { e.preventDefault(); handleRecheck(); }}
                 disabled={checking}
-                className="ml-1 p-0.5 rounded-full hover:bg-black/5 transition-colors"
+                className="ml-1 p-0.5 rounded-full hover:bg-surface-hover transition-colors"
                 title="重新检查状态"
             >
                 <RefreshCw size={12} className={checking ? 'animate-spin' : ''} />
             </button>
-            
+
             {account.status === 'EXPIRED' && (
                 <Link to="/accounts" className="ml-1 underline hover:no-underline">
                     去修复

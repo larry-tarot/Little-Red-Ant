@@ -1,9 +1,12 @@
-/**
- * 底部状态栏 — 显示账号信息、任务状态、通知
- */
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import axios from '@/lib/axios';
+import { useState, useEffect } from "react";
+import { Zap, Bell } from 'lucide-react';
 
+/**
+ * 桌面版底部状态栏
+ *
+ * 展示后端连接状态、当前活跃账号、进行中的任务数、未读通知数及应用版本。
+ */
 export default function StatusBar() {
     const [accountName, setAccountName] = useState('未选择');
     const [taskCount, setTaskCount] = useState(0);
@@ -40,32 +43,34 @@ export default function StatusBar() {
     }, []);
 
     return (
-        <div className="h-7 bg-slate-900 border-t border-slate-700 flex items-center justify-between px-4 text-xs text-slate-400 flex-shrink-0">
-            {/* 左侧: 后端状态 + 账号 */}
+        <div className="h-7 bg-surface text-text-secondary border-t border-border flex items-center justify-between px-4 text-xs flex-shrink-0">
+            {/* 左侧：后端状态 + 当前账号 */}
             <div className="flex items-center gap-4">
                 <div className="flex items-center gap-1.5">
                     <span className={`w-1.5 h-1.5 rounded-full ${
-                        backendStatus === 'connected' ? 'bg-emerald-500' : 'bg-red-500'
+                        backendStatus === 'connected' ? 'bg-success' : 'bg-danger'
                     }`} />
                     <span>{backendStatus === 'connected' ? '已连接' : '未连接'}</span>
                 </div>
-                <span className="text-slate-500">|</span>
+                <span className="text-border-strong">|</span>
                 <span>账号: {accountName}</span>
             </div>
 
-            {/* 右侧: 任务 + 通知 */}
+            {/* 右侧：任务 + 通知 + 版本 */}
             <div className="flex items-center gap-4">
                 {taskCount > 0 && (
-                    <span className="flex items-center gap-1 text-amber-400">
-                        <span>⚡</span> 进行中: {taskCount}
+                    <span className="flex items-center gap-1 text-warning">
+                        <Zap size={12} />
+                        进行中: {taskCount}
                     </span>
                 )}
                 {unreadCount > 0 && (
-                    <span className="flex items-center gap-1 text-blue-400">
-                        <span>🔔</span> 未读: {unreadCount}
+                    <span className="flex items-center gap-1 text-primary">
+                        <Bell size={12} />
+                        未读: {unreadCount}
                     </span>
                 )}
-                <span className="text-slate-500">v1.0.0</span>
+                <span className="text-text-tertiary">v1.0.0</span>
             </div>
         </div>
     );

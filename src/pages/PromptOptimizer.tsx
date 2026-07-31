@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import axios from '@/lib/axios';
 import { 
-    Layout, CheckCircle, XCircle, TrendingUp, 
-    MessageSquare, AlertTriangle, ArrowRight 
+    Layout, CheckCircle, TrendingUp, 
+    MessageSquare, ArrowRight 
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
@@ -34,7 +34,7 @@ const PromptOptimizer: React.FC = () => {
             if (res.data.success) {
                 setOptimizations(res.data.data);
             }
-        } catch (error) {
+        } catch (_error) {
             toast.error('Failed to load optimizations');
         } finally {
             setLoading(false);
@@ -48,7 +48,7 @@ const PromptOptimizer: React.FC = () => {
             await axios.post(`/api/optimizations/${id}/apply`);
             toast.success('Optimization applied successfully!');
             fetchOptimizations();
-        } catch (error) {
+        } catch (_error) {
             toast.error('Failed to apply optimization');
         }
     };
@@ -58,7 +58,7 @@ const PromptOptimizer: React.FC = () => {
             await axios.post(`/api/optimizations/${id}/reject`);
             toast.success('Optimization rejected');
             fetchOptimizations();
-        } catch (error) {
+        } catch (_error) {
             toast.error('Failed to reject optimization');
         }
     };
@@ -68,29 +68,29 @@ const PromptOptimizer: React.FC = () => {
     return (
         <div className="max-w-6xl mx-auto p-6">
             <header className="mb-8">
-                <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                    <TrendingUp className="text-red-600" />
+                <h1 className="text-2xl font-bold text-text flex items-center gap-2">
+                    <TrendingUp className="text-danger" />
                     提示词优化 (Prompt Optimizer)
                 </h1>
-                <p className="text-gray-500 mt-2">
+                <p className="text-text-tertiary mt-2">
                     AI 自我迭代中心。系统会自动分析高表现笔记，并在此提出优化建议。
                 </p>
             </header>
 
             {/* Tabs */}
-            <div className="flex gap-4 border-b border-gray-200 mb-6">
+            <div className="flex gap-4 border-b border-border mb-6">
                 {(['PENDING', 'APPLIED', 'REJECTED'] as const).map(tab => (
                     <button
                         key={tab}
                         onClick={() => setActiveTab(tab)}
                         className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${
                             activeTab === tab 
-                                ? 'border-red-600 text-red-600' 
-                                : 'border-transparent text-gray-500 hover:text-gray-700'
+                                ? 'border-danger text-danger' 
+                                : 'border-transparent text-text-tertiary hover:text-text-secondary'
                         }`}
                     >
                         {tab === 'PENDING' ? '待处理建议' : tab === 'APPLIED' ? '已应用' : '已拒绝'}
-                        <span className="ml-2 bg-gray-100 text-gray-600 py-0.5 px-2 rounded-full text-xs">
+                        <span className="ml-2 bg-surface-muted text-text-secondary py-0.5 px-2 rounded-full text-xs">
                             {optimizations.filter(o => o.status === tab).length}
                         </span>
                     </button>
@@ -98,12 +98,12 @@ const PromptOptimizer: React.FC = () => {
             </div>
 
             {loading ? (
-                <div className="text-center py-12 text-gray-500">Loading...</div>
+                <div className="text-center py-12 text-text-tertiary">Loading...</div>
             ) : filtered.length === 0 ? (
-                <div className="text-center py-12 bg-gray-50 rounded-xl border border-dashed border-gray-300">
-                    <MessageSquare className="mx-auto h-12 w-12 text-gray-300 mb-3" />
-                    <h3 className="text-lg font-medium text-gray-900">暂无数据</h3>
-                    <p className="text-gray-500">
+                <div className="text-center py-12 bg-surface-muted rounded-xl border border-dashed border-strong">
+                    <MessageSquare className="mx-auto h-12 w-12 text-text-tertiary mb-3" />
+                    <h3 className="text-lg font-medium text-text">暂无数据</h3>
+                    <p className="text-text-tertiary">
                         {activeTab === 'PENDING' 
                             ? '暂无优化建议。请等待定时任务积累足够的高赞笔记数据。' 
                             : '没有相关记录'}
@@ -112,20 +112,20 @@ const PromptOptimizer: React.FC = () => {
             ) : (
                 <div className="grid gap-6">
                     {filtered.map(opt => (
-                        <div key={opt.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                        <div key={opt.id} className="bg-surface rounded-xl shadow-sm border border-border overflow-hidden">
                             {/* Header */}
-                            <div className="px-6 py-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
+                            <div className="px-6 py-4 bg-surface-muted border-b border-border flex justify-between items-center">
                                 <div>
                                     <div className="flex items-center gap-2">
-                                        <span className="font-bold text-gray-900">{opt.target_style}</span>
-                                        <span className="text-xs text-gray-500">
+                                        <span className="font-bold text-text">{opt.target_style}</span>
+                                        <span className="text-xs text-text-tertiary">
                                             #{opt.id} • {new Date(opt.created_at).toLocaleString()}
                                         </span>
                                     </div>
                                     {opt.performance_metrics && (
-                                        <div className="flex gap-4 mt-1 text-xs text-gray-600">
+                                        <div className="flex gap-4 mt-1 text-xs text-text-secondary">
                                             <span>样本数: {opt.performance_metrics.sample_count}</span>
-                                            <span className="text-red-600 font-medium">
+                                            <span className="text-danger font-medium">
                                                 平均点赞: {opt.performance_metrics.avg_likes}
                                             </span>
                                         </div>
@@ -135,13 +135,13 @@ const PromptOptimizer: React.FC = () => {
                                     <div className="flex gap-2">
                                         <button 
                                             onClick={() => handleReject(opt.id)}
-                                            className="px-3 py-1.5 text-gray-600 hover:bg-white border border-transparent hover:border-gray-300 rounded-md text-sm transition-all"
+                                            className="px-3 py-1.5 text-text-secondary hover:bg-surface border border-transparent hover:border-strong rounded-md text-sm transition-all"
                                         >
                                             忽略
                                         </button>
                                         <button 
                                             onClick={() => handleApply(opt.id)}
-                                            className="px-3 py-1.5 bg-red-600 text-white hover:bg-red-700 rounded-md text-sm shadow-sm flex items-center gap-1"
+                                            className="px-3 py-1.5 bg-danger text-primary-text hover:bg-danger rounded-md text-sm shadow-sm flex items-center gap-1"
                                         >
                                             <CheckCircle size={14} />
                                             应用优化
@@ -154,22 +154,22 @@ const PromptOptimizer: React.FC = () => {
                             <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-8">
                                 {/* Analysis Report */}
                                 <div>
-                                    <h4 className="text-sm font-bold text-gray-700 mb-3 flex items-center">
+                                    <h4 className="text-sm font-bold text-text-secondary mb-3 flex items-center">
                                         <Layout size={16} className="mr-2" />
                                         AI 归因分析
                                     </h4>
-                                    <div className="bg-blue-50 p-4 rounded-lg text-sm text-blue-800 leading-relaxed whitespace-pre-wrap border border-blue-100">
+                                    <div className="bg-primary-subtle p-4 rounded-lg text-sm text-primary leading-relaxed whitespace-pre-wrap border border-primary-subtle">
                                         {opt.analysis_report}
                                     </div>
                                 </div>
 
                                 {/* Optimized Prompt */}
                                 <div>
-                                    <h4 className="text-sm font-bold text-gray-700 mb-3 flex items-center">
+                                    <h4 className="text-sm font-bold text-text-secondary mb-3 flex items-center">
                                         <ArrowRight size={16} className="mr-2" />
                                         建议的新 Prompt
                                     </h4>
-                                    <div className="bg-gray-900 p-4 rounded-lg text-sm text-green-400 font-mono overflow-auto max-h-64 leading-relaxed">
+                                    <div className="bg-text p-4 rounded-lg text-sm text-success font-mono overflow-auto max-h-64 leading-relaxed">
                                         {opt.optimized_template}
                                     </div>
                                 </div>

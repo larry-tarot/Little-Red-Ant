@@ -1,7 +1,6 @@
-import React from 'react';
 import { Film, Loader2, Sparkles, Type, Image } from 'lucide-react';
 import toast from 'react-hot-toast';
-import axios from 'axios';
+import axios from '@/lib/axios';
 
 interface VideoGeneratorFormProps {
     videoMode: 't2v' | 'i2v';
@@ -24,17 +23,17 @@ export default function VideoGeneratorForm({
     return (
         <div className="space-y-5">
             {/* Mode Switcher */}
-            <div className="bg-gray-100 p-1 rounded-xl flex w-fit shadow-inner">
+            <div className="bg-surface-muted p-1 rounded-xl flex w-fit shadow-inner">
                 <button 
                     onClick={() => setVideoMode('t2v')}
-                    className={`px-5 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 flex items-center gap-2 ${videoMode === 't2v' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+                    className={`px-5 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 flex items-center gap-2 ${videoMode === 't2v' ? 'bg-surface text-primary shadow-sm' : 'text-text-secondary hover:text-text'}`}
                 >
                     <Type size={16} />
                     文生视频
                 </button>
                 <button 
                     onClick={() => setVideoMode('i2v')}
-                    className={`px-5 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 flex items-center gap-2 ${videoMode === 'i2v' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+                    className={`px-5 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 flex items-center gap-2 ${videoMode === 'i2v' ? 'bg-surface text-primary shadow-sm' : 'text-text-secondary hover:text-text'}`}
                 >
                     <Image size={16} />
                     图生视频
@@ -44,8 +43,8 @@ export default function VideoGeneratorForm({
             <form onSubmit={onGenerateVideo} className="space-y-4">
                     {videoMode === 'i2v' && (
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                参考图片 URL <span className="text-red-500">*</span>
+                            <label className="block text-sm font-medium text-text-secondary mb-2">
+                                参考图片 URL <span className="text-danger">*</span>
                             </label>
                             <div className="relative">
                                 <input 
@@ -53,31 +52,30 @@ export default function VideoGeneratorForm({
                                     value={videoImageUrl} 
                                     onChange={e => setVideoImageUrl(e.target.value)}
                                     placeholder="请输入图片 URL (例如从图文笔记生成的图片)"
-                                    className="w-full p-3 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm"
-                                    required
+                                    className="w-full p-3 border border-strong rounded-md focus:ring-primary focus:border-primary text-sm"
                                 />
                                 {videoImageUrl && (
-                                    <div className="mt-2 w-20 h-20 rounded bg-gray-100 overflow-hidden border border-gray-200">
+                                    <div className="mt-2 w-20 h-20 rounded bg-surface-muted overflow-hidden border border-border">
                                         <img src={videoImageUrl} alt="Preview" className="w-full h-full object-cover" onError={(e) => (e.currentTarget.style.display = 'none')} />
                                     </div>
                                 )}
                             </div>
-                            <p className="text-xs text-gray-500 mt-1">
+                            <p className="text-xs text-text-tertiary mt-1">
                                 提示: 您可以从"图文笔记"中生成图片，然后点击图片上的"生成视频"按钮自动跳转到这里。
                             </p>
                         </div>
                     )}
     
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            视频提示词 <span className="text-red-500">*</span>
+                        <label className="block text-sm font-medium text-text-secondary mb-2">
+                            视频提示词 <span className="text-danger">*</span>
                         </label>
                         {activeAccount && activeAccount.persona_image_url && videoMode === 't2v' && (
-                             <div className="mb-2 bg-blue-50 border border-blue-100 rounded-md p-2 flex items-center gap-2">
-                                <div className="w-8 h-8 rounded-full overflow-hidden border border-blue-200 shrink-0">
+                             <div className="mb-2 bg-primary-subtle border border-primary-subtle rounded-md p-2 flex items-center gap-2">
+                                <div className="w-8 h-8 rounded-full overflow-hidden border border-primary-subtle shrink-0">
                                     <img src={activeAccount.persona_image_url} className="w-full h-full object-cover" />
                                 </div>
-                                <div className="text-xs text-blue-700">
+                                <div className="text-xs text-primary">
                                     <span className="font-bold">人设已激活:</span> 系统将自动使用账号人设作为视频主角 (如提示词包含人物)
                                 </div>
                              </div>
@@ -88,8 +86,7 @@ export default function VideoGeneratorForm({
                                 value={videoPrompt}
                                 onChange={(e) => setVideoPrompt(e.target.value)}
                                 placeholder={videoMode === 't2v' ? "描述你想生成的视频内容... (支持中英文)" : "描述如何让图片动起来... (例如: 镜头缓慢推进，光影变化)"}
-                                required
-                                className="w-full p-3 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm pr-24"
+                                className="w-full p-3 border border-strong rounded-md focus:ring-primary focus:border-primary text-sm pr-24"
                             />
                             <button
                                 type="button"
@@ -100,11 +97,11 @@ export default function VideoGeneratorForm({
                                         const res = await axios.post('/api/generate/optimize-prompt', { prompt: videoPrompt, type: 'video' });
                                         setVideoPrompt(res.data.optimizedPrompt || '');
                                         toast.success('提示词已优化', { id: toastId });
-                                    } catch (e) {
+                                    } catch (_e) {
                                         toast.error('优化失败', { id: toastId });
                                     }
                                 }}
-                                className="absolute bottom-2 right-2 bg-purple-100 text-purple-700 px-2 py-1 rounded text-xs hover:bg-purple-200 flex items-center gap-1 transition-colors"
+                                className="absolute bottom-2 right-2 bg-primary-subtle text-primary px-2 py-1 rounded text-xs hover:bg-primary-subtle flex items-center gap-1 transition-colors"
                             >
                                 <Sparkles size={12} /> AI 优化
                             </button>
@@ -112,15 +109,15 @@ export default function VideoGeneratorForm({
                     </div>
                     
                     {videoError && (
-                        <div className="p-3 bg-red-50 text-red-700 text-sm rounded-md">{videoError}</div>
+                        <div className="p-3 bg-danger-subtle text-danger text-sm rounded-md">{videoError}</div>
                     )}
     
                     <button
                         type="submit"
-                        disabled={videoLoading || !videoPrompt.trim()}
+                        disabled={videoLoading}
                         className={`
-                            w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white 
-                            ${videoLoading ? 'bg-indigo-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'}
+                            w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-primary-text 
+                            ${videoLoading ? 'bg-primary cursor-not-allowed' : 'bg-primary hover:bg-primary-hover'}
                         `}
                     >
                         {videoLoading ? (
@@ -135,7 +132,7 @@ export default function VideoGeneratorForm({
                             </>
                         )}
                     </button>
-                    <p className="text-xs text-gray-500 text-center mt-2">
+                    <p className="text-xs text-text-tertiary text-center mt-2">
                         * 建议使用 "AI 帮我优化" 将提示词转换为英文，生成效果更好
                     </p>
                 </form>

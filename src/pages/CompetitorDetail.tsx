@@ -1,10 +1,9 @@
 
-import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import axios from '@/lib/axios';
 import { 
-    ArrowLeft, Target, RefreshCw, AlertTriangle, Lightbulb, Key, TrendingUp, 
-    BookOpen, ExternalLink, Calendar, Heart, Clock, CheckCircle2, Search, Filter, Wand2,
+    ArrowLeft, Target, RefreshCw, AlertTriangle, Lightbulb, TrendingUp, 
+    BookOpen, ExternalLink, Heart, Clock, CheckCircle2, Search, Filter, Wand2,
     Sparkles, Loader2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -15,6 +14,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import PageLoading from '../components/PageLoading';
 import EmptyState from '../components/EmptyState';
 import NoteAnalysisModal from '../components/NoteAnalysisModal';
+import { useState, useEffect } from "react";
 
 interface CompetitorDetailData {
     id: number;
@@ -63,7 +63,7 @@ export default function CompetitorDetail() {
         try {
             const toastId = toast.loading('正在进行深度分析...');
             const res = await axios.post(`/api/trending-notes/${note.note_id}/analyze`);
-            const { taskId, status, result } = res.data;
+            const { _taskId, status, result } = res.data;
 
             if (status === 'COMPLETED') {
                 setCurrentNote(note);
@@ -73,7 +73,7 @@ export default function CompetitorDetail() {
             } else {
                  toast.success('分析任务已提交，请稍后刷新查看', { id: toastId });
             }
-        } catch (e) {
+        } catch (_e) {
             toast.error('分析请求失败');
         } finally {
             setAnalyzingId(null);
@@ -93,8 +93,7 @@ export default function CompetitorDetail() {
             } else {
                 toast.error('获取详情失败');
             }
-        } catch (e) {
-            console.error(e);
+        } catch (_e) {
             toast.error('网络错误');
         } finally {
             setLoading(false);
@@ -111,7 +110,7 @@ export default function CompetitorDetail() {
             toast.success('已加入更新队列');
             // Wait a bit then refresh status
             setTimeout(fetchDetail, 2000);
-        } catch(e) {
+        } catch(_e) {
             toast.error('启动更新失败');
         } finally {
             setRefreshing(false);
@@ -153,10 +152,10 @@ export default function CompetitorDetail() {
         <div className="space-y-6">
             {/* Header / Nav */}
             <div className="flex items-center justify-between">
-                <Link to="/competitor" className="text-gray-500 hover:text-gray-900 flex items-center transition-colors">
+                <Link to="/competitor" className="text-text-tertiary hover:text-text flex items-center transition-colors">
                     <ArrowLeft size={20} className="mr-1" /> 返回列表
                 </Link>
-                <div className="text-sm text-gray-400">
+                <div className="text-sm text-text-tertiary">
                     最后更新: {formatDistanceToNow(new Date(data.last_updated), { addSuffix: true, locale: zhCN })}
                 </div>
             </div>
@@ -164,20 +163,20 @@ export default function CompetitorDetail() {
             {/* Profile Card & Stats */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Profile Info */}
-                <div className="lg:col-span-1 bg-white rounded-xl p-6 border border-gray-200 shadow-sm flex flex-col">
+                <div className="lg:col-span-1 bg-surface rounded-xl p-6 border border-border shadow-sm flex flex-col">
                     <div className="flex items-center mb-6">
-                        <div className="w-16 h-16 bg-indigo-50 rounded-full flex items-center justify-center overflow-hidden border-2 border-indigo-100 mr-4">
+                        <div className="w-16 h-16 bg-primary-subtle rounded-full flex items-center justify-center overflow-hidden border-2 border-primary-subtle mr-4">
                              {data.avatar ? (
                                 <img src={data.avatar} alt={data.nickname} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                             ) : (
-                                <span className="text-indigo-600 font-bold text-2xl">{data.nickname.charAt(0)}</span>
+                                <span className="text-primary font-bold text-2xl">{data.nickname.charAt(0)}</span>
                             )}
                         </div>
                         <div>
-                            <h1 className="text-xl font-bold text-gray-900">{data.nickname}</h1>
-                            <p className="text-gray-500 text-sm mt-1 flex items-center">
+                            <h1 className="text-xl font-bold text-text">{data.nickname}</h1>
+                            <p className="text-text-tertiary text-sm mt-1 flex items-center">
                                 ID: {data.user_id}
-                                <a href={`https://www.xiaohongshu.com/user/profile/${data.user_id}`} target="_blank" rel="noreferrer" className="ml-2 text-indigo-400 hover:text-indigo-600">
+                                <a href={`https://www.xiaohongshu.com/user/profile/${data.user_id}`} target="_blank" rel="noreferrer" className="ml-2 text-primary hover:text-primary">
                                     <ExternalLink size={14} />
                                 </a>
                             </p>
@@ -185,13 +184,13 @@ export default function CompetitorDetail() {
                     </div>
                     
                     <div className="grid grid-cols-2 gap-4 mb-6">
-                        <div className="bg-gray-50 p-3 rounded-lg text-center">
-                            <div className="text-xs text-gray-500 mb-1">粉丝总数</div>
-                            <div className="text-lg font-bold text-gray-900">{data.fans_count.toLocaleString()}</div>
+                        <div className="bg-surface-muted p-3 rounded-lg text-center">
+                            <div className="text-xs text-text-tertiary mb-1">粉丝总数</div>
+                            <div className="text-lg font-bold text-text">{data.fans_count.toLocaleString()}</div>
                         </div>
-                        <div className="bg-gray-50 p-3 rounded-lg text-center">
-                            <div className="text-xs text-gray-500 mb-1">笔记总数</div>
-                            <div className="text-lg font-bold text-gray-900">{data.notes_count.toLocaleString()}</div>
+                        <div className="bg-surface-muted p-3 rounded-lg text-center">
+                            <div className="text-xs text-text-tertiary mb-1">笔记总数</div>
+                            <div className="text-lg font-bold text-text">{data.notes_count.toLocaleString()}</div>
                         </div>
                     </div>
 
@@ -199,7 +198,7 @@ export default function CompetitorDetail() {
                         <button 
                             onClick={handleRefresh}
                             disabled={refreshing || ['pending', 'processing', 'refreshing'].includes(data.status)}
-                            className="w-full py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="w-full py-2.5 bg-primary text-primary-text rounded-lg hover:bg-primary-hover transition-colors flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             <RefreshCw size={18} className={`mr-2 ${refreshing || ['pending', 'processing', 'refreshing'].includes(data.status) ? 'animate-spin' : ''}`} />
                             {['pending', 'processing', 'refreshing'].includes(data.status) ? '正在更新...' : '立即更新数据'}
@@ -208,22 +207,22 @@ export default function CompetitorDetail() {
                 </div>
 
                 {/* Charts */}
-                <div className="lg:col-span-2 bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+                <div className="lg:col-span-2 bg-surface rounded-xl p-6 border border-border shadow-sm">
                     <div className="flex items-center justify-between mb-6">
-                        <h3 className="font-bold text-gray-900 flex items-center">
-                            <TrendingUp size={18} className="mr-2 text-indigo-600" />
+                        <h3 className="font-bold text-text flex items-center">
+                            <TrendingUp size={18} className="mr-2 text-primary" />
                             数据趋势 (近30天)
                         </h3>
-                        <div className="flex bg-gray-100 p-1 rounded-lg">
+                        <div className="flex bg-surface-muted p-1 rounded-lg">
                             <button 
                                 onClick={() => setChartMetric('fans')}
-                                className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${chartMetric === 'fans' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                                className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${chartMetric === 'fans' ? 'bg-surface text-primary shadow-sm' : 'text-text-tertiary hover:text-text-secondary'}`}
                             >
                                 粉丝趋势
                             </button>
                             <button 
                                 onClick={() => setChartMetric('likes')}
-                                className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${chartMetric === 'likes' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                                className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${chartMetric === 'likes' ? 'bg-surface text-primary shadow-sm' : 'text-text-tertiary hover:text-text-secondary'}`}
                             >
                                 获赞趋势
                             </button>
@@ -234,23 +233,23 @@ export default function CompetitorDetail() {
                         <div className="h-64 w-full">
                              <ResponsiveContainer width="100%" height="100%">
                                 <LineChart data={chartData}>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                                    <XAxis dataKey="date" tick={{fontSize: 12, fill: '#9CA3AF'}} axisLine={false} tickLine={false} />
-                                    <YAxis tick={{fontSize: 12, fill: '#9CA3AF'}} axisLine={false} tickLine={false} />
-                                    <Tooltip 
-                                        contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'}}
-                                        itemStyle={{color: '#4B5563', fontSize: '12px'}}
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+                                    <XAxis dataKey="date" tick={{fontSize: 12, fill: 'var(--text-tertiary)'}} axisLine={false} tickLine={false} />
+                                    <YAxis tick={{fontSize: 12, fill: 'var(--text-tertiary)'}} axisLine={false} tickLine={false} />
+                                    <Tooltip
+                                        contentStyle={{borderRadius: '8px', border: 'none', boxShadow: 'var(--shadow-md)'}}
+                                        itemStyle={{color: 'var(--text-secondary)', fontSize: '12px'}}
                                     />
                                     {chartMetric === 'fans' ? (
-                                        <Line type="monotone" dataKey="fans" stroke="#4F46E5" strokeWidth={2} dot={{r: 4, fill: '#4F46E5'}} activeDot={{r: 6}} name="粉丝数" animationDuration={500} />
+                                        <Line type="monotone" dataKey="fans" stroke="var(--primary)" strokeWidth={2} dot={{r: 4, fill: 'var(--primary)'}} activeDot={{r: 6}} name="粉丝数" animationDuration={500} />
                                     ) : (
-                                        <Line type="monotone" dataKey="likes" stroke="#EC4899" strokeWidth={2} dot={{r: 4, fill: '#EC4899'}} activeDot={{r: 6}} name="获赞数" animationDuration={500} />
+                                        <Line type="monotone" dataKey="likes" stroke="var(--primary)" strokeWidth={2} dot={{r: 4, fill: 'var(--primary)'}} activeDot={{r: 6}} name="获赞数" animationDuration={500} />
                                     )}
                                 </LineChart>
                             </ResponsiveContainer>
                         </div>
                     ) : (
-                        <div className="h-64 flex flex-col items-center justify-center text-gray-400 bg-gray-50 rounded-lg border border-dashed border-gray-200">
+                        <div className="h-64 flex flex-col items-center justify-center text-text-tertiary bg-surface-muted rounded-lg border border-dashed border-border">
                             <TrendingUp size={32} className="mb-2 opacity-50" />
                             <p className="text-sm">暂无足够历史数据，请持续监控</p>
                         </div>
@@ -260,45 +259,45 @@ export default function CompetitorDetail() {
 
             {/* AI Analysis Report */}
             {data.analysis_result && !data.analysis_result.error && (
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                    <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-indigo-50 to-white">
-                        <h3 className="font-bold text-gray-900 flex items-center">
-                            <Lightbulb size={18} className="mr-2 text-indigo-600" />
+                <div className="bg-surface rounded-xl border border-border shadow-sm overflow-hidden">
+                    <div className="px-6 py-4 border-b border-border bg-gradient-to-r from-primary-subtle to-white">
+                        <h3 className="font-bold text-text flex items-center">
+                            <Lightbulb size={18} className="mr-2 text-primary" />
                             AI 深度策略拆解
                         </h3>
                     </div>
                     <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
                         <div>
-                            <h4 className="text-sm font-bold text-gray-500 mb-3 uppercase tracking-wider">核心策略</h4>
-                            <p className="text-gray-800 leading-relaxed bg-indigo-50/50 p-4 rounded-lg border border-indigo-50">
+                            <h4 className="text-sm font-bold text-text-tertiary mb-3 uppercase tracking-wider">核心策略</h4>
+                            <p className="text-text leading-relaxed bg-primary-subtle/50 p-4 rounded-lg border border-primary-subtle">
                                 {data.analysis_result.content_strategy || '分析中...'}
                             </p>
                             
-                            <h4 className="text-sm font-bold text-gray-500 mt-6 mb-3 uppercase tracking-wider">爆款关键词</h4>
+                            <h4 className="text-sm font-bold text-text-tertiary mt-6 mb-3 uppercase tracking-wider">爆款关键词</h4>
                             <div className="flex flex-wrap gap-2">
                                 {data.analysis_result.keywords && typeof data.analysis_result.keywords === 'string' 
                                     ? data.analysis_result.keywords.split(/[,，、]/).map((k: string, i: number) => (
-                                        <span key={i} className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-xs font-medium border border-gray-200">
+                                        <span key={i} className="bg-surface-muted text-text-secondary px-3 py-1 rounded-full text-xs font-medium border border-border">
                                             {k.trim()}
                                         </span>
                                     )) 
-                                    : <span className="text-gray-400 text-sm">无</span>
+                                    : <span className="text-text-tertiary text-sm">无</span>
                                 }
                             </div>
                         </div>
 
                         <div>
-                            <h4 className="text-sm font-bold text-green-600 mb-3 uppercase tracking-wider flex items-center">
+                            <h4 className="text-sm font-bold text-success mb-3 uppercase tracking-wider flex items-center">
                                 <CheckCircle2 size={14} className="mr-1.5" /> 
                                 抄作业建议
                             </h4>
                             <div className="space-y-3">
                                 {data.analysis_result.strategies?.map((strategy: any, index: number) => (
-                                    <div key={index} className="bg-white p-3 rounded-lg border border-green-100 shadow-sm hover:shadow-md transition-shadow">
-                                        <div className="text-green-800 font-bold text-sm mb-1.5">
+                                    <div key={index} className="bg-surface p-3 rounded-lg border border-success-subtle shadow-sm hover:shadow-md transition-shadow">
+                                        <div className="text-success font-bold text-sm mb-1.5">
                                             {index + 1}. {strategy.tip}
                                         </div>
-                                        <div className="text-xs text-gray-500 pl-4 border-l-2 border-green-100 ml-1 mb-2">
+                                        <div className="text-xs text-text-tertiary pl-4 border-l-2 border-success-subtle ml-1 mb-2">
                                             推荐选题：{strategy.suggested_topic}
                                         </div>
                                         <button 
@@ -320,12 +319,12 @@ export default function CompetitorDetail() {
                                                     fromAnalysis: true
                                                 } 
                                             })}
-                                            className="w-full py-1.5 bg-green-50 text-green-700 text-xs font-medium rounded hover:bg-green-100 transition-colors flex items-center justify-center"
+                                            className="w-full py-1.5 bg-success-subtle text-success text-xs font-medium rounded hover:bg-success-subtle transition-colors flex items-center justify-center"
                                         >
                                             <Wand2 size={12} className="mr-1" /> 使用此策略一键创作
                                         </button>
                                     </div>
-                                )) || <p className="text-gray-400 text-sm">暂无建议</p>}
+                                )) || <p className="text-text-tertiary text-sm">暂无建议</p>}
                             </div>
                         </div>
                     </div>
@@ -333,54 +332,54 @@ export default function CompetitorDetail() {
             )}
 
             {/* Notes Grid */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-4">
-                    <h3 className="font-bold text-gray-900 flex items-center">
-                        <BookOpen size={18} className="mr-2 text-indigo-600" />
+            <div className="bg-surface rounded-xl border border-border shadow-sm overflow-hidden">
+                <div className="px-6 py-4 border-b border-border flex flex-col sm:flex-row justify-between items-center gap-4">
+                    <h3 className="font-bold text-text flex items-center">
+                        <BookOpen size={18} className="mr-2 text-primary" />
                         笔记库 ({filteredNotes.length})
                     </h3>
                     
                     {/* Filters */}
                     <div className="flex items-center space-x-3 w-full sm:w-auto">
                         <div className="relative flex-1 sm:w-64">
-                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={14} />
+                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-text-tertiary" size={14} />
                             <input 
                                 type="text" 
                                 placeholder="搜索笔记标题..." 
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full pl-9 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                                className="w-full pl-9 pr-3 py-1.5 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                             />
                         </div>
                         <div className="relative">
                             <select 
                                 value={sortBy}
                                 onChange={(e) => setSortBy(e.target.value as 'likes' | 'date')}
-                                className="appearance-none bg-gray-50 border border-gray-200 text-gray-700 text-sm rounded-lg py-1.5 pl-3 pr-8 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
+                                className="appearance-none bg-surface-muted border border-border text-text-secondary text-sm rounded-lg py-1.5 pl-3 pr-8 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary cursor-pointer"
                             >
                                 <option value="likes">按热度排序</option>
                                 <option value="date">按时间排序</option>
                             </select>
-                            <Filter className="absolute right-2.5 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" size={12} />
+                            <Filter className="absolute right-2.5 top-1/2 transform -translate-y-1/2 text-text-tertiary pointer-events-none" size={12} />
                         </div>
                     </div>
                 </div>
 
                 {filteredNotes.length === 0 ? (
-                    <div className="p-12 text-center text-gray-400 flex flex-col items-center">
+                    <div className="p-12 text-center text-text-tertiary flex flex-col items-center">
                         <Search size={48} className="mb-4 opacity-20" />
                         <p>没有找到相关笔记</p>
-                        {searchTerm && <button onClick={() => setSearchTerm('')} className="mt-2 text-indigo-600 text-sm hover:underline">清除搜索</button>}
+                        {searchTerm && <button onClick={() => setSearchTerm('')} className="mt-2 text-primary text-sm hover:underline">清除搜索</button>}
                     </div>
                 ) : (
                     <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 p-6">
                         {filteredNotes.map((note) => (
                             <div 
                                 key={note.id} 
-                                className="group block bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-lg transition-all hover:border-indigo-200 cursor-pointer relative"
+                                className="group block bg-surface border border-border rounded-lg overflow-hidden hover:shadow-lg transition-all hover:border-primary-subtle cursor-pointer relative"
                                 onClick={() => handleAnalyzeNote(note)}
                             >
-                                    <div className="aspect-[3/4] bg-gray-100 relative overflow-hidden">
+                                    <div className="aspect-[3/4] bg-surface-muted relative overflow-hidden">
                                     {note.cover ? (
                                         <img 
                                             src={note.cover} 
@@ -393,7 +392,7 @@ export default function CompetitorDetail() {
                                             }}
                                         />
                                     ) : (
-                                        <div className="w-full h-full flex flex-col items-center justify-center text-gray-300 bg-gray-50">
+                                        <div className="w-full h-full flex flex-col items-center justify-center text-text-tertiary bg-surface-muted">
                                             <Target size={32} className="mb-2 opacity-50" />
                                             <span className="text-xs">无封面</span>
                                         </div>
@@ -401,7 +400,7 @@ export default function CompetitorDetail() {
                                     
                                     {/* Analyzing Overlay */}
                                     {analyzingId === note.note_id && (
-                                        <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center text-white z-20">
+                                        <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center text-primary-text z-20">
                                             <Loader2 size={24} className="animate-spin mb-2" />
                                             <span className="text-xs font-medium">分析中...</span>
                                         </div>
@@ -409,23 +408,23 @@ export default function CompetitorDetail() {
 
                                     {/* Hover Overlay for Analysis Hint */}
                                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors z-10 flex items-center justify-center opacity-0 group-hover:opacity-100">
-                                        <div className="bg-white/90 text-indigo-600 px-3 py-1 rounded-full text-xs font-bold shadow-sm flex items-center transform translate-y-4 group-hover:translate-y-0 transition-all">
+                                        <div className="bg-white/90 text-primary px-3 py-1 rounded-full text-xs font-bold shadow-sm flex items-center transform translate-y-4 group-hover:translate-y-0 transition-all">
                                             <Sparkles size={12} className="mr-1" /> 点击深度分析
                                         </div>
                                     </div>
 
                                     <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-3 pt-8 pointer-events-none">
-                                        <div className="flex items-center text-white text-xs font-medium">
-                                            <Heart size={12} className="mr-1 fill-white" />
+                                        <div className="flex items-center text-primary-text text-xs font-medium">
+                                            <Heart size={12} className="mr-1 fill-primary-text" />
                                             {note.likes.toLocaleString()}
                                         </div>
                                     </div>
                                 </div>
                                 <div className="p-3">
-                                    <h4 className="text-sm font-medium text-gray-900 line-clamp-2 leading-snug group-hover:text-indigo-600 transition-colors" title={note.title}>
+                                    <h4 className="text-sm font-medium text-text line-clamp-2 leading-snug group-hover:text-primary transition-colors" title={note.title}>
                                         {note.title}
                                     </h4>
-                                    <div className="mt-2 text-[10px] text-gray-400 flex items-center justify-between">
+                                    <div className="mt-2 text-[10px] text-text-tertiary flex items-center justify-between">
                                         <div className="flex items-center">
                                             <Clock size={10} className="mr-1" />
                                             {note.publish_date ? (
@@ -439,7 +438,7 @@ export default function CompetitorDetail() {
                                             target="_blank" 
                                             rel="noreferrer"
                                             onClick={(e) => e.stopPropagation()} 
-                                            className="text-gray-400 hover:text-indigo-600 p-1"
+                                            className="text-text-tertiary hover:text-primary p-1"
                                             title="查看原文"
                                         >
                                             <ExternalLink size={12} />

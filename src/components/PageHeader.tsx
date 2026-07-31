@@ -1,5 +1,3 @@
-
-import React from 'react';
 import { LucideIcon } from 'lucide-react';
 
 interface PageHeaderProps {
@@ -10,17 +8,23 @@ interface PageHeaderProps {
   children?: React.ReactNode;
 }
 
+/**
+ * 页面头部组件
+ *
+ * 统一展示页面标题、图标、描述和右上角操作区。
+ * 所有颜色基于 design tokens。
+ */
 export default function PageHeader({ title, icon: Icon, description, action, children }: PageHeaderProps) {
   return (
     <div className="mb-6">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center">
-            {Icon && <Icon className="mr-3 text-indigo-600" size={28} />}
+          <h1 className="text-2xl font-bold text-text flex items-center">
+            {Icon && <Icon className="mr-3 text-primary" size={28} />}
             {title}
           </h1>
           {description && (
-            <p className="mt-1 text-sm text-gray-500">
+            <p className="mt-1 text-sm text-text-secondary">
               {description}
             </p>
           )}

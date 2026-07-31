@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
-import { X, Sparkles, Download, Wand2, Play, Loader2, RefreshCw } from 'lucide-react';
+import { X, Sparkles, Download, Wand2, RefreshCw, Anchor, Building2, Heart, MessageSquare, Lightbulb, Mic2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import axios from 'axios';
 
 interface NoteAnalysisModalProps {
     note: any;
@@ -25,20 +24,20 @@ const NoteAnalysisModal: React.FC<NoteAnalysisModalProps> = ({ note, analysis, o
   
   ================================
   
-  1. 🎣 钩子 (Hook)
+  1. 钩子 (Hook)
   [${analysis.hook_type}]
   ${analysis.hook_analysis}
   
-  2. 🏗️ 结构拆解 (Structure)
+  2. 结构拆解 (Structure)
   ${analysis.structure_breakdown?.map((s: string, i: number) => `${i+1}. ${s}`).join('\n')}
   
-  3. 💖 情绪价值 (Tone)
+  3. 情绪价值 (Tone)
   ${analysis.tone}
   
-  4. 💬 互动策略 (CTA)
+  4. 互动策略 (CTA)
   ${analysis.cta_strategy}
   
-  5. ✨ 仿写建议 (Remix Tips)
+  5. 仿写建议 (Remix Tips)
   ${analysis.remix_template}
   
   ================================
@@ -71,23 +70,26 @@ const NoteAnalysisModal: React.FC<NoteAnalysisModalProps> = ({ note, analysis, o
 
     return (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-            <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="bg-surface rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
                 <div className="p-6">
                     <div className="flex justify-between items-start mb-4">
-                        <h3 className="text-xl font-bold text-gray-900 flex items-center">
-                            <Sparkles className="inline-block mr-2 text-indigo-600" size={24} />
+                        <h3 className="text-xl font-bold text-text flex items-center">
+                            <Sparkles className="inline-block mr-2 text-primary" size={24} />
                             爆款笔记拆解
                         </h3>
-                        <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+                        <button onClick={onClose} className="text-text-tertiary hover:text-text-secondary">
                             <X size={24} />
                         </button>
                     </div>
                     
                     <div className="space-y-4">
-                        <div className="bg-gray-50 p-4 rounded-md">
-                            <h4 className="font-medium text-gray-900 mb-2">🎣 钩子 (Hook)</h4>
-                            <div className="text-sm text-gray-600">
-                                <span className="font-semibold text-indigo-600">[{analysis.hook_type}]</span> {analysis.hook_analysis}
+                        <div className="bg-surface-muted p-4 rounded-md">
+                            <h4 className="font-medium text-text mb-2 flex items-center">
+                                <Anchor size={16} className="mr-2 text-primary" />
+                                钩子 (Hook)
+                            </h4>
+                            <div className="text-sm text-text-secondary">
+                                <span className="font-semibold text-primary">[{analysis.hook_type}]</span> {analysis.hook_analysis}
                             </div>
                         </div>
 
@@ -106,9 +108,12 @@ const NoteAnalysisModal: React.FC<NoteAnalysisModalProps> = ({ note, analysis, o
                             </div>
                         )}
 
-                        <div className="bg-gray-50 p-4 rounded-md">
-                            <h4 className="font-medium text-gray-900 mb-2">🏗️ 结构拆解</h4>
-                            <ul className="list-disc list-inside text-sm text-gray-600 space-y-1">
+                        <div className="bg-surface-muted p-4 rounded-md">
+                            <h4 className="font-medium text-text mb-2 flex items-center">
+                                <Building2 size={16} className="mr-2 text-primary" />
+                                结构拆解
+                            </h4>
+                            <ul className="list-disc list-inside text-sm text-text-secondary space-y-1">
                                 {analysis.structure_breakdown?.map((item: string, i: number) => (
                                     <li key={i}>{item}</li>
                                 ))}
@@ -117,46 +122,58 @@ const NoteAnalysisModal: React.FC<NoteAnalysisModalProps> = ({ note, analysis, o
                         
                         {/* Video Transcript */}
                         {note?.transcript ? (
-                            <div className="bg-amber-50 p-4 rounded-md border border-amber-100">
-                                <h4 className="font-medium text-amber-900 mb-2 flex items-center justify-between">
-                                    <span>🎙️ 视频口播文案</span>
-                                    <span className="text-xs text-amber-700 bg-amber-200/50 px-2 py-0.5 rounded">ASR 转写</span>
+                            <div className="bg-warning-subtle p-4 rounded-md border border-warning-subtle">
+                                <h4 className="font-medium text-warning mb-2 flex items-center justify-between">
+                                    <span className="flex items-center">
+                                        <Mic2 size={16} className="mr-2" />
+                                        视频口播文案
+                                    </span>
+                                    <span className="text-xs text-warning bg-amber-200/50 px-2 py-0.5 rounded">ASR 转写</span>
                                 </h4>
-                                <div className="text-sm text-amber-800 max-h-40 overflow-y-auto whitespace-pre-wrap font-mono">
+                                <div className="text-sm text-warning max-h-40 overflow-y-auto whitespace-pre-wrap font-mono">
                                     {note.transcript}
                                 </div>
                             </div>
                         ) : (
                             note.type === 'video' && (
-                                <div className="bg-gray-50 p-3 rounded border border-dashed border-gray-300 text-center text-sm text-gray-500">
+                                <div className="bg-surface-muted p-3 rounded border border-dashed border-strong text-center text-sm text-text-tertiary">
                                     该视频暂无口播文案转写
                                 </div>
                             )
                         )}
 
                         <div className="grid grid-cols-2 gap-4">
-                            <div className="bg-gray-50 p-4 rounded-md">
-                                <h4 className="font-medium text-gray-900 mb-2">🎭 情绪价值</h4>
-                                <p className="text-sm text-gray-600">{analysis.tone}</p>
+                            <div className="bg-surface-muted p-4 rounded-md">
+                                <h4 className="font-medium text-text mb-2 flex items-center">
+                                    <Heart size={16} className="mr-2 text-danger" />
+                                    情绪价值
+                                </h4>
+                                <p className="text-sm text-text-secondary">{analysis.tone}</p>
                             </div>
-                            <div className="bg-gray-50 p-4 rounded-md">
-                                <h4 className="font-medium text-gray-900 mb-2">💬 互动策略</h4>
-                                <p className="text-sm text-gray-600">{analysis.cta_strategy}</p>
+                            <div className="bg-surface-muted p-4 rounded-md">
+                                <h4 className="font-medium text-text mb-2 flex items-center">
+                                    <MessageSquare size={16} className="mr-2 text-primary" />
+                                    互动策略
+                                </h4>
+                                <p className="text-sm text-text-secondary">{analysis.cta_strategy}</p>
                             </div>
                         </div>
 
-                        <div className="bg-indigo-50 p-4 rounded-md border border-indigo-100">
-                            <h4 className="font-medium text-indigo-900 mb-2">✨ 仿写建议</h4>
-                            <p className="text-sm text-indigo-800 whitespace-pre-wrap">{analysis.remix_template}</p>
+                        <div className="bg-primary-subtle p-4 rounded-md border border-primary-subtle">
+                            <h4 className="font-medium text-primary mb-2 flex items-center">
+                                <Lightbulb size={16} className="mr-2" />
+                                仿写建议
+                            </h4>
+                            <p className="text-sm text-primary whitespace-pre-wrap">{analysis.remix_template}</p>
                         </div>
                     </div>
 
-                    <div className="mt-6 flex justify-end space-x-3 pt-4 border-t border-gray-100">
+                    <div className="mt-6 flex justify-end space-x-3 pt-4 border-t border-border">
                         {onRefreshAnalysis && (
                             <button 
                                 onClick={handleReAnalyze}
                                 disabled={analyzing}
-                                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-md text-sm font-medium flex items-center mr-auto"
+                                className="px-4 py-2 text-text-secondary hover:bg-surface-muted rounded-md text-sm font-medium flex items-center mr-auto"
                             >
                                 <RefreshCw size={16} className={`mr-2 ${analyzing ? 'animate-spin' : ''}`} />
                                 {analyzing ? '重新分析中...' : '重新分析'}
@@ -165,14 +182,14 @@ const NoteAnalysisModal: React.FC<NoteAnalysisModalProps> = ({ note, analysis, o
 
                         <button 
                             onClick={handleExportAnalysis}
-                            className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 flex items-center text-sm font-medium"
+                            className="px-4 py-2 border border-strong rounded-md text-text-secondary hover:bg-surface-muted flex items-center text-sm font-medium"
                         >
                             <Download size={16} className="mr-2" />
                             导出报告
                         </button>
                         <button 
                             onClick={onClose}
-                            className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 text-sm font-medium"
+                            className="px-4 py-2 border border-strong rounded-md text-text-secondary hover:bg-surface-muted text-sm font-medium"
                         >
                             关闭
                         </button>
@@ -182,7 +199,7 @@ const NoteAnalysisModal: React.FC<NoteAnalysisModalProps> = ({ note, analysis, o
                                     onSelect(note);
                                     onClose();
                                 }}
-                                className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 flex items-center text-sm font-medium"
+                                className="px-4 py-2 bg-primary text-primary-text rounded-md hover:bg-primary-hover flex items-center text-sm font-medium"
                             >
                                 <Wand2 size={16} className="mr-2" />
                                 使用此结构仿写

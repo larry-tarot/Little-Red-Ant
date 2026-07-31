@@ -1,7 +1,6 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import axios from 'axios';
+import axios from '@/lib/axios';
 import { useAuthStore } from '../store/useAuthStore';
-import { Loader2 } from 'lucide-react';
+import { useState, useEffect, useContext, createContext, ReactNode } from "react";
 
 interface Account {
     id: number;
@@ -25,11 +24,11 @@ const AccountContext = createContext<AccountContextType | undefined>(undefined);
 export const AccountProvider = ({ children }: { children: ReactNode }) => {
     const [activeAccount, setActiveAccount] = useState<Account | null>(null);
     const [isLoading, setIsLoading] = useState(true);
-    const isAuthenticated = useAuthStore(state => state.isAuthenticated);
+    const isAuthenticated = useAuthStore((state) => !!state.token);
 
     const fetchActiveAccount = async () => {
         // If not logged in, skip fetching but set loading to false
-        if (!isAuthenticated()) {
+        if (!isAuthenticated) {
             setActiveAccount(null);
             setIsLoading(false);
             return;

@@ -1,5 +1,5 @@
 import { useRef, useEffect, useCallback } from 'react';
-import axios, { AxiosRequestConfig } from 'axios';
+import axios from '@/lib/axios';
 
 /**
  * A hook to handle async requests safely.
@@ -40,7 +40,6 @@ export function useSafeAsync() {
             return result;
         } catch (error: any) {
             if (axios.isCancel(error)) {
-                console.log('Request cancelled');
                 return;
             }
             if (isMounted.current && onError) {

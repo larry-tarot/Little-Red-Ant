@@ -1,5 +1,4 @@
-import React from 'react';
-import { Film, Send, Loader2, Edit3, Sparkles, MessageSquarePlus } from 'lucide-react';
+import { Send, Loader2, Edit3, Sparkles, MessageSquarePlus } from 'lucide-react';
 
 interface VideoScriptGeneratorFormProps {
     topic: string;
@@ -28,19 +27,18 @@ export default function VideoScriptGeneratorForm({
     return (
         <form onSubmit={onGenerate} className="space-y-5">
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                        新脚本主题 <span className="text-red-500">*</span>
+                    <label className="block text-sm font-medium text-text-secondary mb-2">
+                        新脚本主题 <span className="text-danger">*</span>
                     </label>
                     <input
                         type="text"
                         value={topic}
                         onChange={(e) => setTopic(e.target.value)}
                         placeholder={remixStructure ? "请输入你想创作的新主题（AI将把结构迁移到此主题）" : "例如：沉浸式护肤流程 (生成分镜脚本)"}
-                        required
-                        className="w-full p-3 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                        className="w-full p-3 border border-strong rounded-md focus:ring-primary focus:border-primary text-sm"
                     />
                     {remixStructure && (
-                        <div className="mt-2 p-2 bg-indigo-50 rounded text-xs text-indigo-600 flex items-start">
+                        <div className="mt-2 p-2 bg-primary-subtle rounded text-xs text-primary flex items-start">
                             <Sparkles size={12} className="mr-1 mt-0.5 shrink-0" />
                             <span>AI 将保留原视频的结构（{remixStructure.hook_type || '通用'} + {remixStructure.tone || '默认'}），但内容将替换为您输入的新主题。</span>
                         </div>
@@ -48,7 +46,7 @@ export default function VideoScriptGeneratorForm({
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-text-secondary mb-2">
                         补充关键词/视觉元素
                     </label>
                     <input
@@ -56,20 +54,20 @@ export default function VideoScriptGeneratorForm({
                         value={keywords}
                         onChange={(e) => setKeywords(e.target.value)}
                         placeholder="例如：快节奏, 赛博朋克, 特写镜头"
-                        className="w-full p-3 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                        className="w-full p-3 border border-strong rounded-md focus:ring-primary focus:border-primary text-sm"
                     />
                 </div>
 
                 {!remixStructure && (
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                        <label className="block text-sm font-medium text-text-secondary mb-2">
                             本次风格 
-                            <span className="text-gray-400 text-xs font-normal ml-2">- 可选，默认使用人设配置</span>
+                            <span className="text-text-tertiary text-xs font-normal ml-2">- 可选，默认使用人设配置</span>
                         </label>
                         <select
                             value={style}
                             onChange={(e) => setStyle(e.target.value)}
-                            className="w-full p-3 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                            className="w-full p-3 border border-strong rounded-md focus:ring-primary focus:border-primary text-sm"
                         >
                             <option value="">
                                 {activeAccount?.persona?.tone ? `默认风格 (人设: ${activeAccount.persona.tone})` : '默认风格'}
@@ -84,22 +82,22 @@ export default function VideoScriptGeneratorForm({
                 {/* Custom Instructions Input */}
                 {setCustomInstructions && (
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
-                            <MessageSquarePlus size={14} className="mr-1 text-gray-500" />
+                        <label className="block text-sm font-medium text-text-secondary mb-2 flex items-center">
+                            <MessageSquarePlus size={14} className="mr-1 text-text-tertiary" />
                             补充指令 (可选)
                         </label>
                         <textarea
                             value={customInstructions || ''}
                             onChange={(e) => setCustomInstructions(e.target.value)}
                             placeholder="例如：'加强镜头间的衔接'，'第一人称视角'，'结尾要留悬念'..."
-                            className="w-full p-3 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm min-h-[60px]"
+                            className="w-full p-3 border border-strong rounded-md focus:ring-primary focus:border-primary text-sm min-h-[60px]"
                         />
                     </div>
                 )}
 
                 {/* Script Mode UI Overrides */}
                 {!remixStructure && (
-                    <div className="mt-4 p-3 bg-indigo-50 border border-indigo-100 rounded-md text-xs text-indigo-700">
+                    <div className="mt-4 p-3 bg-primary-subtle border border-primary-subtle rounded-md text-xs text-primary">
                         <h4 className="font-bold flex items-center mb-1">
                             <Edit3 size={12} className="mr-1" />
                             脚本创作模式
@@ -113,17 +111,17 @@ export default function VideoScriptGeneratorForm({
                 )}
 
                 {errorMsg && (
-                    <div className="p-3 bg-red-50 text-red-700 text-sm rounded-md">
+                    <div className="p-3 bg-danger-subtle text-danger text-sm rounded-md">
                         {errorMsg}
                     </div>
                 )}
 
                 <button
                     type="submit"
-                    disabled={loading || !topic.trim()}
+                    disabled={loading}
                     className={`
-                        w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white 
-                        ${loading ? 'bg-indigo-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'}
+                        w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-primary-text 
+                        ${loading ? 'bg-primary cursor-not-allowed' : 'bg-primary hover:bg-primary-hover'}
                     `}
                 >
                     {loading ? (

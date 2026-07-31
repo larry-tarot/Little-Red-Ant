@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import axios from 'axios';
+import { useState, useEffect, useRef } from 'react';
+import axios from '@/lib/axios';
 import toast from 'react-hot-toast';
 import { useSafeAsync } from './useSafeAsync';
 
@@ -35,16 +35,16 @@ export function useVideoGeneration() {
   const [stitchedVideoUrl, setStitchedVideoUrl] = useState<string | null>(null);
   const [creatingProject, setCreatingProject] = useState(false);
 
-  const { isMounted } = useSafeAsync();
-  const currentVideoAccountIdRef = useState<number | undefined>(undefined); // Track account ID
+  useSafeAsync();
+  const _currentVideoAccountIdRef = useRef<number | undefined>(undefined); // Track account ID
 
   // Polling for Videos
   useEffect(() => {
-      const pendingVideos = videoHistory.map((s, i) => ({s, i})).filter(item => item.s.status === 'PENDING' && item.s.taskId);
+      const pendingVideos = videoHistory.filter(s => s.status === 'PENDING' && s.taskId);
       if (pendingVideos.length === 0) return;
 
       const interval = setInterval(async () => {
-          for (const {s, i} of pendingVideos) {
+          for (const s of pendingVideos) {
               if (!s.taskId) continue;
               try {
                   const res = await axios.get(`/api/tasks/${s.taskId}`);
@@ -68,7 +68,7 @@ export function useVideoGeneration() {
                           return newH;
                       });
                   }
-              } catch(e) {}
+              } catch(_e) { /* ignore */ }
           }
       }, 5000);
       return () => clearInterval(interval);
@@ -96,7 +96,7 @@ export function useVideoGeneration() {
                           [key]: { ...prev[key], status: 'failed', error: task.error }
                       }));
                   }
-              } catch(e) {}
+              } catch(_e) { /* ignore */ }
           }
       }, 5000);
       return () => clearInterval(interval);
@@ -104,9 +104,13 @@ export function useVideoGeneration() {
 
   const handleGenerateVideo = async (e: React.FormEvent, accountId?: number) => {
       e.preventDefault();
-      if (!videoPrompt?.trim()) return;
+      if (!videoPrompt?.trim()) {
+          toast.error('请输入视频提示词');
+          return;
+      }
       if (videoMode === 'i2v' && !videoImageUrl.trim()) {
           setVideoError('图生视频模式需要提供图片 URL');
+          toast.error('图生视频模式需要提供图片 URL');
           return;
       }
 
@@ -137,7 +141,6 @@ export function useVideoGeneration() {
           toast.success('视频生成任务已提交');
 
       } catch (error: any) {
-          console.error('Video Gen Error:', error);
           setVideoError(error.message || '生成失败');
       } finally {
           setVideoLoading(false);
@@ -161,7 +164,6 @@ export function useVideoGeneration() {
           toast.success('镜头生成任务已提交');
 
       } catch (error: any) {
-          console.error(error);
           setSceneVideos(prev => ({
               ...prev,
               [key]: { status: 'failed', error: error.message }
@@ -175,10 +177,10 @@ export function useVideoGeneration() {
     videoPrompt, setVideoPrompt,
     videoImageUrl, setVideoImageUrl,
     videoLoading,
-    videoHistory, setVideoHistory,
+    videoHistory,
     currentVideoIndex, setCurrentVideoIndex,
-    videoError, setVideoError,
-    sceneVideos, setSceneVideos,
+    videoError,
+    sceneVideos,
     isStitching, setIsStitching,
     stitchedVideoUrl, setStitchedVideoUrl,
     creatingProject, setCreatingProject,

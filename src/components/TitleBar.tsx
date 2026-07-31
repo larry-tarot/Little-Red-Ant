@@ -1,75 +1,57 @@
-/**
- * 自定义标题栏 — 桌面版(Tauri / Electron)显示窗口控制按钮
- * Web 环境下:返回 null(让 web 版用自己的默认标题栏)
- *
- * 设计原则:
- *   - Web 优先:在没有桌面外壳时,什么都不显示
- *   - Tauri 优先:用 Tauri 2 官方 API(getCurrentWindow)
- *   - Electron 兼容:同时支持 window.electronAPI(老版本兼容)
- */
-import React from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { isTauri } from '../lib/tauri';
 
 interface TitleBarProps {
     title?: string;
 }
 
-// 浏览器环境(无 Tauri 注入)直接返回 null
-const isTauri = typeof window !== 'undefined' && !!(window as any).__TAURI_INTERNALS__;
-const isElectron = typeof window !== 'undefined' && !!(window as any).electronAPI;
-
+/**
+ * 桌面版自定义标题栏
+ *
+ * 仅在 Tauri 桌面版渲染，提供窗口最小化、最大化/还原、关闭（隐藏到托盘）控制。
+ * Web 端直接返回 null。
+ */
 export default function TitleBar({ title = '小红蚁' }: TitleBarProps) {
-    if (!isTauri && !isElectron) {
+    if (!isTauri) {
         return null;
     }
 
     const handleMinimize = async () => {
-        if (isTauri) {
-            try { await getCurrentWindow().minimize(); } catch (e) { console.error(e); }
-        } else if (isElectron) {
-            (window as any).electronAPI?.minimize?.();
-        }
+        try { await getCurrentWindow().minimize(); } catch (e) { console.error(e); }
     };
 
     const handleMaximize = async () => {
-        if (isTauri) {
-            try {
-                const w = getCurrentWindow();
-                if (await w.isMaximized()) {
-                    await w.unmaximize();
-                } else {
-                    await w.maximize();
-                }
-            } catch (e) { console.error(e); }
-        } else if (isElectron) {
-            (window as any).electronAPI?.maximize?.();
-        }
+        try {
+            const w = getCurrentWindow();
+            if (await w.isMaximized()) {
+                await w.unmaximize();
+            } else {
+                await w.maximize();
+            }
+        } catch (e) { console.error(e); }
     };
 
     const handleClose = async () => {
-        if (isTauri) {
-            try { await getCurrentWindow().close(); } catch (e) { console.error(e); }
-        } else if (isElectron) {
-            (window as any).electronAPI?.close?.();
-        }
+        // 关闭窗口 → 最小化到托盘（不退出应用）
+        try { await getCurrentWindow().hide(); } catch (e) { console.error(e); }
     };
 
     return (
         <div
-            className="flex items-center justify-between h-10 bg-slate-900 select-none px-4"
+            className="flex items-center justify-between h-10 bg-surface text-text select-none px-4 fixed top-0 left-0 right-0 z-50 border-b border-border"
             data-tauri-drag-region=""
         >
-            {/* 左侧: 应用图标和标题 */}
+            {/* 左侧：应用图标和标题 */}
             <div className="flex items-center gap-2">
                 <span className="text-lg">🐜</span>
-                <span className="text-sm font-medium text-slate-200">{title}</span>
+                <span className="text-sm font-medium text-text">{title}</span>
             </div>
 
-            {/* 右侧: 窗口控制按钮 */}
+            {/* 右侧：窗口控制按钮 */}
             <div className="flex items-center">
                 <button
                     onClick={handleMinimize}
-                    className="w-10 h-10 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
+                    className="w-10 h-10 flex items-center justify-center text-text-tertiary hover:text-text hover:bg-surface-muted transition-colors"
                     title="最小化"
                 >
                     <svg width="12" height="12" viewBox="0 0 12 12">
@@ -78,7 +60,7 @@ export default function TitleBar({ title = '小红蚁' }: TitleBarProps) {
                 </button>
                 <button
                     onClick={handleMaximize}
-                    className="w-10 h-10 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
+                    className="w-10 h-10 flex items-center justify-center text-text-tertiary hover:text-text hover:bg-surface-muted transition-colors"
                     title="最大化/还原"
                 >
                     <svg width="12" height="12" viewBox="0 0 12 12">
@@ -87,8 +69,8 @@ export default function TitleBar({ title = '小红蚁' }: TitleBarProps) {
                 </button>
                 <button
                     onClick={handleClose}
-                    className="w-10 h-10 flex items-center justify-center text-slate-400 hover:text-white hover:bg-red-500 transition-colors"
-                    title="关闭"
+                    className="w-10 h-10 flex items-center justify-center text-text-tertiary hover:text-primary-text hover:bg-danger transition-colors"
+                    title="关闭到托盘"
                 >
                     <svg width="12" height="12" viewBox="0 0 12 12">
                         <line x1="2" y1="2" x2="10" y2="10" stroke="currentColor" strokeWidth="1.5" />

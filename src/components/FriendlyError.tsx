@@ -1,21 +1,4 @@
-/**
- * 友好错误提示组件
- * 
- * 功能：将技术错误转换为用户友好的提示界面
- * 
- * 使用示例：
- * <FriendlyError 
- *   error={{
- *     title: '数据获取失败',
- *     message: '无法获取该页面的数据',
- *     suggestion: '可能原因：1) 页面结构变更 2) 网络问题...',
- *     severity: 'error'
- *   }}
- * />
- */
-
-import React from 'react';
-import { AlertCircle, AlertTriangle, Info, XCircle } from 'lucide-react';
+import { AlertTriangle, Info, XCircle } from 'lucide-react';
 
 interface FriendlyErrorData {
     code?: string;
@@ -25,40 +8,56 @@ interface FriendlyErrorData {
     severity: 'error' | 'warning' | 'info';
 }
 
+interface FriendlyErrorAction {
+    label: string;
+    onClick: () => void;
+}
+
 interface FriendlyErrorProps {
     error: FriendlyErrorData | null;
     onRetry?: () => void;
+    action?: FriendlyErrorAction;
     className?: string;
 }
 
+/**
+ * 严重级别样式配置
+ *
+ * 统一使用 design tokens，保证亮色/暗色主题下的一致性。
+ */
 const severityConfig = {
     error: {
         icon: XCircle,
-        bgColor: 'bg-red-50',
-        borderColor: 'border-red-200',
-        iconColor: 'text-red-500',
-        titleColor: 'text-red-800',
-        textColor: 'text-red-700'
+        bgColor: 'bg-danger-subtle',
+        borderColor: 'border-danger/20',
+        iconColor: 'text-danger',
+        titleColor: 'text-danger',
+        textColor: 'text-danger'
     },
     warning: {
         icon: AlertTriangle,
-        bgColor: 'bg-yellow-50',
-        borderColor: 'border-yellow-200',
-        iconColor: 'text-yellow-500',
-        titleColor: 'text-yellow-800',
-        textColor: 'text-yellow-700'
+        bgColor: 'bg-warning-subtle',
+        borderColor: 'border-warning/20',
+        iconColor: 'text-warning',
+        titleColor: 'text-warning',
+        textColor: 'text-warning'
     },
     info: {
         icon: Info,
-        bgColor: 'bg-blue-50',
-        borderColor: 'border-blue-200',
-        iconColor: 'text-blue-500',
-        titleColor: 'text-blue-800',
-        textColor: 'text-blue-700'
+        bgColor: 'bg-primary-subtle',
+        borderColor: 'border-primary/20',
+        iconColor: 'text-primary',
+        titleColor: 'text-primary',
+        textColor: 'text-primary'
     }
 };
 
-export default function FriendlyError({ error, onRetry, className = '' }: FriendlyErrorProps) {
+/**
+ * 友好错误提示组件
+ *
+ * 根据错误严重级别展示带图标的提示卡片，支持重试操作。
+ */
+export default function FriendlyError({ error, onRetry, action, className = '' }: FriendlyErrorProps) {
     if (!error) return null;
 
     const config = severityConfig[error.severity] || severityConfig.error;
@@ -81,20 +80,30 @@ export default function FriendlyError({ error, onRetry, className = '' }: Friend
                             <p className="mt-1">{error.suggestion}</p>
                         </div>
                     )}
-                    {onRetry && (
-                        <button
-                            onClick={onRetry}
-                            className={`mt-3 px-3 py-1.5 text-sm rounded-md transition-colors
-                                ${error.severity === 'error' 
-                                    ? 'bg-red-100 hover:bg-red-200 text-red-700' 
-                                    : error.severity === 'warning'
-                                        ? 'bg-yellow-100 hover:bg-yellow-200 text-yellow-700'
-                                        : 'bg-blue-100 hover:bg-blue-200 text-blue-700'
-                                }`}
-                        >
-                            重试
-                        </button>
-                    )}
+                    <div className="flex flex-wrap items-center gap-2 mt-3">
+                        {onRetry && (
+                            <button
+                                onClick={onRetry}
+                                className={`px-3 py-1.5 text-sm rounded-md transition-colors
+                                    ${error.severity === 'error'
+                                        ? 'bg-danger-subtle hover:bg-danger/10 text-danger'
+                                        : error.severity === 'warning'
+                                            ? 'bg-warning-subtle hover:bg-warning/10 text-warning'
+                                            : 'bg-primary-subtle hover:bg-primary/10 text-primary'
+                                    }`}
+                            >
+                                重试
+                            </button>
+                        )}
+                        {action && (
+                            <button
+                                onClick={action.onClick}
+                                className="px-3 py-1.5 text-sm rounded-md transition-colors bg-surface border border-border-strong text-text hover:bg-surface-muted"
+                            >
+                                {action.label}
+                            </button>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>

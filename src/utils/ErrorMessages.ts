@@ -15,6 +15,20 @@ export interface FriendlyError {
 
 // 错误码映射表（简化版，与后端保持一致）
 const ErrorMap: Record<string, FriendlyError> = {
+    'NO_ACTIVE_ACCOUNT': {
+        code: 'NO_ACTIVE_ACCOUNT',
+        title: '未激活小红书账号',
+        message: '当前没有已激活的小红书账号，无法执行该操作',
+        suggestion: '请前往"账号矩阵"页面添加并激活一个账号',
+        severity: 'warning'
+    },
+    'INVALID_SCRAPE_DATA': {
+        code: 'INVALID_SCRAPE_DATA',
+        title: '页面数据无效',
+        message: '未能从页面获取到有效数据，可能遇到了登录页、404 或反爬拦截',
+        suggestion: '1) 检查账号状态 2) 重新授权 3) 稍后重试',
+        severity: 'warning'
+    },
     'ALL_STRATEGIES_FAILED': {
         code: 'ALL_STRATEGIES_FAILED',
         title: '数据获取失败',
@@ -133,6 +147,19 @@ export function wrapError(error: any): {
         friendly: getFriendlyError(errorMessage),
         timestamp: new Date().toISOString()
     };
+}
+
+/**
+ * 从 axios 错误对象中提取后端返回的错误文本
+ * @param error axios catch 到的错误对象
+ * @returns 可用于 getFriendlyError / wrapError 的错误字符串
+ */
+export function extractAxiosErrorMessage(error: any): string {
+    if (!error) return 'Unknown error';
+    const responseError = error.response?.data?.error || error.response?.data?.message;
+    if (responseError) return String(responseError);
+    if (error.message) return String(error.message);
+    return String(error);
 }
 
 export default ErrorMap;

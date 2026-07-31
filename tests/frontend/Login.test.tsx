@@ -19,9 +19,14 @@ vi.mock('@/store/useAuthStore', () => ({
     }),
 }));
 
-// Mock axios
+// Mock axios — 必须包含 defaults 与 interceptors，因为 src/lib/axios.ts 会立即读取它们
 vi.mock('axios', () => ({
     default: {
+        defaults: { baseURL: '', withCredentials: false },
+        interceptors: {
+            request: { use: vi.fn() },
+            response: { use: vi.fn() },
+        },
         get: vi.fn().mockResolvedValue({ data: { hasUsers: true } }),
         post: vi.fn().mockResolvedValue({ data: { token: 'test-token', user: { id: 1, username: 'admin', role: 'admin' } } }),
     },

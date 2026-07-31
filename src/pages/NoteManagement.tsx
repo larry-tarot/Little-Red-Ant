@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import axios from '@/lib/axios';
 import { toast } from 'react-hot-toast';
 import { 
-    Layout, Search, Filter, Trash2, ExternalLink, 
-    Eye, RefreshCw, MoreVertical, FileText, CheckCircle,
+    Layout, Search, Trash2, ExternalLink, 
+    Eye, RefreshCw, FileText,
     Loader2, Calendar, AlertCircle
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Modal from '../components/Modal';
+import { useListData } from '../hooks/useListData';
 
 interface Note {
     id: number;
@@ -28,26 +29,22 @@ interface Note {
 }
 
 const NoteManagement: React.FC = () => {
-    const [notes, setNotes] = useState<Note[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [pagination, setPagination] = useState({ page: 1, pageSize: 10, total: 0 });
-    const [keyword, setKeyword] = useState('');
-    
     const [deleteId, setDeleteId] = useState<string | null>(null);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
     const [activeAccount, setActiveAccount] = useState<any>(null);
     const [accountLoading, setAccountLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
-    
+    const [keywordInput, setKeywordInput] = useState('');
+
     // Fetch Active Account
     useEffect(() => {
         const fetchAccount = async () => {
             try {
                 const res = await axios.get('/api/accounts/primary-status');
                 setActiveAccount(res.data);
-            } catch (e) {
-                console.error('No active account found');
+            } catch (_e) {
+                toast.error('未检测到活跃账号');
             } finally {
                 setAccountLoading(false);
             }
@@ -55,37 +52,33 @@ const NoteManagement: React.FC = () => {
         fetchAccount();
     }, []);
 
-    // Fetch Data
-    const fetchNotes = async () => {
-        if (!activeAccount) return;
-
-        setLoading(true);
-        try {
+    const {
+        data: notes,
+        loading,
+        pagination,
+        setPage,
+        setPageSize,
+        setFilters,
+        refresh,
+        removeItem,
+    } = useListData<Note, { keyword: string }>({
+        fetcher: async ({ page, pageSize, filters }) => {
             const res = await axios.get('/api/notes', {
                 params: {
-                    page: pagination.page,
-                    pageSize: pagination.pageSize,
-                    keyword: keyword,
-                    accountId: activeAccount.id
-                }
+                    page,
+                    pageSize,
+                    keyword: filters.keyword,
+                    accountId: activeAccount?.id,
+                },
             });
-            if (res.data.success) {
-                setNotes(res.data.data);
-                setPagination(prev => ({ ...prev, total: res.data.total }));
-            }
-        } catch (error) {
-            toast.error('Failed to load notes');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        if (activeAccount) {
-            fetchNotes();
-        }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [pagination.page, pagination.pageSize, activeAccount]); // Depend on activeAccount
+            return { data: res.data.data, total: res.data.total };
+        },
+        initialFilters: { keyword: '' },
+        defaultPageSize: 10,
+        enabled: !!activeAccount,
+        deps: [activeAccount?.id],
+        errorMessage: 'Failed to load notes',
+    });
 
     const handleDeleteClick = (noteId: string) => {
         setDeleteId(noteId);
@@ -97,10 +90,10 @@ const NoteManagement: React.FC = () => {
         try {
             await axios.delete(`/api/notes/${deleteId}`);
             toast.success('已删除记录');
-            setNotes(prev => prev.filter(n => n.note_id !== deleteId));
+            removeItem(n => n.note_id === deleteId);
             setIsDeleteModalOpen(false);
             setDeleteId(null);
-        } catch (error) {
+        } catch (_error) {
             toast.error('删除失败');
         }
     };
@@ -109,33 +102,33 @@ const NoteManagement: React.FC = () => {
         if (refreshing) return;
         setRefreshing(true);
         const toastId = toast.loading('正在启动同步任务...');
-        
+
         try {
             const res = await axios.post('/api/analytics/refresh');
             const { taskId } = res.data;
-            
+
             toast.loading('同步任务运行中，请稍候...', { id: toastId });
-            
+
             // Poll for completion
             let attempts = 0;
             let taskStatus = 'PENDING';
-            
+
             while (taskStatus === 'PENDING' || taskStatus === 'PROCESSING') {
                 await new Promise(r => setTimeout(r, 2000));
                 attempts++;
-                
+
                 try {
                     const taskRes = await axios.get(`/api/tasks/${taskId}`);
                     taskStatus = taskRes.data.status;
-                    
+
                     if (taskStatus === 'COMPLETED') {
                         toast.success('数据同步完成！', { id: toastId });
-                        fetchNotes(); // Refresh the table
+                        refresh(); // Refresh the table
                         return;
                     } else if (taskStatus === 'FAILED') {
                         throw new Error(taskRes.data.error || '任务执行失败');
                     }
-                    
+
                     if (attempts > 120) throw new Error('同步超时，请稍后重试');
                 } catch (e: any) {
                     if (e.message.includes('失败') || e.message.includes('超时')) throw e;
@@ -143,7 +136,6 @@ const NoteManagement: React.FC = () => {
                 }
             }
         } catch (error: any) {
-            console.error('Refresh failed:', error);
             toast.error(`同步失败: ${error.message || '未知错误'}`, { id: toastId });
         } finally {
             setRefreshing(false);
@@ -154,24 +146,23 @@ const NoteManagement: React.FC = () => {
         try {
             await axios.post('/api/accounts/open-note', { noteId });
         } catch (error: any) {
-            console.error('Failed to open note:', error);
             toast.error(`打开失败: ${error.response?.data?.error || '请确保账号已登录'}`);
         }
     };
 
     return (
-        <div className="min-h-screen bg-gray-50 p-6">
+        <div className="min-h-screen bg-surface-muted p-6">
             <div className="max-w-7xl mx-auto">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
                     <div>
-                        <h1 className="text-2xl font-bold text-gray-900 flex items-center">
-                            <FileText className="mr-2 text-indigo-600" />
+                        <h1 className="text-2xl font-bold text-text flex items-center">
+                            <FileText className="mr-2 text-primary" />
                             笔记管理
                         </h1>
-                        <p className="text-sm text-gray-500 mt-1 flex items-center">
+                        <p className="text-sm text-text-tertiary mt-1 flex items-center">
                             管理已发布的笔记内容
                             {activeAccount && (
-                                <span className="ml-2 px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-full text-xs font-medium border border-indigo-100 flex items-center">
+                                <span className="ml-2 px-2 py-0.5 bg-primary-subtle text-primary rounded-full text-xs font-medium border border-primary-subtle flex items-center">
                                     <img src={activeAccount.avatar} className="w-3 h-3 rounded-full mr-1" alt="" />
                                     当前账号: {activeAccount.nickname}
                                 </span>
@@ -185,8 +176,8 @@ const NoteManagement: React.FC = () => {
                             disabled={refreshing}
                             className={`px-4 py-2 border rounded-lg text-sm font-medium flex items-center shadow-sm transition-colors
                                 ${refreshing 
-                                    ? 'bg-indigo-50 text-indigo-400 border-indigo-100 cursor-not-allowed' 
-                                    : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                                    ? 'bg-primary-subtle text-primary border-primary-subtle cursor-not-allowed' 
+                                    : 'bg-surface border-strong text-text-secondary hover:bg-surface-muted'
                                 }
                             `}
                         >
@@ -198,40 +189,40 @@ const NoteManagement: React.FC = () => {
 
                 {/* Account Warning */}
                 {!accountLoading && !activeAccount && (
-                    <div className="mb-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4 flex items-center justify-between">
+                    <div className="mb-6 bg-warning-subtle border border-warning-subtle rounded-lg p-4 flex items-center justify-between">
                         <div className="flex items-center">
-                            <div className="bg-yellow-100 p-2 rounded-full mr-3">
-                                <ExternalLink className="text-yellow-700" size={20} />
+                            <div className="bg-warning-subtle p-2 rounded-full mr-3">
+                                <ExternalLink className="text-warning" size={20} />
                             </div>
                             <div>
-                                <h3 className="text-sm font-medium text-yellow-800">未检测到活跃账号</h3>
-                                <p className="text-xs text-yellow-600 mt-1">请先在“账号矩阵”中激活一个账号，以便管理其笔记。</p>
+                                <h3 className="text-sm font-medium text-warning">未检测到活跃账号</h3>
+                                <p className="text-xs text-warning mt-1">请先在“账号矩阵”中激活一个账号，以便管理其笔记。</p>
                             </div>
                         </div>
-                        <Link to="/accounts" className="px-4 py-2 bg-yellow-100 text-yellow-800 text-xs font-medium rounded hover:bg-yellow-200 transition-colors">
+                        <Link to="/accounts" className="px-4 py-2 bg-warning-subtle text-warning text-xs font-medium rounded hover:bg-warning-subtle transition-colors">
                             去管理账号
                         </Link>
                     </div>
                 )}
 
                 {/* Filters */}
-                <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mb-6 flex flex-col md:flex-row gap-4 items-center justify-between">
+                <div className="bg-surface p-4 rounded-xl shadow-sm border border-border mb-6 flex flex-col md:flex-row gap-4 items-center justify-between">
                     <div className="relative w-full md:w-96">
-                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-text-tertiary" size={18} />
                         <input 
                             type="text"
                             placeholder="搜索笔记标题..."
-                            value={keyword}
-                            onChange={(e) => setKeyword(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && fetchNotes()}
-                            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500"
+                            value={keywordInput}
+                            onChange={(e) => setKeywordInput(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && setFilters({ keyword: keywordInput })}
+                            className="w-full pl-10 pr-4 py-2 border border-strong rounded-lg text-sm focus:ring-primary focus:border-primary"
                         />
                     </div>
                     
                     <div className="flex gap-2">
                          <select 
-                            className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
-                            onChange={(e) => setPagination(prev => ({ ...prev, pageSize: Number(e.target.value), page: 1 }))}
+                            className="px-3 py-2 border border-strong rounded-lg text-sm bg-surface"
+                            onChange={(e) => setPageSize(Number(e.target.value))}
                             value={pagination.pageSize}
                         >
                             <option value="10">10条 / 页</option>
@@ -242,51 +233,51 @@ const NoteManagement: React.FC = () => {
                 </div>
 
                 {/* Table */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <div className="bg-surface rounded-xl shadow-sm border border-border overflow-hidden">
                     <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-gray-200">
-                            <thead className="bg-gray-50">
+                        <table className="min-w-full divide-y divide-border">
+                            <thead className="bg-surface-muted">
                                 <tr>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">笔记内容</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">所属账号</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">发布时间</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">数据表现</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">关联工程</th>
-                                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-text-tertiary uppercase tracking-wider">笔记内容</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-text-tertiary uppercase tracking-wider">所属账号</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-text-tertiary uppercase tracking-wider">发布时间</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-text-tertiary uppercase tracking-wider">数据表现</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-text-tertiary uppercase tracking-wider">关联工程</th>
+                                    <th className="px-6 py-3 text-right text-xs font-medium text-text-tertiary uppercase tracking-wider">操作</th>
                                 </tr>
                             </thead>
-                            <tbody className="bg-white divide-y divide-gray-200">
+                            <tbody className="bg-surface divide-y divide-border">
                                 {loading ? (
                                     <tr>
                                         <td colSpan={6} className="px-6 py-10 text-center">
-                                            <Loader2 className="animate-spin mx-auto text-indigo-600" size={24} />
+                                            <Loader2 className="animate-spin mx-auto text-primary" size={24} />
                                         </td>
                                     </tr>
                                 ) : notes.length === 0 ? (
                                     <tr>
-                                        <td colSpan={6} className="px-6 py-10 text-center text-gray-500">
+                                        <td colSpan={6} className="px-6 py-10 text-center text-text-tertiary">
                                             暂无笔记记录
                                         </td>
                                     </tr>
                                 ) : (
                                     notes.map((note) => (
-                                        <tr key={note.id} className="hover:bg-gray-50 transition-colors">
+                                        <tr key={note.id} className="hover:bg-surface-muted transition-colors">
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <div className="flex items-center">
-                                                    <div className="h-12 w-12 flex-shrink-0 bg-gray-100 rounded-md overflow-hidden border border-gray-200">
+                                                    <div className="h-12 w-12 flex-shrink-0 bg-surface-muted rounded-md overflow-hidden border border-border">
                                                         {note.cover_image ? (
                                                             <img className="h-full w-full object-cover" src={note.cover_image} alt="" />
                                                         ) : (
-                                                            <div className="h-full w-full flex items-center justify-center text-gray-300">
+                                                            <div className="h-full w-full flex items-center justify-center text-text-tertiary">
                                                                 <FileText size={20} />
                                                             </div>
                                                         )}
                                                     </div>
                                                     <div className="ml-4">
-                                                        <div className="text-sm font-medium text-gray-900 truncate max-w-[200px]" title={note.title}>
+                                                        <div className="text-sm font-medium text-text truncate max-w-[200px]" title={note.title}>
                                                             {note.title || '无标题'}
                                                         </div>
-                                                        <div className="text-xs text-gray-500 font-mono mt-1">
+                                                        <div className="text-xs text-text-tertiary font-mono mt-1">
                                                             ID: {note.note_id.substring(0, 8)}...
                                                         </div>
                                                     </div>
@@ -297,34 +288,34 @@ const NoteManagement: React.FC = () => {
                                                     {note.account_avatar && (
                                                         <img className="h-6 w-6 rounded-full mr-2" src={note.account_avatar} alt="" />
                                                     )}
-                                                    <span className="text-sm text-gray-700">{note.account_name || '未知账号'}</span>
+                                                    <span className="text-sm text-text-secondary">{note.account_name || '未知账号'}</span>
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
-                                                <div className="text-sm text-gray-500 flex items-center">
+                                                <div className="text-sm text-text-tertiary flex items-center">
                                                     <Calendar size={14} className="mr-1.5" />
                                                     {note.publish_date ? new Date(note.publish_date).toLocaleDateString() : '-'}
                                                 </div>
-                                                <div className="text-xs text-gray-400 mt-0.5 ml-5">
+                                                <div className="text-xs text-text-tertiary mt-0.5 ml-5">
                                                     {note.publish_date ? new Date(note.publish_date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
-                                                <div className="flex space-x-4 text-sm text-gray-500">
+                                                <div className="flex space-x-4 text-sm text-text-tertiary">
                                                     <div className="flex flex-col items-center">
-                                                        <span className="font-bold text-gray-900">{note.views}</span>
+                                                        <span className="font-bold text-text">{note.views}</span>
                                                         <span className="text-[10px]">阅读</span>
                                                     </div>
                                                     <div className="flex flex-col items-center">
-                                                        <span className="font-bold text-gray-900">{note.likes}</span>
+                                                        <span className="font-bold text-text">{note.likes}</span>
                                                         <span className="text-[10px]">点赞</span>
                                                     </div>
                                                     <div className="flex flex-col items-center">
-                                                        <span className="font-bold text-gray-900">{note.collects}</span>
+                                                        <span className="font-bold text-text">{note.collects}</span>
                                                         <span className="text-[10px]">收藏</span>
                                                     </div>
                                                     <div className="flex flex-col items-center">
-                                                        <span className="font-bold text-gray-900">{note.comments}</span>
+                                                        <span className="font-bold text-text">{note.comments}</span>
                                                         <span className="text-[10px]">评论</span>
                                                     </div>
                                                 </div>
@@ -333,20 +324,20 @@ const NoteManagement: React.FC = () => {
                                                 {note.project_id ? (
                                                     <Link 
                                                         to={`/video-studio/${note.project_id}`}
-                                                        className="inline-flex items-center px-2.5 py-1.5 rounded text-xs font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
+                                                        className="inline-flex items-center px-2.5 py-1.5 rounded text-xs font-medium bg-primary-subtle text-primary hover:bg-primary-subtle"
                                                     >
                                                         <Layout size={12} className="mr-1" />
                                                         查看工程
                                                     </Link>
                                                 ) : (
-                                                    <span className="text-xs text-gray-400 italic">无关联工程</span>
+                                                    <span className="text-xs text-text-tertiary italic">无关联工程</span>
                                                 )}
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                                 <div className="flex items-center justify-end space-x-2">
                                                     <button 
                                                         onClick={() => handleOpenInBrowser(note.note_id)} 
-                                                        className="p-1 text-gray-400 hover:text-indigo-600 rounded-full hover:bg-gray-100 transition-colors"
+                                                        className="p-1 text-text-tertiary hover:text-primary rounded-full hover:bg-surface-muted transition-colors"
                                                         title="以当前身份查看 (RPA浏览器 - 自动登录)"
                                                     >
                                                         <Eye size={16} />
@@ -357,14 +348,14 @@ const NoteManagement: React.FC = () => {
                                                             : `https://www.xiaohongshu.com/explore/${note.note_id}?xsec_source=pc_feed`} 
                                                         target="_blank"
                                                         rel="noreferrer"
-                                                        className="p-1 text-gray-400 hover:text-indigo-600 rounded-full hover:bg-gray-100 transition-colors"
+                                                        className="p-1 text-text-tertiary hover:text-primary rounded-full hover:bg-surface-muted transition-colors"
                                                         title="在普通浏览器查看"
                                                     >
                                                         <ExternalLink size={16} />
                                                     </a>
                                                     <button 
                                                         onClick={() => handleDeleteClick(note.note_id)}
-                                                        className="p-1 text-gray-400 hover:text-red-600 rounded-full hover:bg-gray-100 transition-colors"
+                                                        className="p-1 text-text-tertiary hover:text-danger rounded-full hover:bg-surface-muted transition-colors"
                                                         title="删除记录"
                                                     >
                                                         <Trash2 size={16} />
@@ -379,22 +370,22 @@ const NoteManagement: React.FC = () => {
                     </div>
                     
                     {/* Pagination */}
-                    <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
-                        <div className="text-sm text-gray-500">
+                    <div className="px-6 py-4 border-t border-border flex items-center justify-between">
+                        <div className="text-sm text-text-tertiary">
                             共 {pagination.total} 条记录
                         </div>
                         <div className="flex gap-2">
                             <button 
                                 disabled={pagination.page === 1}
-                                onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
-                                className="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-50"
+                                onClick={() => setPage(pagination.page - 1)}
+                                className="px-3 py-1 border border-strong rounded text-sm disabled:opacity-50"
                             >
                                 上一页
                             </button>
                             <button 
                                 disabled={pagination.page * pagination.pageSize >= pagination.total}
-                                onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
-                                className="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-50"
+                                onClick={() => setPage(pagination.page + 1)}
+                                className="px-3 py-1 border border-strong rounded text-sm disabled:opacity-50"
                             >
                                 下一页
                             </button>
@@ -411,13 +402,13 @@ const NoteManagement: React.FC = () => {
                         <div className="flex justify-end gap-3">
                             <button
                                 onClick={() => setIsDeleteModalOpen(false)}
-                                className="px-4 py-2 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-md text-sm font-medium"
+                                className="px-4 py-2 text-text-secondary bg-surface-muted hover:bg-surface-hover rounded-md text-sm font-medium"
                             >
                                 取消
                             </button>
                             <button
                                 onClick={confirmDelete}
-                                className="px-4 py-2 text-white bg-red-600 hover:bg-red-700 rounded-md text-sm font-medium"
+                                className="px-4 py-2 text-primary-text bg-danger hover:bg-danger rounded-md text-sm font-medium"
                             >
                                 确认删除
                             </button>
@@ -425,11 +416,11 @@ const NoteManagement: React.FC = () => {
                     }
                 >
                     <div className="flex items-start p-2">
-                        <AlertCircle className="text-red-500 mr-3 flex-shrink-0" size={24} />
+                        <AlertCircle className="text-danger mr-3 flex-shrink-0" size={24} />
                         <div>
-                            <p className="text-gray-700 font-medium mb-1">您确定要删除这条笔记记录吗？</p>
-                            <p className="text-gray-500 text-sm">
-                                此操作仅删除本地数据库中的记录，<strong className="text-gray-700">不会</strong>删除小红书线上发布的笔记。
+                            <p className="text-text-secondary font-medium mb-1">您确定要删除这条笔记记录吗？</p>
+                            <p className="text-text-tertiary text-sm">
+                                此操作仅删除本地数据库中的记录，<strong className="text-text-secondary">不会</strong>删除小红书线上发布的笔记。
                             </p>
                         </div>
                     </div>

@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import axios from '@/lib/axios';
 import { useNavigate } from 'react-router-dom';
-import { Save, Plus, X, User, Trash2, CheckCircle, Edit2, Layout } from 'lucide-react';
+import { Save, Plus, X, User, Trash2, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface UserProfile {
@@ -41,7 +41,7 @@ const STYLE_OPTIONS = [
 ];
 
 export default function PersonaSetup() {
-  const navigate = useNavigate();
+  const _navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   
@@ -80,8 +80,7 @@ export default function PersonaSetup() {
       } else {
           // No personas, keep default form
       }
-    } catch (error) {
-      console.error('Failed to fetch list', error);
+    } catch (_error) {
       toast.error('加载人设列表失败');
     } finally {
       setLoading(false);
@@ -124,15 +123,14 @@ export default function PersonaSetup() {
           toast.success('人设更新成功！');
       } else {
           // Create
-          const res = await axios.post('/api/user', formData);
+          const _res = await axios.post('/api/user', formData);
           toast.success('新人设创建成功！');
           // Reload list and select new one
           await fetchList();
           // Ideally we select the new one, but fetchList logic handles selection
       }
       fetchList();
-    } catch (error) {
-      console.error('Failed to save profile', error);
+    } catch (_error) {
       toast.error('保存失败，请重试');
     } finally {
       setSaving(false);
@@ -145,7 +143,7 @@ export default function PersonaSetup() {
           await axios.post(`/api/user/${id}/activate`);
           toast.success('已切换当前人设');
           fetchList(); // Refresh list to update UI
-      } catch (e) {
+      } catch (_e) {
           toast.error('切换失败');
       }
   };
@@ -158,7 +156,7 @@ export default function PersonaSetup() {
           if (selectedId === id) handleCreateNew();
           fetchList();
           toast.success('人设已删除');
-      } catch (e) {
+      } catch (_e) {
           toast.error('删除失败');
       }
   };
@@ -215,23 +213,23 @@ export default function PersonaSetup() {
   };
 
   if (loading) return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+    <div className="min-h-screen flex items-center justify-center bg-surface-muted">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="min-h-screen bg-surface-muted flex">
       {/* Sidebar: Persona List */}
-      <div className="w-80 bg-white border-r border-gray-200 flex flex-col h-screen sticky top-0 z-10">
-          <div className="p-6 border-b border-gray-100">
-             <h2 className="text-lg font-bold text-gray-900 flex items-center">
-                 <User className="mr-2 text-indigo-600" />
+      <div className="w-80 bg-surface border-r border-border flex flex-col h-screen sticky top-0 z-10">
+          <div className="p-6 border-b border-border">
+             <h2 className="text-lg font-bold text-text flex items-center">
+                 <User className="mr-2 text-primary" />
                  人设管理 (Personas)
              </h2>
              <button 
                 onClick={handleCreateNew}
-                className="mt-4 w-full flex items-center justify-center py-2 px-4 border border-indigo-600 text-indigo-600 rounded-md hover:bg-indigo-50 text-sm font-medium transition-colors"
+                className="mt-4 w-full flex items-center justify-center py-2 px-4 border border-primary text-primary rounded-md hover:bg-primary-subtle text-sm font-medium transition-colors"
              >
                 <Plus size={16} className="mr-1" /> 新建人设
              </button>
@@ -245,27 +243,27 @@ export default function PersonaSetup() {
                     className={`
                         group p-3 rounded-lg border cursor-pointer transition-all relative
                         ${selectedId === p.id 
-                            ? 'border-indigo-600 bg-indigo-50 shadow-sm' 
-                            : 'border-gray-200 hover:border-indigo-300 hover:bg-gray-50'}
+                            ? 'border-primary bg-primary-subtle shadow-sm' 
+                            : 'border-border hover:border-primary-subtle hover:bg-surface-muted'}
                     `}
                  >
                     <div className="flex justify-between items-start">
                         <div className="flex-1 min-w-0">
-                            <h3 className={`font-medium text-sm truncate ${selectedId === p.id ? 'text-indigo-900' : 'text-gray-900'}`}>
+                            <h3 className={`font-medium text-sm truncate ${selectedId === p.id ? 'text-primary' : 'text-text'}`}>
                                 {p.name || '未命名人设'}
                             </h3>
-                            <p className="text-xs text-gray-500 mt-1 truncate">
+                            <p className="text-xs text-text-tertiary mt-1 truncate">
                                 {p.niche} · {p.style || '默认风格'}
                             </p>
                         </div>
                         {p.is_active ? (
-                            <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-green-100 text-green-800">
+                            <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-success-subtle text-success">
                                 当前使用
                             </span>
                         ) : (
                             <button
                                 onClick={(e) => handleActivate(e, p.id!)}
-                                className="ml-2 p-1 text-gray-400 hover:text-green-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                                className="ml-2 p-1 text-text-tertiary hover:text-success opacity-0 group-hover:opacity-100 transition-opacity"
                                 title="设为当前使用"
                             >
                                 <CheckCircle size={16} />
@@ -275,7 +273,7 @@ export default function PersonaSetup() {
                     
                     <button
                         onClick={(e) => handleDelete(e, p.id!)}
-                        className="absolute bottom-2 right-2 p-1 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="absolute bottom-2 right-2 p-1 text-text-tertiary hover:text-danger opacity-0 group-hover:opacity-100 transition-opacity"
                         title="删除"
                     >
                         <Trash2 size={14} />
@@ -284,7 +282,7 @@ export default function PersonaSetup() {
              ))}
              
              {personaList.length === 0 && (
-                 <div className="text-center text-gray-400 text-sm py-8">
+                 <div className="text-center text-text-tertiary text-sm py-8">
                      暂无人设，请新建
                  </div>
              )}
@@ -294,12 +292,12 @@ export default function PersonaSetup() {
       {/* Main Content: Edit Form */}
       <div className="flex-1 h-screen overflow-y-auto">
         <div className="max-w-3xl mx-auto p-8">
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8">
-                <div className="mb-8 pb-6 border-b border-gray-100">
-                    <h1 className="text-2xl font-bold text-gray-900 mb-2">
+            <div className="bg-surface rounded-xl shadow-sm border border-border p-8">
+                <div className="mb-8 pb-6 border-b border-border">
+                    <h1 className="text-2xl font-bold text-text mb-2">
                         {selectedId ? '编辑人设 (Edit Persona)' : '新建人设 (New Persona)'}
                     </h1>
-                    <p className="text-gray-600 text-sm">
+                    <p className="text-text-secondary text-sm">
                         {selectedId ? '修改当前人设的配置信息。' : '创建一个新的人设，您可以随时切换使用。'}
                     </p>
                 </div>
@@ -308,8 +306,8 @@ export default function PersonaSetup() {
                     
                     {/* Name Input */}
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            人设名称 (Name) <span className="text-red-500">*</span>
+                        <label className="block text-sm font-medium text-text-secondary mb-2">
+                            人设名称 (Name) <span className="text-danger">*</span>
                         </label>
                         <input
                             type="text"
@@ -317,20 +315,20 @@ export default function PersonaSetup() {
                             value={formData.name}
                             onChange={e => setFormData({...formData, name: e.target.value})}
                             placeholder="例如：美妆大号、宠物号-旺财"
-                            className="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-red-500 focus:border-red-500"
+                            className="w-full p-2 border border-strong rounded-md shadow-sm focus:ring-danger focus:border-danger"
                         />
                     </div>
 
                     {/* Niche Selection */}
                     <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                        专注领域 (Niche) <span className="text-red-500">*</span>
+                    <label className="block text-sm font-medium text-text-secondary mb-2">
+                        专注领域 (Niche) <span className="text-danger">*</span>
                     </label>
                     <select
                         required
                         value={formData.niche}
                         onChange={e => setFormData({...formData, niche: e.target.value})}
-                        className="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-red-500 focus:border-red-500"
+                        className="w-full p-2 border border-strong rounded-md shadow-sm focus:ring-danger focus:border-danger"
                     >
                         <option value="">请选择领域 (Select Niche)</option>
                         {NICHE_OPTIONS.map(opt => (
@@ -341,7 +339,7 @@ export default function PersonaSetup() {
 
                     {/* Identity Tags */}
                     <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-text-secondary mb-2">
                         身份标签 (Identity Tags) - 如: 95后宝妈, 职场新人
                     </label>
                     <div className="flex gap-2 mb-2">
@@ -350,25 +348,25 @@ export default function PersonaSetup() {
                         value={newTag}
                         onChange={e => setNewTag(e.target.value)}
                         placeholder="输入标签 (Enter tag)"
-                        className="flex-1 p-2 border border-gray-300 rounded-md focus:ring-red-500 focus:border-red-500"
+                        className="flex-1 p-2 border border-strong rounded-md focus:ring-danger focus:border-danger"
                         onKeyPress={e => e.key === 'Enter' && (e.preventDefault(), addTag())}
                         />
                         <button
                         type="button"
                         onClick={addTag}
-                        className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
+                        className="px-4 py-2 bg-surface-muted text-text-secondary rounded-md hover:bg-surface-hover"
                         >
                         <Plus size={20} />
                         </button>
                     </div>
                     <div className="flex flex-wrap gap-2">
                         {formData.identity_tags.map((tag, idx) => (
-                        <span key={idx} className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-50 text-red-700">
+                        <span key={idx} className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-danger-subtle text-danger">
                             {tag}
                             <button
                             type="button"
                             onClick={() => removeTag(idx)}
-                            className="ml-2 text-red-500 hover:text-red-700"
+                            className="ml-2 text-danger hover:text-danger"
                             >
                             <X size={14} />
                             </button>
@@ -379,8 +377,8 @@ export default function PersonaSetup() {
 
                     {/* Style Selection */}
                     <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                        账号风格 (Account Style) <span className="text-red-500">*</span>
+                    <label className="block text-sm font-medium text-text-secondary mb-2">
+                        账号风格 (Account Style) <span className="text-danger">*</span>
                     </label>
                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                         {STYLE_OPTIONS.map(opt => (
@@ -390,8 +388,8 @@ export default function PersonaSetup() {
                             className={`
                             cursor-pointer p-3 text-sm border rounded-md text-center transition-colors
                             ${formData.style === opt.value 
-                                ? 'border-red-500 bg-red-50 text-red-700 font-medium' 
-                                : 'border-gray-200 hover:border-red-200'}
+                                ? 'border-danger bg-danger-subtle text-danger font-medium' 
+                                : 'border-border hover:border-danger-subtle'}
                             `}
                         >
                             {opt.label}
@@ -402,7 +400,7 @@ export default function PersonaSetup() {
 
                     {/* Benchmark Accounts */}
                     <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-text-secondary mb-2">
                         对标账号链接 (Benchmark Account URLs)
                     </label>
                     <div className="flex gap-2 mb-2">
@@ -411,25 +409,25 @@ export default function PersonaSetup() {
                         value={newAccount}
                         onChange={e => setNewAccount(e.target.value)}
                         placeholder="输入小红书主页链接 (Enter URL)"
-                        className="flex-1 p-2 border border-gray-300 rounded-md focus:ring-red-500 focus:border-red-500"
+                        className="flex-1 p-2 border border-strong rounded-md focus:ring-danger focus:border-danger"
                         onKeyPress={e => e.key === 'Enter' && (e.preventDefault(), addAccount())}
                         />
                         <button
                         type="button"
                         onClick={addAccount}
-                        className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
+                        className="px-4 py-2 bg-surface-muted text-text-secondary rounded-md hover:bg-surface-hover"
                         >
                         <Plus size={20} />
                         </button>
                     </div>
                     <ul className="space-y-2">
                         {formData.benchmark_accounts.map((acc, idx) => (
-                        <li key={idx} className="flex items-center justify-between p-2 bg-gray-50 rounded-md text-sm">
+                        <li key={idx} className="flex items-center justify-between p-2 bg-surface-muted rounded-md text-sm">
                             <span className="truncate flex-1 mr-2">{acc}</span>
                             <button
                             type="button"
                             onClick={() => removeAccount(idx)}
-                            className="text-gray-400 hover:text-red-500"
+                            className="text-text-tertiary hover:text-danger"
                             >
                             <X size={16} />
                             </button>
@@ -440,8 +438,8 @@ export default function PersonaSetup() {
 
                     {/* Writing Samples */}
                     <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                        文风投喂 (Writing Style Samples) <span className="text-gray-400 text-xs">- 复制您喜欢的爆款笔记正文，AI 会模仿其语气</span>
+                    <label className="block text-sm font-medium text-text-secondary mb-2">
+                        文风投喂 (Writing Style Samples) <span className="text-text-tertiary text-xs">- 复制您喜欢的爆款笔记正文，AI 会模仿其语气</span>
                     </label>
                     <div className="mb-2">
                         <textarea
@@ -449,13 +447,13 @@ export default function PersonaSetup() {
                         onChange={e => setNewSample(e.target.value)}
                         placeholder="在此粘贴一篇范文... (Paste a sample note here)"
                         rows={4}
-                        className="w-full p-2 border border-gray-300 rounded-md focus:ring-red-500 focus:border-red-500 text-sm"
+                        className="w-full p-2 border border-strong rounded-md focus:ring-danger focus:border-danger text-sm"
                         />
                         <button
                         type="button"
                         onClick={addSample}
                         disabled={!newSample.trim() || formData.writing_samples.length >= 3}
-                        className="mt-2 px-4 py-2 bg-indigo-50 text-indigo-700 rounded-md hover:bg-indigo-100 text-sm font-medium disabled:opacity-50"
+                        className="mt-2 px-4 py-2 bg-primary-subtle text-primary rounded-md hover:bg-primary-subtle text-sm font-medium disabled:opacity-50"
                         >
                         <Plus size={16} className="inline mr-1" />
                         添加范文 (Add Sample) {formData.writing_samples.length}/3
@@ -463,12 +461,12 @@ export default function PersonaSetup() {
                     </div>
                     <div className="space-y-3 mt-4">
                         {formData.writing_samples.map((sample, idx) => (
-                        <div key={idx} className="relative p-3 bg-gray-50 rounded-md border border-gray-200">
-                            <p className="text-xs text-gray-600 line-clamp-3 italic">"{sample}"</p>
+                        <div key={idx} className="relative p-3 bg-surface-muted rounded-md border border-border">
+                            <p className="text-xs text-text-secondary line-clamp-3 italic">"{sample}"</p>
                             <button
                             type="button"
                             onClick={() => removeSample(idx)}
-                            className="absolute top-2 right-2 text-gray-400 hover:text-red-500"
+                            className="absolute top-2 right-2 text-text-tertiary hover:text-danger"
                             >
                             <X size={14} />
                             </button>
@@ -483,7 +481,7 @@ export default function PersonaSetup() {
                         <button
                             type="button"
                             onClick={() => handleCreateNew()}
-                            className="flex-1 py-3 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+                            className="flex-1 py-3 px-4 border border-strong rounded-md shadow-sm text-sm font-medium text-text-secondary bg-surface hover:bg-surface-muted"
                         >
                             取消编辑
                         </button>
@@ -492,8 +490,8 @@ export default function PersonaSetup() {
                         type="submit"
                         disabled={saving}
                         className={`
-                        flex-[2] flex justify-center items-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white 
-                        ${saving ? 'bg-red-400 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500'}
+                        flex-[2] flex justify-center items-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-primary-text 
+                        ${saving ? 'bg-danger cursor-not-allowed' : 'bg-danger hover:bg-danger focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-danger'}
                         `}
                     >
                         {saving ? '保存中...' : (

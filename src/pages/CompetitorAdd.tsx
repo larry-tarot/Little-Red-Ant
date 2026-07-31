@@ -1,9 +1,10 @@
 
 import React, { useState } from 'react';
-import { ArrowLeft, Search, Loader2, Target, Link as LinkIcon, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Search, Target, Link as LinkIcon, AlertCircle } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import axios from '@/lib/axios';
 import toast from 'react-hot-toast';
+import { Button, Input } from '@/components/ui';
 
 export default function CompetitorAdd() {
   const [url, setUrl] = useState('');
@@ -12,7 +13,10 @@ export default function CompetitorAdd() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!url) return;
+    if (!url.trim()) {
+        toast.error('请输入小红书主页链接或 User ID');
+        return;
+    }
 
     // Basic validation
     if (!url.includes('xiaohongshu.com') && url.length < 10) {
@@ -37,49 +41,48 @@ export default function CompetitorAdd() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8">
+    <div className="min-h-screen bg-surface-muted p-4 sm:p-6 lg:p-8">
       <div className="max-w-2xl mx-auto">
-        <Link to="/competitor" className="inline-flex items-center text-gray-500 hover:text-gray-900 mb-6">
+        <Link to="/competitor" className="inline-flex items-center text-text-tertiary hover:text-text mb-6">
           <ArrowLeft size={20} className="mr-2" />
           返回列表
         </Link>
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="p-6 border-b border-gray-100 bg-gray-50/50">
-            <h1 className="text-xl font-bold text-gray-900 flex items-center">
-              <Target className="mr-2 text-indigo-600" />
+        <div className="bg-surface rounded-xl shadow-sm border border-border overflow-hidden">
+          <div className="p-6 border-b border-border bg-surface-muted/50">
+            <h1 className="text-xl font-bold text-text flex items-center">
+              <Target className="mr-2 text-primary" />
               添加对标账号 (Add Competitor)
             </h1>
-            <p className="text-gray-500 text-sm mt-1">
+            <p className="text-text-tertiary text-sm mt-1">
               输入小红书博主的主页链接或 ID，系统将自动抓取数据并进行 AI 分析。
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="p-6 space-y-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-text-secondary mb-1">
                 主页链接 / User ID
               </label>
               <div className="relative">
-                <LinkIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-                <input
+                <LinkIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 text-text-tertiary" size={18} />
+                <Input
                   type="text"
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
                   placeholder="例如：https://www.xiaohongshu.com/user/profile/5ff..."
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  required
+                  className="pl-10 pr-4 py-3"
                 />
               </div>
-              <p className="mt-2 text-xs text-gray-500 flex items-center">
+              <p className="mt-2 text-xs text-text-tertiary flex items-center">
                 <AlertCircle size={12} className="mr-1" />
                 提示：在小红书 App 中点击分享 -&gt; 复制链接
               </p>
             </div>
 
-            <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 text-sm text-blue-800">
+            <div className="bg-primary-subtle border border-primary-subtle rounded-lg p-4 text-sm text-primary">
               <h4 className="font-bold mb-2">AI 分析将包含：</h4>
-              <ul className="list-disc list-inside space-y-1 text-blue-700">
+              <ul className="list-disc list-inside space-y-1 text-primary">
                 <li>账号基础数据（粉丝、笔记数）</li>
                 <li>最近 20 篇笔记的互动数据</li>
                 <li><strong>内容策略拆解</strong>（人设、风格）</li>
@@ -89,25 +92,15 @@ export default function CompetitorAdd() {
             </div>
 
             <div className="pt-4">
-              <button
+              <Button
                 type="submit"
-                disabled={loading}
-                className={`w-full flex items-center justify-center px-4 py-3 border border-transparent rounded-lg shadow-sm text-base font-medium text-white 
-                  ${loading ? 'bg-indigo-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'}
-                  transition-colors`}
+                loading={loading}
+                className="w-full text-base"
+                size="lg"
               >
-                {loading ? (
-                  <>
-                    <Loader2 className="animate-spin mr-2" size={20} />
-                    正在提交任务...
-                  </>
-                ) : (
-                  <>
-                    <Search className="mr-2" size={20} />
-                    开始抓取与分析
-                  </>
-                )}
-              </button>
+                {!loading && <Search className="mr-2 h-5 w-5" />}
+                开始 AI 分析
+              </Button>
             </div>
           </form>
         </div>

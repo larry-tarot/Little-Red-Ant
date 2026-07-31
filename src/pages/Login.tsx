@@ -1,14 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import axios from '@/lib/axios';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
 import { Lock, User, ArrowRight, ShieldCheck, Eye, EyeOff, Sparkles } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { Input } from '../components/ui/Input';
+import { Button } from '../components/ui/Button';
 
+/**
+ * 登录 / 注册页面
+ *
+ * 支持首次初始化创建管理员、登录和注册。
+ * 样式基于 design tokens，适配亮色/暗色主题。
+ */
 export default function Login() {
     const navigate = useNavigate();
     const login = useAuthStore((state) => state.login);
-    const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+    const isAuthenticated = useAuthStore((state) => !!state.token);
 
     const [isLogin, setIsLogin] = useState(true);
     const [username, setUsername] = useState('');
@@ -19,11 +27,11 @@ export default function Login() {
     const [hasUsers, setHasUsers] = useState(true);
 
     useEffect(() => {
-        if (isAuthenticated()) {
+        if (isAuthenticated) {
             navigate('/');
         }
         checkInit();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const checkInit = async () => {
@@ -33,8 +41,8 @@ export default function Login() {
             if (!res.data.hasUsers) {
                 setIsLogin(false);
             }
-        } catch (e) {
-            console.error('Failed to check init status');
+        } catch (_e) {
+            toast.error('初始化状态检查失败');
         }
     };
 
@@ -47,16 +55,10 @@ export default function Login() {
             const endpoint = isLogin ? '/api/auth/login' : '/api/auth/register';
             const res = await axios.post(endpoint, { username, password });
 
-            if (isLogin) {
-                login(res.data.token, res.data.user);
-                toast.success('欢迎回来！');
-                navigate('/');
-            } else {
-                // 注册成功后自动登录,避免用户需要手动切 Tab
-                login(res.data.token, res.data.user);
-                toast.success('注册成功，欢迎使用！');
-                navigate('/');
-            }
+            // 登录/注册成功后统一写入 store 并跳转
+            login(res.data.token, res.data.user);
+            toast.success(isLogin ? '欢迎回来！' : '注册成功，欢迎使用！');
+            navigate('/');
         } catch (err: any) {
             const msg = err.response?.data?.error || '操作失败';
             setError(msg);
@@ -67,36 +69,32 @@ export default function Login() {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 via-white to-purple-50 p-4">
+        <div className="min-h-screen flex items-center justify-center bg-surface-elevated p-4">
             <div className="max-w-md w-full">
                 {/* Logo Card */}
-                <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+                <div className="bg-surface rounded-2xl shadow-lg border border-border overflow-hidden">
                     {/* Header with Gradient */}
-                    <div className="bg-gradient-to-r from-indigo-600 to-purple-600 px-8 py-6 text-center">
-                        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-white/20 backdrop-blur-sm mb-3">
-                            <Sparkles className="w-8 h-8 text-white" />
+                    <div className="bg-gradient-to-r from-primary to-primary-hover px-8 py-6 text-center">
+                        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary-text/20 backdrop-blur-sm mb-3">
+                            <Sparkles className="w-8 h-8 text-primary-text" />
                         </div>
-                        <h1 className="text-2xl font-bold text-white">
-                            小红蚁
-                        </h1>
-                        <p className="text-indigo-100 text-sm mt-1">
-                            小红书矩阵运营系统
-                        </p>
+                        <h1 className="text-2xl font-bold text-primary-text">小红蚁</h1>
+                        <p className="text-primary-text/80 text-sm mt-1">小红书矩阵运营系统</p>
                     </div>
 
                     {/* Form Section */}
                     <div className="p-8">
                         {/* Tab Switcher */}
-                        <div className="flex bg-gray-100 p-1 rounded-xl mb-6">
+                        <div className="flex bg-surface-muted p-1 rounded-xl mb-6">
                             <button
                                 onClick={() => {
                                     setIsLogin(true);
                                     setError('');
                                 }}
                                 className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ${
-                                    isLogin 
-                                        ? 'bg-white text-indigo-600 shadow-sm' 
-                                        : 'text-gray-600 hover:text-gray-900'
+                                    isLogin
+                                        ? 'bg-surface text-primary shadow-sm'
+                                        : 'text-text-secondary hover:text-text'
                                 }`}
                             >
                                 登录
@@ -107,9 +105,9 @@ export default function Login() {
                                     setError('');
                                 }}
                                 className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ${
-                                    !isLogin 
-                                        ? 'bg-white text-indigo-600 shadow-sm' 
-                                        : 'text-gray-600 hover:text-gray-900'
+                                    !isLogin
+                                        ? 'bg-surface text-primary shadow-sm'
+                                        : 'text-text-secondary hover:text-text'
                                 }`}
                             >
                                 {hasUsers ? '注册' : '创建管理员'}
@@ -119,19 +117,19 @@ export default function Login() {
                         <form onSubmit={handleSubmit} className="space-y-5">
                             {/* Username Field */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                <label className="block text-sm font-medium text-text-secondary mb-2">
                                     用户名
                                 </label>
                                 <div className="relative">
                                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                        <User className="h-5 w-5 text-gray-400" />
+                                        <User className="h-5 w-5 text-text-tertiary" />
                                     </div>
-                                    <input
+                                    <Input
                                         type="text"
                                         required
                                         value={username}
                                         onChange={(e) => setUsername(e.target.value)}
-                                        className="pl-10 block w-full border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-sm p-3 border transition-colors"
+                                        className="pl-10"
                                         placeholder="请输入用户名"
                                     />
                                 </div>
@@ -139,25 +137,26 @@ export default function Login() {
 
                             {/* Password Field */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                <label className="block text-sm font-medium text-text-secondary mb-2">
                                     密码
                                 </label>
                                 <div className="relative">
                                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                        <Lock className="h-5 w-5 text-gray-400" />
+                                        <Lock className="h-5 w-5 text-text-tertiary" />
                                     </div>
-                                    <input
+                                    <Input
                                         type={showPassword ? 'text' : 'password'}
                                         required
                                         value={password}
                                         onChange={(e) => setPassword(e.target.value)}
-                                        className="pl-10 pr-10 block w-full border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-sm p-3 border transition-colors"
+                                        className="pl-10 pr-10"
                                         placeholder="请输入密码"
                                     />
                                     <button
                                         type="button"
                                         onClick={() => setShowPassword(!showPassword)}
-                                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-text-tertiary hover:text-text transition-colors"
+                                        aria-label={showPassword ? '隐藏密码' : '显示密码'}
                                     >
                                         {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                                     </button>
@@ -166,42 +165,33 @@ export default function Login() {
 
                             {/* Error Message */}
                             {error && (
-                                <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 p-3 rounded-lg">
+                                <div className="flex items-center gap-2 text-danger text-sm bg-danger-subtle p-3 rounded-lg border border-danger/10">
                                     <ShieldCheck className="h-4 w-4 flex-shrink-0" />
                                     {error}
                                 </div>
                             )}
 
                             {/* Submit Button */}
-                            <button
+                            <Button
                                 type="submit"
-                                disabled={loading}
-                                className={`w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-200 ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
+                                loading={loading}
+                                className="w-full"
                             >
-                                {loading ? (
-                                    <div className="flex items-center">
-                                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2" />
-                                        处理中...
-                                    </div>
-                                ) : (
-                                    <>
-                                        {isLogin ? '登 录' : hasUsers ? '注 册' : '创建管理员账号'}
-                                        <ArrowRight className="ml-2 h-4 w-4" />
-                                    </>
-                                )}
-                            </button>
+                                {!loading && <ArrowRight className="ml-2 h-4 w-4" />}
+                                {isLogin ? '登 录' : hasUsers ? '注 册' : '创建管理员账号'}
+                            </Button>
                         </form>
 
                         {/* Footer Info */}
                         <div className="mt-6 text-center">
-                            <p className="text-xs text-gray-500">
+                            <p className="text-xs text-text-secondary">
                                 {isLogin ? '还没有账号？' : '已有账号？'}
                                 <button
                                     onClick={() => {
                                         setIsLogin(!isLogin);
                                         setError('');
                                     }}
-                                    className="text-indigo-600 hover:text-indigo-800 font-medium ml-1"
+                                    className="text-primary hover:text-primary-hover font-medium ml-1 transition-colors"
                                 >
                                     {isLogin ? '立即注册' : '立即登录'}
                                 </button>
@@ -211,7 +201,7 @@ export default function Login() {
                 </div>
 
                 {/* Footer */}
-                <p className="text-center text-xs text-gray-400 mt-6">
+                <p className="text-center text-xs text-text-tertiary mt-6">
                     © 2024 小红蚁 - 小红书矩阵运营系统
                 </p>
             </div>

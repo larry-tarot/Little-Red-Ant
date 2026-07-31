@@ -4,7 +4,7 @@
  * 用户完成任意步骤后,对应项自动勾选,不再显示引导。
  */
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import axios from '@/lib/axios';
 import { Sparkles, CheckCircle, ArrowRight, Settings, User, PenTool, TrendingUp } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -18,6 +18,12 @@ interface Step {
   check: () => Promise<boolean>;
 }
 
+/**
+ * 首次使用引导
+ *
+ * 根据用户完成度展示 4 个入门步骤，完成后自动隐藏。
+ * 颜色基于 design tokens，支持主题切换。
+ */
 export default function FirstRunGuide() {
   const navigate = useNavigate();
   const [steps, setSteps] = useState<Step[]>([]);
@@ -130,23 +136,23 @@ export default function FirstRunGuide() {
   const completedCount = steps.filter(s => completed[s.key]).length;
 
   return (
-    <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl border border-indigo-100 p-6 mb-6">
+    <div className="bg-gradient-to-r from-primary-subtle to-surface-muted rounded-xl border border-primary/20 p-6 mb-6">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <Sparkles size={20} className="text-indigo-600" />
-          <h2 className="text-lg font-semibold text-gray-900">欢迎使用小红蚁</h2>
+          <Sparkles size={20} className="text-primary" />
+          <h2 className="text-lg font-semibold text-text">欢迎使用小红蚁</h2>
         </div>
         <button
           onClick={handleDismiss}
-          className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
+          className="text-sm text-text-tertiary hover:text-text-secondary transition-colors"
         >
           我知道了
         </button>
       </div>
 
-      <p className="text-sm text-gray-600 mb-4">
+      <p className="text-sm text-text-secondary mb-4">
         完成以下步骤,快速上手:
-        <span className="ml-2 text-indigo-600 font-medium">
+        <span className="ml-2 text-primary font-medium">
           {completedCount}/{steps.length}
         </span>
       </p>
@@ -161,22 +167,22 @@ export default function FirstRunGuide() {
               disabled={done}
               className={`flex items-center gap-3 p-3 rounded-lg text-left transition-all ${
                 done
-                  ? 'bg-green-50 cursor-default'
-                  : 'bg-white hover:bg-indigo-50 hover:border-indigo-200 border border-gray-200 cursor-pointer'
+                  ? 'bg-success-subtle cursor-default'
+                  : 'bg-surface hover:bg-primary-subtle hover:border-primary/30 border border-border cursor-pointer'
               }`}
             >
               <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
-                done ? 'bg-green-100 text-green-600' : 'bg-indigo-100 text-indigo-600'
+                done ? 'bg-success-subtle text-success' : 'bg-primary-subtle text-primary'
               }`}>
                 {done ? <CheckCircle size={16} /> : step.icon}
               </div>
               <div className="flex-1 min-w-0">
-                <p className={`text-sm font-medium ${done ? 'text-green-700 line-through' : 'text-gray-900'}`}>
+                <p className={`text-sm font-medium ${done ? 'text-success line-through' : 'text-text'}`}>
                   {step.title}
                 </p>
-                <p className="text-xs text-gray-500 truncate">{step.description}</p>
+                <p className="text-xs text-text-secondary truncate">{step.description}</p>
               </div>
-              {!done && <ArrowRight size={16} className="text-gray-400 flex-shrink-0" />}
+              {!done && <ArrowRight size={16} className="text-text-tertiary flex-shrink-0" />}
             </button>
           );
         })}

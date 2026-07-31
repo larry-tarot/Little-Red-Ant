@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import axios from '@/lib/axios';
 import { TrendingUp, Loader2, ExternalLink, PenTool, Flame, RefreshCw, Search } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from "react";
 
 interface Trend {
   id: number;
@@ -30,7 +30,7 @@ export default function HotTrends() {
   const fetchTrends = async (source: TrendSource, forceRefresh = false, signal?: AbortSignal) => {
     setLoading(true);
     try {
-      let res = await axios.get(`/api/trends?source=${source}${forceRefresh ? '&refresh=true' : ''}`, { signal });
+      const res = await axios.get(`/api/trends?source=${source}${forceRefresh ? '&refresh=true' : ''}`, { signal });
       let data = Array.isArray(res.data) ? { data: res.data, source: 'mock', updatedAt: Date.now(), status: 'FRESH' } : res.data;
 
       // Poll if updating
@@ -54,7 +54,7 @@ export default function HotTrends() {
                     data = pollData;
                     break;
                 }
-              } catch (e) {
+              } catch (_e) {
                  // Ignore poll errors
               }
               attempts++;
@@ -82,29 +82,29 @@ export default function HotTrends() {
   };
 
   const getSourceLabel = () => {
-    if (!dataSource) return { text: '加载中...', color: 'text-gray-400' };
+    if (!dataSource) return { text: '加载中...', color: 'text-text-tertiary' };
     
-    if (dataSource.includes('mock')) return { text: '演示数据 (Demo)', color: 'text-gray-600 bg-gray-100' };
-    if (dataSource.includes('stale')) return { text: '缓存数据 (Cached)', color: 'text-orange-600 bg-orange-50' };
+    if (dataSource.includes('mock')) return { text: '演示数据 (Demo)', color: 'text-text-secondary bg-surface-muted' };
+    if (dataSource.includes('stale')) return { text: '缓存数据 (Cached)', color: 'text-warning bg-warning-subtle' };
     
     const map: Record<string, string> = { 'weibo': '微博', 'baidu': '百度', 'zhihu': '知乎', 'douyin': '抖音' };
     const platform = map[currentSource] || currentSource;
-    return { text: `${platform}实时数据 (Live)`, color: 'text-green-600 bg-green-50' };
+    return { text: `${platform}实时数据 (Live)`, color: 'text-success bg-success-subtle' };
   };
 
   const filteredTrends = trends.filter(t => t.title.toLowerCase().includes(searchTerm.toLowerCase()));
   const sourceInfo = getSourceLabel();
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+    <div className="bg-surface rounded-xl shadow-sm border border-border p-6">
         <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-6 gap-4">
           <div>
-            <h2 className="text-xl font-bold text-gray-900 flex items-center">
-              <TrendingUp className="mr-2 text-red-600" />
+            <h2 className="text-xl font-bold text-text flex items-center">
+              <TrendingUp className="mr-2 text-danger" />
               热点趋势 (Trends)
             </h2>
             <div className="mt-1 flex flex-wrap items-center gap-3">
-               <p className="text-gray-500 text-sm">
+               <p className="text-text-tertiary text-sm">
                 全网热点聚合，一站式发现流量密码。
                </p>
                {dataSource && (
@@ -113,7 +113,7 @@ export default function HotTrends() {
                  </span>
                )}
                {updatedAt && (
-                 <span className="text-xs text-gray-400">
+                 <span className="text-xs text-text-tertiary">
                    更新: {new Date(updatedAt).toLocaleTimeString()}
                  </span>
                )}
@@ -122,16 +122,16 @@ export default function HotTrends() {
           
           <div className="flex flex-col sm:flex-row gap-3">
              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-text-tertiary" size={16} />
                 <input 
                   type="text" 
                   placeholder="搜索关键词..." 
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-9 pr-4 py-2 border border-gray-300 rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500 w-full sm:w-48"
+                  className="pl-9 pr-4 py-2 border border-strong rounded-md text-sm focus:ring-primary focus:border-primary w-full sm:w-48"
                 />
              </div>
-             <div className="flex bg-gray-200 rounded-lg p-1 overflow-x-auto">
+             <div className="flex bg-surface-hover rounded-lg p-1 overflow-x-auto">
                 {[
                   { id: 'weibo', label: '微博' }, 
                   { id: 'baidu', label: '百度' },
@@ -141,7 +141,7 @@ export default function HotTrends() {
                   <button
                     key={src.id}
                     onClick={() => setCurrentSource(src.id as TrendSource)}
-                    className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all whitespace-nowrap ${currentSource === src.id ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+                    className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all whitespace-nowrap ${currentSource === src.id ? 'bg-surface text-primary shadow-sm' : 'text-text-secondary hover:text-text'}`}
                   >
                     {src.label}
                   </button>
@@ -151,7 +151,7 @@ export default function HotTrends() {
              <button 
                 onClick={() => fetchTrends(currentSource, true)}
                 disabled={loading}
-                className="p-2 text-gray-500 hover:text-indigo-600 rounded-full hover:bg-gray-100 transition-colors self-center"
+                className="p-2 text-text-tertiary hover:text-primary rounded-full hover:bg-surface-muted transition-colors self-center"
                 title="强制刷新"
               >
                 <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
@@ -161,42 +161,42 @@ export default function HotTrends() {
 
         {loading ? (
           <div className="text-center py-20">
-            <Loader2 className="animate-spin h-10 w-10 mx-auto mb-4 text-indigo-600" />
-            <p className="text-gray-500">正在抓取最新热点...</p>
+            <Loader2 className="animate-spin h-10 w-10 mx-auto mb-4 text-primary" />
+            <p className="text-text-tertiary">正在抓取最新热点...</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+            <table className="min-w-full divide-y divide-border">
+              <thead className="bg-surface-muted">
                 <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-16">
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-text-tertiary uppercase tracking-wider w-16">
                     排名
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-text-tertiary uppercase tracking-wider">
                     话题
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-text-tertiary uppercase tracking-wider w-32">
                     热度
                   </th>
-                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider w-40">
+                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-text-tertiary uppercase tracking-wider w-40">
                     操作
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-surface divide-y divide-border">
                 {filteredTrends.length > 0 ? filteredTrends.map((trend, index) => (
-                  <tr key={index} className="hover:bg-gray-50 transition-colors">
+                  <tr key={index} className="hover:bg-surface-muted transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`
                         inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold
-                        ${index < 3 ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-500'}
+                        ${index < 3 ? 'bg-danger-subtle text-danger' : 'bg-surface-muted text-text-tertiary'}
                       `}>
                         {index + 1}
                       </span>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center">
-                        <span className="text-sm font-medium text-gray-900 mr-2 line-clamp-1 max-w-md" title={trend.title}>
+                        <span className="text-sm font-medium text-text mr-2 line-clamp-1 max-w-md" title={trend.title}>
                           {trend.title}
                         </span>
                         {trend.url && (
@@ -204,28 +204,28 @@ export default function HotTrends() {
                             href={trend.url} 
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className="text-gray-400 hover:text-blue-500 flex-shrink-0"
+                            className="text-text-tertiary hover:text-primary flex-shrink-0"
                             title="查看原贴"
                           >
                             <ExternalLink size={14} />
                           </a>
                         )}
                         {index < 3 && (
-                          <span className="ml-2 px-1.5 py-0.5 rounded text-xs bg-red-50 text-red-600 font-medium flex-shrink-0">
+                          <span className="ml-2 px-1.5 py-0.5 rounded text-xs bg-danger-subtle text-danger font-medium flex-shrink-0">
                             爆
                           </span>
                         )}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center text-sm text-gray-500">
-                        <Flame size={14} className={`mr-1 ${trend.hot_value > 1000000 ? 'text-red-500' : 'text-orange-500'}`} />
+                      <div className="flex items-center text-sm text-text-tertiary">
+                        <Flame size={14} className={`mr-1 ${trend.hot_value > 1000000 ? 'text-danger' : 'text-warning'}`} />
                         {trend.hot_value > 10000 ? `${(trend.hot_value / 10000).toFixed(1)}w` : trend.hot_value}
                       </div>
                       {/* Heat Bar */}
-                      <div className="w-full bg-gray-100 rounded-full h-1 mt-1 max-w-[80px]">
+                      <div className="w-full bg-surface-muted rounded-full h-1 mt-1 max-w-[80px]">
                         <div 
-                          className={`h-1 rounded-full ${trend.hot_value > 1000000 ? 'bg-red-500' : 'bg-orange-400'}`} 
+                          className={`h-1 rounded-full ${trend.hot_value > 1000000 ? 'bg-danger' : 'bg-warning'}`} 
                           style={{ width: `${Math.min(100, (trend.hot_value / (filteredTrends[0]?.hot_value || 1)) * 100)}%` }}
                         ></div>
                       </div>
@@ -233,7 +233,7 @@ export default function HotTrends() {
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <button
                         onClick={() => handleUseTrend(trend)}
-                        className="text-indigo-600 hover:text-indigo-900 flex items-center justify-end ml-auto"
+                        className="text-primary hover:text-primary-hover flex items-center justify-end ml-auto"
                       >
                         <PenTool size={16} className="mr-1" />
                         去创作
@@ -242,7 +242,7 @@ export default function HotTrends() {
                   </tr>
                 )) : (
                   <tr>
-                    <td colSpan={4} className="px-6 py-10 text-center text-gray-500">
+                    <td colSpan={4} className="px-6 py-10 text-center text-text-tertiary">
                       未找到匹配的热点
                     </td>
                   </tr>

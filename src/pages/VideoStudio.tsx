@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import axios from '@/lib/axios';
 import { 
     Loader2, AlertCircle, Settings, Sparkles
 } from 'lucide-react';
@@ -141,7 +141,6 @@ const VideoStudio: React.FC = () => {
             toast.success('发布任务已提交，请在全局任务监控中查看进度', { id: toastId });
             setShowPublishModal(false);
         } catch (error: any) {
-            console.error(error);
             const errorMsg = error.response?.data?.error || error.message || '发布失败';
             toast.error(`发布失败: ${errorMsg}`, { id: toastId });
         } finally {
@@ -165,8 +164,8 @@ const VideoStudio: React.FC = () => {
             } else {
                 setSelectedModel('wan2.1-t2v-plus'); // Default fallback
             }
-        } catch (e) {
-            console.warn('Failed to fetch settings');
+        } catch (_e) {
+            // 忽略设置加载失败
         }
     };
 
@@ -176,13 +175,13 @@ const VideoStudio: React.FC = () => {
             if (res.data.success) {
                 setUploadedAssets(res.data.data);
             }
-        } catch (error) {
-            console.error('Failed to load assets');
+        } catch (_error) {
+            toast.error('素材加载失败');
         }
     };
     
      
-    const handleUploadAsset = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const _handleUploadAsset = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
         
@@ -199,7 +198,7 @@ const VideoStudio: React.FC = () => {
                 fetchAssets();
                 setActiveTab('uploads');
             }
-        } catch (error) {
+        } catch (_error) {
             toast.error('Upload failed', { id: toastId });
         }
     };
@@ -244,7 +243,7 @@ const VideoStudio: React.FC = () => {
                 });
                 setGeneratingSceneIds(newGenerating);
             }
-        } catch (error) {
+        } catch (_error) {
             toast.error('Failed to load project');
             navigate('/generate');
         } finally {
@@ -264,7 +263,7 @@ const VideoStudio: React.FC = () => {
                 toast.success('Audio generated!', { id: toastId });
                 fetchProject();
             }
-        } catch (error) {
+        } catch (_error) {
             toast.error('Failed to generate audio', { id: toastId });
         }
     };
@@ -318,7 +317,7 @@ const VideoStudio: React.FC = () => {
                 };
             });
 
-        } catch (error) {
+        } catch (_error) {
             toast.error('无法开始生成任务');
             setGeneratingSceneIds(prev => {
                 const next = new Set(prev);
@@ -349,8 +348,8 @@ const VideoStudio: React.FC = () => {
                             text: scene.script_audio,
                             voice: 'zh-CN-XiaoxiaoNeural'
                         });
-                    } catch (e) {
-                        console.error(e);
+                    } catch (_e) {
+                        toast.error('配音生成失败');
                     }
                 }
                 toast.success('批量配音生成完成', { id: toastId });
@@ -402,7 +401,7 @@ const VideoStudio: React.FC = () => {
                     setProject(prev => prev ? { ...prev, final_video_url: res.data.url } : null);
                 }
             }
-        } catch (error) {
+        } catch (_error) {
             toast.error('合成请求失败', { id: toastId });
         }
     };
@@ -413,7 +412,7 @@ const VideoStudio: React.FC = () => {
             await axios.patch(`/api/video-projects/${id}/bgm`, { bgmUrl: url });
             setProject(prev => prev ? { ...prev, bgm_url: url } : null);
             toast.success('Background music updated');
-        } catch (error) {
+        } catch (_error) {
             toast.error('Failed to update music');
         }
     };
@@ -435,7 +434,7 @@ const VideoStudio: React.FC = () => {
             });
             
             toast.success('Scene updated', { id: toastId });
-        } catch (error) {
+        } catch (_error) {
             toast.error('Failed to update scene', { id: toastId });
         }
     };
@@ -448,8 +447,8 @@ const VideoStudio: React.FC = () => {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-gray-50 flex flex-col">
-                <header className="bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center sticky top-0 z-10 shadow-sm">
+            <div className="min-h-screen bg-surface-muted flex flex-col">
+                <header className="bg-surface border-b border-border px-6 py-4 flex justify-between items-center sticky top-0 z-10 shadow-sm">
                     <div className="flex items-center gap-4">
                         <Skeleton className="w-8 h-8 rounded-full" />
                         <div className="space-y-2">
@@ -464,12 +463,12 @@ const VideoStudio: React.FC = () => {
                 </header>
                 <main className="flex-1 max-w-7xl w-full mx-auto p-6 grid grid-cols-1 lg:grid-cols-3 gap-8 mb-48">
                     <div className="lg:col-span-1 flex flex-col gap-6">
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden h-[400px] p-4 flex flex-col">
+                        <div className="bg-surface rounded-xl shadow-sm border border-border overflow-hidden h-[400px] p-4 flex flex-col">
                             <div className="flex justify-between items-center mb-4">
                                 <Skeleton className="h-6 w-24" />
                                 <Skeleton className="h-4 w-12" />
                             </div>
-                            <Skeleton className="flex-1 w-full rounded-lg bg-gray-100" />
+                            <Skeleton className="flex-1 w-full rounded-lg bg-surface-muted" />
                             <div className="flex gap-2 mt-4">
                                 <Skeleton className="h-10 flex-1" />
                                 <Skeleton className="h-10 w-12" />
@@ -484,7 +483,7 @@ const VideoStudio: React.FC = () => {
                             <Skeleton className="h-4 w-16" />
                         </div>
                         {[1, 2, 3].map(i => (
-                            <div key={i} className="bg-white rounded-lg border border-gray-200 p-4 h-48 flex gap-4">
+                            <div key={i} className="bg-surface rounded-lg border border-border p-4 h-48 flex gap-4">
                                 <Skeleton className="w-1/3 h-full rounded-md" />
                                 <div className="flex-1 flex flex-col gap-3">
                                     <Skeleton className="h-4 w-full" />
@@ -505,7 +504,7 @@ const VideoStudio: React.FC = () => {
     const progress = Math.round((completedCount / project.scenes.length) * 100);
 
     return (
-        <div className="min-h-screen bg-gray-50 flex flex-col">
+        <div className="min-h-screen bg-surface-muted flex flex-col">
             <VideoProjectHeader 
                 project={project}
                 progress={progress}
@@ -564,7 +563,7 @@ const VideoStudio: React.FC = () => {
             </main>
 
             {/* Bottom Timeline */}
-            <div className="fixed bottom-0 left-0 right-0 z-30 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
+            <div className="fixed bottom-0 left-0 right-0 z-30 shadow-md">
                 <Timeline 
                     scenes={project.scenes}
                     activeSceneId={activeSceneId}
@@ -575,68 +574,68 @@ const VideoStudio: React.FC = () => {
             {/* Publish Modal - Kept local for now or can be extracted too */}
             {showPublishModal && (
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-                    <div className="bg-white rounded-lg shadow-xl max-w-lg w-full">
+                    <div className="bg-surface rounded-lg shadow-xl max-w-lg w-full">
                         <div className="p-6">
-                            <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
-                                <Sparkles className="mr-2 text-red-600" size={20} />
+                            <h3 className="text-lg font-bold text-text mb-4 flex items-center">
+                                <Sparkles className="mr-2 text-danger" size={20} />
                                 发布视频到小红书
                             </h3>
                             
                             <div className="space-y-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">标题</label>
+                                    <label className="block text-sm font-medium text-text-secondary mb-1">标题</label>
                                     <input 
                                         type="text" 
                                         value={publishData.title}
                                         onChange={(e) => setPublishData({...publishData, title: e.target.value})}
-                                        className="w-full p-2 border border-gray-300 rounded-md text-sm focus:ring-red-500 focus:border-red-500"
+                                        className="w-full p-2 border border-strong rounded-md text-sm focus:ring-danger focus:border-danger"
                                     />
                                 </div>
                                 
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">正文描述</label>
+                                    <label className="block text-sm font-medium text-text-secondary mb-1">正文描述</label>
                                     <textarea 
                                         rows={4}
                                         value={publishData.content}
                                         onChange={(e) => setPublishData({...publishData, content: e.target.value})}
-                                        className="w-full p-2 border border-gray-300 rounded-md text-sm focus:ring-red-500 focus:border-red-500"
+                                        className="w-full p-2 border border-strong rounded-md text-sm focus:ring-danger focus:border-danger"
                                     />
                                 </div>
 
                                 <div className="flex items-center justify-between pt-2">
-                                    <label className="flex items-center space-x-2 text-sm text-gray-700 cursor-pointer">
+                                    <label className="flex items-center space-x-2 text-sm text-text-secondary cursor-pointer">
                                         <input 
                                             type="checkbox" 
                                             checked={publishData.autoPublish}
                                             onChange={(e) => setPublishData({...publishData, autoPublish: e.target.checked})}
-                                            className="rounded text-red-600 focus:ring-red-500" 
+                                            className="rounded text-danger focus:ring-danger" 
                                         />
                                         <span>自动点击发布按钮</span>
                                     </label>
                                     
                                     <div className="flex items-center space-x-2">
-                                        <span className="text-xs text-gray-500">定时发布:</span>
+                                        <span className="text-xs text-text-tertiary">定时发布:</span>
                                         <input 
                                             type="datetime-local"
                                             value={publishData.scheduledTime}
                                             onChange={(e) => setPublishData({...publishData, scheduledTime: e.target.value})}
-                                            className="text-xs border border-gray-300 rounded p-1"
+                                            className="text-xs border border-strong rounded p-1"
                                         />
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="flex justify-end space-x-3 mt-6 pt-4 border-t border-gray-100">
+                            <div className="flex justify-end space-x-3 mt-6 pt-4 border-t border-border">
                                 <button 
                                     onClick={() => setShowPublishModal(false)}
-                                    className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-md text-sm font-medium"
+                                    className="px-4 py-2 text-text-secondary hover:bg-surface-muted rounded-md text-sm font-medium"
                                 >
                                     取消
                                 </button>
                                 <button 
                                     onClick={handlePublish}
                                     disabled={isPublishing}
-                                    className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm font-medium flex items-center"
+                                    className="px-4 py-2 bg-danger text-primary-text rounded-md hover:bg-danger text-sm font-medium flex items-center"
                                 >
                                     {isPublishing ? (
                                         <>
@@ -659,19 +658,19 @@ const VideoStudio: React.FC = () => {
             {/* Batch Confirm Modal */}
             {showBatchConfirmModal && (
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-                    <div className="bg-white rounded-lg shadow-xl max-w-sm w-full">
+                    <div className="bg-surface rounded-lg shadow-xl max-w-sm w-full">
                         <div className="p-6">
-                            <h3 className="text-lg font-bold text-gray-900 mb-2">批量生成确认</h3>
-                            <p className="text-sm text-gray-600 mb-4">
+                            <h3 className="text-lg font-bold text-text mb-2">批量生成确认</h3>
+                            <p className="text-sm text-text-secondary mb-4">
                                 即将为 {missingVideoCount} 个分镜生成视频。
                             </p>
-                            <div className="mb-4 bg-gray-50 p-3 rounded text-xs text-gray-600">
+                            <div className="mb-4 bg-surface-muted p-3 rounded text-xs text-text-secondary">
                                 <span className="font-bold">当前模型:</span> {selectedModel}
                                 <br/>
-                                <span className="text-gray-400">可以在"系统设置"中修改默认模型</span>
+                                <span className="text-text-tertiary">可以在"系统设置"中修改默认模型</span>
                             </div>
                             {!characterDesc && (
-                                <div className="mb-4 p-3 bg-yellow-50 text-yellow-800 text-xs rounded border border-yellow-100 flex items-start">
+                                <div className="mb-4 p-3 bg-warning-subtle text-warning text-xs rounded border border-warning-subtle flex items-start">
                                     <AlertCircle size={14} className="mr-1 mt-0.5 shrink-0" />
                                     <span>
                                         检测到未配置全局人设。为保证人物一致性，建议先在"设置"中配置人设。
@@ -681,13 +680,13 @@ const VideoStudio: React.FC = () => {
                             <div className="flex justify-end space-x-3">
                                 <button 
                                     onClick={() => setShowBatchConfirmModal(false)}
-                                    className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-md text-sm font-medium"
+                                    className="px-4 py-2 text-text-secondary hover:bg-surface-muted rounded-md text-sm font-medium"
                                 >
                                     取消
                                 </button>
                                 <button 
                                     onClick={confirmBatchGenerate}
-                                    className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm font-medium"
+                                    className="px-4 py-2 bg-primary text-primary-text rounded-md hover:bg-primary-hover text-sm font-medium"
                                 >
                                     确认生成
                                 </button>
@@ -700,30 +699,30 @@ const VideoStudio: React.FC = () => {
             {/* Character Settings Modal */}
             {showCharacterModal && (
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-                    <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+                    <div className="bg-surface rounded-lg shadow-xl max-w-md w-full">
                         <div className="p-6">
-                            <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
+                            <h3 className="text-lg font-bold text-text mb-4 flex items-center">
                                 <Settings className="mr-2" size={20} />
                                 全局人设配置 (Character Settings)
                             </h3>
                             <div className="space-y-4">
-                                <div className="bg-indigo-50 p-3 rounded-md border border-indigo-100 text-xs text-indigo-700">
+                                <div className="bg-primary-subtle p-3 rounded-md border border-primary-subtle text-xs text-primary">
                                     <p className="font-bold mb-1">💡 为什么需要配置人设？</p>
                                     配置全局人设后，AI 将在生成每个分镜时强制应用此描述，从而确保不同分镜中的人物长相、穿着、风格保持一致，避免"换脸"现象。
                                 </div>
                                 
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    <label className="block text-sm font-medium text-text-secondary mb-2">
                                         人物/风格描述 (Character Prompt)
                                     </label>
                                     
                                     {activeAccount?.persona_image_url && (
-                                         <div className="mb-3 bg-blue-50 border border-blue-100 rounded-md p-2">
+                                         <div className="mb-3 bg-primary-subtle border border-primary-subtle rounded-md p-2">
                                             <div className="flex items-center gap-2 mb-2">
-                                                <div className="w-8 h-8 rounded-full overflow-hidden border border-blue-200 shrink-0">
+                                                <div className="w-8 h-8 rounded-full overflow-hidden border border-primary-subtle shrink-0">
                                                     <img src={activeAccount.persona_image_url} className="w-full h-full object-cover" />
                                                 </div>
-                                                <div className="text-xs text-blue-700">
+                                                <div className="text-xs text-primary">
                                                     <span className="font-bold">定妆照已激活:</span> 系统将优先使用此照片作为视频主角 (Image-to-Video)。
                                                 </div>
                                             </div>
@@ -735,10 +734,10 @@ const VideoStudio: React.FC = () => {
                                                     // Note: Currently backend forces it if persona_image_url exists and prompt matches.
                                                     // To support toggling, we would need to pass a flag to the backend API.
                                                     // For now, this is a visual indicator that it's ON.
-                                                    className="rounded text-blue-600 focus:ring-blue-500 w-3 h-3"
+                                                    className="rounded text-primary focus:ring-primary w-3 h-3"
                                                     disabled
                                                 />
-                                                <label htmlFor="use_persona_img" className="text-[10px] text-blue-600 cursor-not-allowed">
+                                                <label htmlFor="use_persona_img" className="text-[10px] text-primary cursor-not-allowed">
                                                     自动应用 (若提示词包含人物)
                                                 </label>
                                             </div>
@@ -747,8 +746,8 @@ const VideoStudio: React.FC = () => {
 
                                     {activeAccount?.persona?.desc && (
                                         <button
-                                            onClick={() => setCharacterDesc(activeAccount.persona.desc)}
-                                            className="text-xs text-indigo-600 hover:text-indigo-800 flex items-center mb-2 p-1.5 bg-indigo-50 rounded border border-indigo-100 transition-colors"
+                                            onClick={() => setCharacterDesc(activeAccount.persona?.desc || '')}
+                                            className="text-xs text-primary hover:text-primary-hover flex items-center mb-2 p-1.5 bg-primary-subtle rounded border border-primary-subtle transition-colors"
                                         >
                                             <Sparkles size={12} className="mr-1" />
                                             从当前账号 ({activeAccount.nickname}) 加载人设
@@ -759,14 +758,14 @@ const VideoStudio: React.FC = () => {
                                         value={characterDesc}
                                         onChange={(e) => setCharacterDesc(e.target.value)}
                                         placeholder="例如：25岁亚洲女性，黑色短发，穿着白色职业衬衫，淡妆，知性风格。 (建议使用英文描述以获得最佳效果)"
-                                        className="w-full p-3 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm h-32"
+                                        className="w-full p-3 border border-strong rounded-md focus:ring-primary focus:border-primary text-sm h-32"
                                     />
                                 </div>
                                 
                                 <div className="flex justify-end space-x-3 pt-2">
                                     <button 
                                         onClick={() => setShowCharacterModal(false)}
-                                        className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-md text-sm font-medium"
+                                        className="px-4 py-2 text-text-secondary hover:bg-surface-muted rounded-md text-sm font-medium"
                                     >
                                         取消
                                     </button>
@@ -777,11 +776,11 @@ const VideoStudio: React.FC = () => {
                                                 await axios.patch(`/api/video-projects/${id}/character`, { character_desc: characterDesc });
                                                 toast.success('人设已保存，将应用于后续生成的视频');
                                                 setShowCharacterModal(false);
-                                            } catch (error) {
+                                            } catch (_error) {
                                                 toast.error('保存失败');
                                             }
                                         }}
-                                        className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm font-medium"
+                                        className="px-4 py-2 bg-primary text-primary-text rounded-md hover:bg-primary-hover text-sm font-medium"
                                     >
                                         保存配置
                                     </button>

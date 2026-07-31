@@ -1,12 +1,12 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import axios from 'axios';
-import { Trash2, Edit, FileText, ArrowLeft, Loader2, AlertCircle, Send, Calendar, Clock, Search, Filter, X, FileText as FileTextIcon, BookOpen } from 'lucide-react';
+import axios from '@/lib/axios';
+import { Trash2, Edit, FileText, AlertCircle, Send, Clock, Search, X, FileText as FileTextIcon, BookOpen } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import Modal from '../components/Modal';
 import toast from 'react-hot-toast';
 import PageHeader from '../components/PageHeader';
 import PageLoading from '../components/PageLoading';
 import EmptyState from '../components/EmptyState';
+import { useState, useEffect, useMemo, useRef } from "react";
 
 interface Draft {
   id: number;
@@ -26,12 +26,12 @@ export default function Drafts() {
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [currentDraft, setCurrentDraft] = useState<Draft | null>(null);
   const [scheduledTime, setScheduledTime] = useState('');
-  
+
   // Filter States
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | 'note' | 'article'>('all');
-  const [showFilters, setShowFilters] = useState(false);
-  
+  const [_showFilters, _setShowFilters] = useState(false);
+
   const navigate = useNavigate();
   const isMounted = useRef(true);
 
@@ -49,8 +49,7 @@ export default function Drafts() {
       if (isMounted.current) {
         setDrafts(res.data);
       }
-    } catch (error) {
-      console.error('Failed to fetch drafts', error);
+    } catch (_error) {
       if (isMounted.current) {
         toast.error('获取草稿失败');
       }
@@ -74,8 +73,7 @@ export default function Drafts() {
       setIsDeleteModalOpen(false);
       setDeleteId(null);
       toast.success('草稿已删除');
-    } catch (error) {
-      console.error('Failed to delete draft', error);
+    } catch (_error) {
       toast.error('删除失败');
     }
   };
@@ -125,33 +123,32 @@ export default function Drafts() {
               toast.success('发布任务已提交队列！');
           }
       } catch (error: any) {
-          console.error('Publish failed:', error);
           const errorData = error.response?.data;
           
           if (errorData?.code === 'SESSION_EXPIRED') {
               toast((t) => (
                   <div className="flex flex-col">
                       <span className="font-medium mb-2">账号登录已失效</span>
-                      <span className="text-sm text-gray-500 mb-3">请前往账号矩阵重新登录小红书账号。</span>
+                      <span className="text-sm text-text-tertiary mb-3">请前往账号矩阵重新登录小红书账号。</span>
                       <div className="flex gap-2">
                           <button 
                               onClick={() => {
                                   toast.dismiss(t.id);
                                   navigate('/accounts');
                               }}
-                              className="px-3 py-1 bg-indigo-600 text-white text-xs rounded hover:bg-indigo-700"
+                              className="px-3 py-1 bg-primary text-primary-text text-xs rounded hover:bg-primary-hover"
                           >
                               去登录账号
                           </button>
                           <button 
                               onClick={() => toast.dismiss(t.id)}
-                              className="px-3 py-1 bg-gray-200 text-gray-700 text-xs rounded hover:bg-gray-300"
+                              className="px-3 py-1 bg-surface-hover text-text-secondary text-xs rounded hover:bg-surface-hover"
                           >
                               关闭
                           </button>
                       </div>
                   </div>
-              ), { duration: 8000, icon: '🔒' });
+              ), { duration: 8000 });
               return;
           }
 
@@ -170,6 +167,12 @@ export default function Drafts() {
       const localISOTime = (new Date(tomorrow.getTime() - tzOffset)).toISOString().slice(0, 16);
       setScheduledTime(localISOTime);
       setIsScheduleModalOpen(true);
+  };
+
+  // Clear all filters
+  const clearFilters = () => {
+    setSearchQuery('');
+    setTypeFilter('all');
   };
 
   // Filter drafts
@@ -191,23 +194,17 @@ export default function Drafts() {
     });
   }, [drafts, typeFilter, searchQuery]);
 
-  // Clear all filters
-  const clearFilters = () => {
-    setSearchQuery('');
-    setTypeFilter('all');
-  };
-
   // Get content type label
   const getContentTypeLabel = (type?: string) => {
     switch (type) {
-      case 'article': return { text: '深度长文', color: 'bg-purple-100 text-purple-700 border-purple-200', icon: BookOpen };
-      case 'note': return { text: '图文笔记', color: 'bg-blue-100 text-blue-700 border-blue-200', icon: FileTextIcon };
-      default: return { text: '图文笔记', color: 'bg-blue-100 text-blue-700 border-blue-200', icon: FileTextIcon };
+      case 'article': return { text: '深度长文', color: 'bg-primary-subtle text-primary border-primary-subtle', icon: BookOpen };
+      case 'note': return { text: '图文笔记', color: 'bg-primary-subtle text-primary border-primary-subtle', icon: FileTextIcon };
+      default: return { text: '图文笔记', color: 'bg-primary-subtle text-primary border-primary-subtle', icon: FileTextIcon };
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8 pb-20">
+    <div className="min-h-screen bg-surface-muted p-4 sm:p-6 lg:p-8 pb-20">
       <div className="max-w-3xl mx-auto">
 
         <PageHeader 
@@ -216,37 +213,37 @@ export default function Drafts() {
         />
 
         {/* Filter Bar */}
-        {!loading && drafts.length > 0 && (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 mb-6">
+        {!loading && filteredDrafts.length > 0 && (
+          <div className="bg-surface rounded-lg shadow-sm border border-border p-4 mb-6">
             <div className="flex flex-col sm:flex-row gap-4">
               {/* Search */}
               <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" size={18} />
                 <input
                   type="text"
                   placeholder="搜索标题、内容或标签..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
+                  className="w-full pl-10 pr-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
                 />
                 {searchQuery && (
                   <button
                     onClick={() => setSearchQuery('')}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-text-secondary"
                   >
                     <X size={16} />
                   </button>
                 )}
               </div>
-              
+
               {/* Type Filter */}
               <div className="flex gap-2">
                 <button
                   onClick={() => setTypeFilter('all')}
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    typeFilter === 'all' 
-                      ? 'bg-indigo-600 text-white' 
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    typeFilter === 'all'
+                      ? 'bg-primary text-primary-text'
+                      : 'bg-surface-muted text-text-secondary hover:bg-surface-hover'
                   }`}
                 >
                   全部
@@ -254,9 +251,9 @@ export default function Drafts() {
                 <button
                   onClick={() => setTypeFilter('note')}
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 ${
-                    typeFilter === 'note' 
-                      ? 'bg-blue-600 text-white' 
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    typeFilter === 'note'
+                      ? 'bg-primary text-primary-text'
+                      : 'bg-surface-muted text-text-secondary hover:bg-surface-hover'
                   }`}
                 >
                   <FileTextIcon size={14} />
@@ -265,9 +262,9 @@ export default function Drafts() {
                 <button
                   onClick={() => setTypeFilter('article')}
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 ${
-                    typeFilter === 'article' 
-                      ? 'bg-purple-600 text-white' 
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    typeFilter === 'article'
+                      ? 'bg-primary text-primary-text'
+                      : 'bg-surface-muted text-text-secondary hover:bg-surface-hover'
                   }`}
                 >
                   <BookOpen size={14} />
@@ -278,13 +275,13 @@ export default function Drafts() {
             
             {/* Filter Stats */}
             {(searchQuery || typeFilter !== 'all') && (
-              <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between">
-                <span className="text-sm text-gray-500">
-                  共找到 <span className="font-medium text-gray-900">{filteredDrafts.length}</span> 个草稿
+              <div className="mt-3 pt-3 border-t border-border flex items-center justify-between">
+                <span className="text-sm text-text-tertiary">
+                  共找到 <span className="font-medium text-text">{filteredDrafts.length}</span> 个草稿
                 </span>
                 <button
                   onClick={clearFilters}
-                  className="text-sm text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
+                  className="text-sm text-primary hover:text-primary-hover flex items-center gap-1"
                 >
                   <X size={14} />
                   清除筛选
@@ -305,12 +302,12 @@ export default function Drafts() {
               searchQuery || typeFilter !== 'all' ? (
                 <button 
                   onClick={clearFilters}
-                  className="text-indigo-600 hover:text-indigo-800 mt-2 inline-block"
+                  className="text-primary hover:text-primary-hover mt-2 inline-block"
                 >
                   清除筛选条件 &rarr;
                 </button>
               ) : (
-                <Link to="/generate" className="text-indigo-600 hover:text-indigo-800 mt-2 inline-block">
+                <Link to="/generate" className="text-primary hover:text-primary-hover mt-2 inline-block">
                   去创作第一篇笔记 &rarr;
                 </Link>
               )
@@ -319,7 +316,7 @@ export default function Drafts() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {filteredDrafts.map(draft => (
-              <div key={draft.id} className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-all flex flex-col h-[320px]">
+              <div key={draft.id} className="bg-surface p-5 rounded-xl shadow-sm border border-border hover:shadow-md transition-all flex flex-col h-[320px]">
                 {/* Header: Type Badge + Date */}
                 <div className="flex justify-between items-center mb-3">
                   {(() => {
@@ -332,19 +329,19 @@ export default function Drafts() {
                       </span>
                     );
                   })()}
-                  <span className="text-xs text-gray-400">
+                  <span className="text-xs text-text-tertiary">
                     {new Date(draft.created_at).toLocaleDateString()}
                   </span>
                 </div>
                 
                 {/* Title */}
-                <h3 className="font-bold text-lg text-gray-900 line-clamp-1 mb-3">{draft.title}</h3>
+                <h3 className="font-bold text-lg text-text line-clamp-1 mb-3">{draft.title}</h3>
                 
                 {/* Content Preview - Fixed Height */}
                 <div className="flex-1 min-h-0 mb-4">
                     {draft.content_type === 'article' ? (
-                        <div className="bg-purple-50/50 p-3 rounded-lg border border-purple-100 h-full">
-                             <p className="text-gray-600 text-sm line-clamp-5 leading-relaxed">
+                        <div className="bg-primary-subtle/50 p-3 rounded-lg border border-primary-subtle h-full">
+                             <p className="text-text-secondary text-sm line-clamp-5 leading-relaxed">
                                 {draft.content}
                              </p>
                         </div>
@@ -353,18 +350,18 @@ export default function Drafts() {
                             {draft.images && draft.images.length > 0 && (
                                 <div className="flex gap-2 mb-3 overflow-x-auto pb-1 scrollbar-hide">
                                     {draft.images.slice(0, 3).map((img, i) => (
-                                        <div key={i} className="flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden bg-gray-100 border border-gray-200">
+                                        <div key={i} className="flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden bg-surface-muted border border-border">
                                             <img src={img} alt={`Preview ${i}`} className="w-full h-full object-cover" />
                                         </div>
                                     ))}
                                     {draft.images.length > 3 && (
-                                        <div className="flex-shrink-0 w-16 h-16 rounded-lg bg-gray-50 border border-gray-200 flex items-center justify-center text-gray-400 text-xs">
+                                        <div className="flex-shrink-0 w-16 h-16 rounded-lg bg-surface-muted border border-border flex items-center justify-center text-text-tertiary text-xs">
                                             +{draft.images.length - 3}
                                         </div>
                                     )}
                                 </div>
                             )}
-                            <p className="text-gray-600 text-sm line-clamp-3 flex-1">{draft.content}</p>
+                            <p className="text-text-secondary text-sm line-clamp-3 flex-1">{draft.content}</p>
                         </div>
                     )}
                 </div>
@@ -372,18 +369,18 @@ export default function Drafts() {
                 {/* Tags - Fixed Height */}
                 <div className="flex flex-wrap gap-1.5 mb-4 h-6 overflow-hidden">
                   {draft.tags.slice(0, 4).map((tag, i) => (
-                    <span key={i} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">#{tag}</span>
+                    <span key={i} className="text-xs bg-surface-muted text-text-secondary px-2 py-0.5 rounded-full">#{tag}</span>
                   ))}
                   {draft.tags.length > 4 && (
-                    <span className="text-xs text-gray-400">+{draft.tags.length - 4}</span>
+                    <span className="text-xs text-text-tertiary">+{draft.tags.length - 4}</span>
                   )}
                 </div>
                 
                 {/* Actions */}
-                <div className="flex items-center justify-between border-t border-gray-100 pt-4 mt-auto">
+                <div className="flex items-center justify-between border-t border-border pt-4 mt-auto">
                   <button 
                     onClick={() => confirmDelete(draft.id)}
-                    className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                    className="p-2 text-text-tertiary hover:text-danger hover:bg-danger-subtle rounded-lg transition-colors"
                     title="删除草稿"
                   >
                     <Trash2 size={18} />
@@ -392,19 +389,19 @@ export default function Drafts() {
                   <div className="flex gap-2">
                     <button 
                         onClick={() => openScheduleModal(draft)}
-                        className="px-3 py-1.5 text-orange-600 bg-orange-50 hover:bg-orange-100 rounded-lg text-sm font-medium transition-colors flex items-center"
+                        className="px-3 py-1.5 text-warning bg-warning-subtle hover:bg-warning-subtle rounded-lg text-sm font-medium transition-colors flex items-center"
                     >
                         <Clock size={14} className="mr-1.5" /> 定时
                     </button>
                     <button 
                         onClick={() => handleUseDraft(draft)}
-                        className="px-3 py-1.5 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg text-sm font-medium transition-colors flex items-center"
+                        className="px-3 py-1.5 text-primary bg-primary-subtle hover:bg-primary-subtle rounded-lg text-sm font-medium transition-colors flex items-center"
                     >
                         <Edit size={14} className="mr-1.5" /> 编辑
                     </button>
                     <button 
                         onClick={() => handlePublishClick(draft)}
-                        className="px-3 py-1.5 text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg text-sm font-medium transition-colors flex items-center shadow-sm"
+                        className="px-3 py-1.5 text-primary-text bg-primary hover:bg-primary-hover rounded-lg text-sm font-medium transition-colors flex items-center shadow-sm"
                     >
                         <Send size={14} className="mr-1.5" /> 发布
                     </button>
@@ -424,13 +421,13 @@ export default function Drafts() {
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => setIsDeleteModalOpen(false)}
-                className="px-4 py-2 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-md text-sm font-medium"
+                className="px-4 py-2 text-text-secondary bg-surface-muted hover:bg-surface-hover rounded-md text-sm font-medium"
               >
                 取消
               </button>
               <button
                 onClick={handleDelete}
-                className="px-4 py-2 text-white bg-red-600 hover:bg-red-700 rounded-md text-sm font-medium"
+                className="px-4 py-2 text-primary-text bg-danger hover:bg-danger rounded-md text-sm font-medium"
               >
                 确认删除
               </button>
@@ -438,10 +435,10 @@ export default function Drafts() {
           }
         >
           <div className="flex items-start p-2">
-            <AlertCircle className="text-red-500 mr-3 flex-shrink-0" size={24} />
+            <AlertCircle className="text-danger mr-3 flex-shrink-0" size={24} />
             <div>
-              <p className="text-gray-700 font-medium mb-1">您确定要删除这个草稿吗？</p>
-              <p className="text-gray-500 text-sm">
+              <p className="text-text-secondary font-medium mb-1">您确定要删除这个草稿吗？</p>
+              <p className="text-text-tertiary text-sm">
                 删除后将无法恢复。
               </p>
             </div>
@@ -457,14 +454,14 @@ export default function Drafts() {
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => setIsScheduleModalOpen(false)}
-                className="px-4 py-2 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-md text-sm font-medium"
+                className="px-4 py-2 text-text-secondary bg-surface-muted hover:bg-surface-hover rounded-md text-sm font-medium"
               >
                 取消
               </button>
               <button
                 onClick={() => currentDraft && handlePublish(currentDraft, new Date(scheduledTime).toISOString())}
                 disabled={!scheduledTime}
-                className="px-4 py-2 text-white bg-indigo-600 hover:bg-indigo-700 rounded-md text-sm font-medium disabled:opacity-50"
+                className="px-4 py-2 text-primary-text bg-primary hover:bg-primary-hover rounded-md text-sm font-medium disabled:opacity-50"
               >
                 确认定时
               </button>
@@ -472,14 +469,37 @@ export default function Drafts() {
           }
         >
           <div className="p-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">选择发布时间</label>
+            <label className="block text-sm font-medium text-text-secondary mb-2">选择发布时间</label>
             <input
                 type="datetime-local"
                 value={scheduledTime}
                 onChange={(e) => setScheduledTime(e.target.value)}
-                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border"
+                className="block w-full rounded-md border-strong shadow-sm focus:border-primary focus:ring-primary sm:text-sm p-2 border"
             />
-            <p className="mt-2 text-xs text-gray-500 flex items-center">
+
+            <div className="mt-3 flex flex-wrap gap-2">
+                <span className="text-xs text-text-tertiary py-1">快捷选择:</span>
+                {[
+                    { label: '现在', get: () => new Date() },
+                    { label: '明天 9:00', get: () => { const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(9, 0, 0, 0); return d; } },
+                    { label: '明天 12:00', get: () => { const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(12, 0, 0, 0); return d; } },
+                    { label: '明天 19:00', get: () => { const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(19, 0, 0, 0); return d; } },
+                ].map((option) => (
+                    <button
+                        key={option.label}
+                        onClick={() => {
+                            const d = option.get();
+                            const tzOffset = d.getTimezoneOffset() * 60000;
+                            setScheduledTime(new Date(d.getTime() - tzOffset).toISOString().slice(0, 16));
+                        }}
+                        className="text-xs px-2 py-1 bg-surface-muted text-text-secondary rounded hover:bg-surface-hover transition-colors"
+                    >
+                        {option.label}
+                    </button>
+                ))}
+            </div>
+
+            <p className="mt-3 text-xs text-text-tertiary flex items-center">
                 <AlertCircle size={12} className="mr-1" />
                 请确保电脑在设定时间处于开机状态，并且服务正在运行。
             </p>
@@ -495,13 +515,13 @@ export default function Drafts() {
                 <div className="flex justify-end gap-3">
                     <button
                         onClick={() => setIsPublishConfirmOpen(false)}
-                        className="px-4 py-2 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-md text-sm font-medium"
+                        className="px-4 py-2 text-text-secondary bg-surface-muted hover:bg-surface-hover rounded-md text-sm font-medium"
                     >
                         取消
                     </button>
                     <button
                         onClick={handlePublishConfirmed}
-                        className="px-4 py-2 text-white bg-indigo-600 hover:bg-indigo-700 rounded-md text-sm font-medium flex items-center"
+                        className="px-4 py-2 text-primary-text bg-primary hover:bg-primary-hover rounded-md text-sm font-medium flex items-center"
                     >
                         <Send size={16} className="mr-2" />
                         立即发布
@@ -511,15 +531,15 @@ export default function Drafts() {
         >
             <div className="p-4">
                 <div className="flex items-start mb-4">
-                    <AlertCircle className="text-indigo-600 mr-3 mt-0.5" size={24} />
+                    <AlertCircle className="text-primary mr-3 mt-0.5" size={24} />
                     <div>
-                        <h4 className="text-gray-900 font-medium mb-1">即将启动自动化发布流程</h4>
-                        <p className="text-gray-500 text-sm">
+                        <h4 className="text-text font-medium mb-1">即将启动自动化发布流程</h4>
+                        <p className="text-text-tertiary text-sm">
                             系统将打开一个新的浏览器窗口并自动填写内容。
                         </p>
                     </div>
                 </div>
-                <div className="bg-blue-50 p-3 rounded-md border border-blue-100 text-sm text-blue-800">
+                <div className="bg-primary-subtle p-3 rounded-md border border-primary-subtle text-sm text-primary">
                     <p className="font-medium mb-1">注意事项：</p>
                     <ul className="list-disc list-inside space-y-1 ml-1">
                         <li>请勿关闭弹出的浏览器窗口</li>

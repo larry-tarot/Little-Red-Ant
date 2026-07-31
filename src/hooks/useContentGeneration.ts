@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import axios from 'axios';
+import axios from '@/lib/axios';
 import toast from 'react-hot-toast';
 import { useSafeAsync } from './useSafeAsync';
 
@@ -59,11 +59,11 @@ export function useContentGeneration() {
 
   // Polling for Content Status
   useEffect(() => {
-      const pendingSessions = history.map((s, i) => ({s, i})).filter(item => item.s.status === 'PENDING' && item.s.taskId);
+      const pendingSessions = history.map((s, _i) => ({s, _i})).filter(item => item.s.status === 'PENDING' && item.s.taskId);
       if (pendingSessions.length === 0) return;
 
       const interval = setInterval(async () => {
-          for (const {s, i} of pendingSessions) {
+          for (const {s, _i} of pendingSessions) {
               if (!s.taskId) continue;
               try {
                   const res = await axios.get(`/api/tasks/${s.taskId}`);
@@ -95,8 +95,8 @@ export function useContentGeneration() {
                           return newH;
                       });
 
-                      if ((newContent as any).character_desc) {
-                          setCharacterDesc((newContent as any).character_desc);
+                      if (newContent.character_desc) {
+                          setCharacterDesc(newContent.character_desc);
                       }
                       
                       // Auto trigger image generation
@@ -115,7 +115,7 @@ export function useContentGeneration() {
                           return newH;
                       });
                   }
-              } catch (e) { console.error('Poll error', e); }
+              } catch (_e) { toast.error('内容状态获取失败'); }
           }
       }, 3000);
 
@@ -187,14 +187,25 @@ export function useContentGeneration() {
                            return newH;
                        });
                    }
-               } catch(e) { console.error('Image poll error', e); }
+               } catch(_e) { toast.error('图片状态获取失败'); }
           }
       }, 3000);
       return () => clearInterval(interval);
   }, [history]);
 
+  const cancelGenerate = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setLoading(false);
+  };
+
   const handleGenerate = async (activeAccountId?: number) => {
-    if (!topic.trim()) return;
+    if (!topic.trim()) {
+        toast.error('请输入核心选题');
+        return;
+    }
 
     if (abortControllerRef.current) {
         abortControllerRef.current.abort();
@@ -239,7 +250,6 @@ export function useContentGeneration() {
       
     } catch (error: any) {
       if (axios.isCancel(error)) return;
-      console.error('Generation failed:', error);
       const msg = error.response?.data?.error || '任务提交失败，请重试';
       setErrorMsg(msg);
       toast.error(msg);
@@ -298,7 +308,7 @@ export function useContentGeneration() {
               return newHistory;
           });
           
-      } catch (e) {
+      } catch (_e) {
           if (!isMounted.current) return;
           setHistory(prev => {
               const newHistory = [...prev];
@@ -318,7 +328,7 @@ export function useContentGeneration() {
     topic, setTopic,
     keywords, setKeywords,
     style, setStyle,
-    characterDesc, setCharacterDesc,
+    characterDesc,
     customInstructions, setCustomInstructions,
     loading,
     errorMsg,
@@ -327,6 +337,7 @@ export function useContentGeneration() {
     remixStructure, setRemixStructure,
     remixSourceTitle, setRemixSourceTitle,
     handleGenerate,
+    cancelGenerate,
     handleGenerateImage,
     isMounted
   };

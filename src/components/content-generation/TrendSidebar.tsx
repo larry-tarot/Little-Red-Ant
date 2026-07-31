@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { TrendingUp, Flame, ArrowUpRight, RefreshCw } from 'lucide-react';
+import axios from '@/lib/axios';
+import { TrendingUp, Flame, RefreshCw } from 'lucide-react';
 
 interface Trend {
   id: number;
@@ -16,22 +16,22 @@ interface TrendSidebarProps {
 const sourceConfig: Record<string, { name: string; color: string; icon: React.ReactNode }> = {
   weibo: { 
     name: '微博', 
-    color: 'text-red-500',
+    color: 'text-danger',
     icon: <Flame size={14} />
   },
   baidu: { 
     name: '百度', 
-    color: 'text-blue-500',
+    color: 'text-primary',
     icon: <TrendingUp size={14} />
   },
   douyin: { 
     name: '抖音', 
-    color: 'text-pink-500',
+    color: 'text-primary',
     icon: <Flame size={14} />
   },
   zhihu: { 
     name: '知乎', 
-    color: 'text-blue-600',
+    color: 'text-primary',
     icon: <TrendingUp size={14} />
   },
 };
@@ -65,11 +65,11 @@ export default function TrendSidebar({ onSelectTopic }: TrendSidebarProps) {
   };
 
   const getRankStyle = (rank?: number) => {
-    if (!rank) return 'bg-gray-100 text-gray-500';
-    if (rank === 1) return 'bg-red-500 text-white';
-    if (rank === 2) return 'bg-orange-500 text-white';
-    if (rank === 3) return 'bg-yellow-500 text-white';
-    return 'bg-gray-100 text-gray-500';
+    if (!rank) return 'bg-surface-muted text-text-tertiary';
+    if (rank === 1) return 'bg-danger text-primary-text';
+    if (rank === 2) return 'bg-warning text-primary-text';
+    if (rank === 3) return 'bg-warning text-primary-text';
+    return 'bg-surface-muted text-text-tertiary';
   };
 
   const formatHotValue = (value?: number) => {
@@ -80,21 +80,21 @@ export default function TrendSidebar({ onSelectTopic }: TrendSidebarProps) {
     return value.toString();
   };
 
-  const sourceInfo = sourceConfig[trendSource];
+  const _sourceInfo = sourceConfig[trendSource];
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
+    <div className="bg-surface rounded-lg shadow-sm border border-border overflow-hidden">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-gray-100 bg-gradient-to-r from-red-50 to-orange-50">
+      <div className="px-4 py-3 border-b border-border bg-gradient-to-r from-danger-subtle to-warning-subtle">
         <div className="flex justify-between items-center">
-          <h3 className="text-sm font-semibold text-gray-800 flex items-center">
-            <TrendingUp size={16} className="mr-2 text-red-500" />
+          <h3 className="text-sm font-semibold text-text flex items-center">
+            <TrendingUp size={16} className="mr-2 text-danger" />
             热点灵感
           </h3>
           <button
             onClick={fetchTrends}
             disabled={loading}
-            className="p-1.5 rounded-full hover:bg-white/80 text-gray-500 hover:text-red-500 transition-colors"
+            className="p-1.5 rounded-full hover:bg-white/80 text-text-tertiary hover:text-danger transition-colors"
             title="刷新"
           >
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
@@ -109,8 +109,8 @@ export default function TrendSidebar({ onSelectTopic }: TrendSidebarProps) {
               onClick={() => setTrendSource(key)}
               className={`flex-1 px-2 py-1.5 text-xs font-medium rounded-md transition-all ${
                 trendSource === key 
-                  ? 'bg-white text-gray-800 shadow-sm' 
-                  : 'text-gray-500 hover:bg-white/50'
+                  ? 'bg-surface text-text shadow-sm' 
+                  : 'text-text-tertiary hover:bg-white/50'
               }`}
             >
               {config.name}
@@ -122,14 +122,14 @@ export default function TrendSidebar({ onSelectTopic }: TrendSidebarProps) {
       {/* Trends List */}
       <div className="max-h-[500px] overflow-y-auto">
         {trends.length > 0 ? (
-          <div className="divide-y divide-gray-50">
+          <div className="divide-y divide-border">
             {trends.slice(0, 15).map((trend, index) => (
               <button
                 key={trend.id}
                 type="button"
                 onClick={() => handleSelect(trend.title)}
-                className={`w-full text-left p-3 hover:bg-gray-50 transition-all group ${
-                  selectedTrend === trend.title ? 'bg-indigo-50 border-l-4 border-l-indigo-500' : 'border-l-4 border-l-transparent'
+                className={`w-full text-left p-3 hover:bg-surface-muted transition-all group ${
+                  selectedTrend === trend.title ? 'bg-primary-subtle border-l-4 border-l-indigo-500' : 'border-l-4 border-l-transparent'
                 }`}
               >
                 <div className="flex items-center gap-3">
@@ -142,15 +142,15 @@ export default function TrendSidebar({ onSelectTopic }: TrendSidebarProps) {
                   
                   {/* Title */}
                   <span className={`flex-1 text-sm truncate ${
-                    selectedTrend === trend.title ? 'text-indigo-700 font-medium' : 'text-gray-700'
+                    selectedTrend === trend.title ? 'text-primary font-medium' : 'text-text-secondary'
                   }`}>
                     {trend.title}
                   </span>
                   
                   {/* Hot Value */}
                   {trend.hot_value && (
-                    <span className="flex-shrink-0 flex items-center gap-1 text-xs text-gray-400">
-                      <Flame size={12} className={trend.hot_value > 500000 ? 'text-red-400' : 'text-gray-300'} />
+                    <span className="flex-shrink-0 flex items-center gap-1 text-xs text-text-tertiary">
+                      <Flame size={12} className={trend.hot_value > 500000 ? 'text-danger' : 'text-text-tertiary'} />
                       {formatHotValue(trend.hot_value)}
                     </span>
                   )}
@@ -159,18 +159,18 @@ export default function TrendSidebar({ onSelectTopic }: TrendSidebarProps) {
             ))}
           </div>
         ) : (
-          <div className="py-12 text-center text-gray-400">
-            <TrendingUp size={32} className="mx-auto mb-3 text-gray-300" />
+          <div className="py-12 text-center text-text-tertiary">
+            <TrendingUp size={32} className="mx-auto mb-3 text-text-tertiary" />
             <p className="text-sm">暂无热点数据</p>
-            <p className="text-xs mt-1 text-gray-300">请尝试切换其他平台</p>
+            <p className="text-xs mt-1 text-text-tertiary">请尝试切换其他平台</p>
           </div>
         )}
       </div>
       
       {/* Footer */}
       {trends.length > 0 && (
-        <div className="px-4 py-2 border-t border-gray-100 bg-gray-50">
-          <p className="text-xs text-gray-400 text-center">
+        <div className="px-4 py-2 border-t border-border bg-surface-muted">
+          <p className="text-xs text-text-tertiary text-center">
             点击热点可直接填入创作主题
           </p>
         </div>

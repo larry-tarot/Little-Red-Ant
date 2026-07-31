@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Download, Type, Image as ImageIcon, Move, RotateCw, Trash2 } from 'lucide-react';
+import { X, Download, Type, Trash2 } from 'lucide-react';
 
 interface StickerElement {
   id: string;
@@ -222,12 +222,12 @@ export default function ImageEditor({ imageUrl, onClose, onSave }: ImageEditorPr
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] flex">
+      <div className="bg-surface rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] flex">
         {/* 左侧工具栏 */}
-        <div className="w-80 p-4 border-r border-gray-200 overflow-y-auto">
+        <div className="w-80 p-4 border-r border-border overflow-y-auto">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-medium text-gray-900">图片编辑器</h3>
-            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <h3 className="text-lg font-medium text-text">图片编辑器</h3>
+            <button onClick={onClose} className="text-text-tertiary hover:text-text-secondary">
               <X size={20} />
             </button>
           </div>
@@ -236,7 +236,7 @@ export default function ImageEditor({ imageUrl, onClose, onSave }: ImageEditorPr
           <div className="mb-6">
             <button
               onClick={addTextElement}
-              className="w-full flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              className="w-full flex items-center justify-center px-4 py-2 bg-primary text-primary-text rounded-md hover:bg-primary-hover"
             >
               <Type size={16} className="mr-2" />
               添加文字
@@ -245,13 +245,13 @@ export default function ImageEditor({ imageUrl, onClose, onSave }: ImageEditorPr
 
           {/* 预设贴纸 */}
           <div className="mb-6">
-            <h4 className="text-sm font-medium text-gray-700 mb-3">贴纸</h4>
+            <h4 className="text-sm font-medium text-text-secondary mb-3">贴纸</h4>
             <div className="grid grid-cols-6 gap-2">
               {presetStickers.map((sticker, index) => (
                 <button
                   key={index}
                   onClick={() => addStickerElement(sticker)}
-                  className="w-10 h-10 flex items-center justify-center bg-gray-100 hover:bg-gray-200 rounded text-lg"
+                  className="w-10 h-10 flex items-center justify-center bg-surface-muted hover:bg-surface-hover rounded text-lg"
                 >
                   {sticker}
                 </button>
@@ -261,18 +261,18 @@ export default function ImageEditor({ imageUrl, onClose, onSave }: ImageEditorPr
 
           {/* 选中元素编辑 */}
           {selectedElementData && (
-            <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-              <h4 className="text-sm font-medium text-gray-700 mb-3">编辑元素</h4>
+            <div className="mb-6 p-4 bg-surface-muted rounded-lg">
+              <h4 className="text-sm font-medium text-text-secondary mb-3">编辑元素</h4>
               
               {selectedElementData.type === 'text' && (
                 <div className="space-y-3">
                   <div>
-                    <label className="block text-xs text-gray-600 mb-1">文字内容</label>
+                    <label className="block text-xs text-text-secondary mb-1">文字内容</label>
                     <input
                       type="text"
                       value={selectedElementData.content}
                       onChange={(e) => updateSelectedElement({ content: e.target.value })}
-                      className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                      className="w-full px-2 py-1 border border-strong rounded text-sm"
                     />
                   </div>
                 </div>
@@ -280,7 +280,7 @@ export default function ImageEditor({ imageUrl, onClose, onSave }: ImageEditorPr
 
               <div className="grid grid-cols-2 gap-2 mt-3">
                 <div>
-                  <label className="block text-xs text-gray-600 mb-1">字体大小</label>
+                  <label className="block text-xs text-text-secondary mb-1">字体大小</label>
                   <input
                     type="range"
                     min="12"
@@ -291,7 +291,7 @@ export default function ImageEditor({ imageUrl, onClose, onSave }: ImageEditorPr
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-600 mb-1">透明度</label>
+                  <label className="block text-xs text-text-secondary mb-1">透明度</label>
                   <input
                     type="range"
                     min="0.1"
@@ -305,7 +305,7 @@ export default function ImageEditor({ imageUrl, onClose, onSave }: ImageEditorPr
               </div>
 
               <div className="mt-3">
-                <label className="block text-xs text-gray-600 mb-1">旋转角度</label>
+                <label className="block text-xs text-text-secondary mb-1">旋转角度</label>
                 <input
                   type="range"
                   min="-180"
@@ -318,13 +318,13 @@ export default function ImageEditor({ imageUrl, onClose, onSave }: ImageEditorPr
 
               {selectedElementData.type === 'text' && (
                 <div className="mt-3">
-                  <label className="block text-xs text-gray-600 mb-1">颜色</label>
+                  <label className="block text-xs text-text-secondary mb-1">颜色</label>
                   <div className="flex gap-1 flex-wrap">
                     {presetColors.map((color) => (
                       <button
                         key={color}
                         onClick={() => updateSelectedElement({ color })}
-                        className="w-6 h-6 rounded border-2 border-gray-300"
+                        className="w-6 h-6 rounded border-2 border-strong"
                         style={{ backgroundColor: color }}
                       />
                     ))}
@@ -334,7 +334,7 @@ export default function ImageEditor({ imageUrl, onClose, onSave }: ImageEditorPr
 
               <button
                 onClick={deleteSelectedElement}
-                className="w-full mt-3 flex items-center justify-center px-3 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm"
+                className="w-full mt-3 flex items-center justify-center px-3 py-2 bg-danger text-primary-text rounded-md hover:bg-danger text-sm"
               >
                 <Trash2 size={14} className="mr-1" />
                 删除
@@ -346,7 +346,7 @@ export default function ImageEditor({ imageUrl, onClose, onSave }: ImageEditorPr
           <div className="space-y-2">
             <button
               onClick={saveImage}
-              className="w-full flex items-center justify-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+              className="w-full flex items-center justify-center px-4 py-2 bg-success text-primary-text rounded-md hover:bg-success"
             >
               <Download size={16} className="mr-2" />
               保存图片
@@ -355,7 +355,7 @@ export default function ImageEditor({ imageUrl, onClose, onSave }: ImageEditorPr
         </div>
 
         {/* 右侧画布区域 */}
-        <div className="flex-1 p-4 flex items-center justify-center bg-gray-100">
+        <div className="flex-1 p-4 flex items-center justify-center bg-surface-muted">
           <div className="max-w-full max-h-full overflow-auto">
             <canvas
               ref={canvasRef}
@@ -363,7 +363,7 @@ export default function ImageEditor({ imageUrl, onClose, onSave }: ImageEditorPr
               onMouseMove={handleCanvasMouseMove}
               onMouseUp={handleCanvasMouseUp}
               onMouseLeave={handleCanvasMouseUp}
-              className="max-w-full max-h-full border border-gray-300 rounded shadow-lg cursor-pointer"
+              className="max-w-full max-h-full border border-strong rounded shadow-lg cursor-pointer"
               style={{ maxWidth: '100%', maxHeight: '100%' }}
             />
           </div>

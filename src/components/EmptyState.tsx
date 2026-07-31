@@ -1,6 +1,4 @@
-
-import React from 'react';
-import { LucideIcon, Box, Lightbulb, ArrowRight } from 'lucide-react';
+import { LucideIcon, Box, Lightbulb } from 'lucide-react';
 
 interface Step {
     text: string;
@@ -17,7 +15,7 @@ interface EmptyStateProps {
 }
 
 /**
- * 空状态组件 - 引导用户开始使用
+ * 空状态组件 — 引导用户开始使用
  *
  * 使用示例：
  * <EmptyState
@@ -25,11 +23,7 @@ interface EmptyStateProps {
  *   description="添加对标账号，系统将自动监控其更新并拆解爆款。"
  *   icon={Target}
  *   action={<Button>添加第一个账号</Button>}
- *   steps={[
- *     { text: '复制小红书主页链接' },
- *     { text: '粘贴到输入框' },
- *     { text: '系统自动抓取数据' }
- *   ]}
+ *   steps={[...]}
  *   tip="支持批量添加，一次最多 10 个链接"
  * />
  */
@@ -42,12 +36,12 @@ export default function EmptyState({
     tip
 }: EmptyStateProps) {
     return (
-        <div className="flex flex-col items-center justify-center py-16 px-4 bg-white rounded-lg border border-dashed border-gray-300 text-center">
-            <div className="bg-gray-50 p-4 rounded-full mb-4">
-                <Icon className="text-gray-400" size={32} />
+        <div className="flex flex-col items-center justify-center py-16 px-4 bg-surface rounded-xl border border-dashed border-border text-center">
+            <div className="bg-surface-muted p-4 rounded-full mb-4">
+                <Icon className="text-text-tertiary" size={32} />
             </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-1">{title}</h3>
-            <p className="text-sm text-gray-500 max-w-sm mb-6">{description}</p>
+            <h3 className="text-lg font-medium text-text mb-1">{title}</h3>
+            <p className="text-sm text-text-secondary max-w-sm mb-6">{description}</p>
 
             {/* 操作按钮 */}
             {action && <div className="mb-6">{action}</div>}
@@ -55,20 +49,20 @@ export default function EmptyState({
             {/* 步骤引导 */}
             {steps && steps.length > 0 && (
                 <div className="w-full max-w-md mb-6">
-                    <div className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">
+                    <div className="text-xs font-medium text-text-tertiary uppercase tracking-wider mb-3">
                         操作步骤
                     </div>
                     <div className="space-y-2">
                         {steps.map((step, index) => (
                             <div
                                 key={index}
-                                className="flex items-center text-sm text-gray-600 bg-gray-50 rounded-lg px-4 py-3"
+                                className="flex items-center text-sm text-text-secondary bg-surface-muted rounded-lg px-4 py-3"
                             >
-                                <span className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 text-xs font-medium flex items-center justify-center mr-3 flex-shrink-0">
+                                <span className="w-6 h-6 rounded-full bg-primary-subtle text-primary text-xs font-medium flex items-center justify-center mr-3 flex-shrink-0">
                                     {index + 1}
                                 </span>
                                 <span className="flex-1 text-left">{step.text}</span>
-                                {step.icon && <step.icon size={16} className="text-gray-400 ml-2" />}
+                                {step.icon && <step.icon size={16} className="text-text-tertiary ml-2" />}
                             </div>
                         ))}
                     </div>
@@ -77,9 +71,9 @@ export default function EmptyState({
 
             {/* 小贴士 */}
             {tip && (
-                <div className="flex items-start max-w-md text-left bg-amber-50 border border-amber-100 rounded-lg px-4 py-3">
-                    <Lightbulb size={16} className="text-amber-500 mr-2 mt-0.5 flex-shrink-0" />
-                    <span className="text-sm text-amber-800">{tip}</span>
+                <div className="flex items-start max-w-md text-left bg-warning-subtle border border-warning/20 rounded-lg px-4 py-3">
+                    <Lightbulb size={16} className="text-warning mr-2 mt-0.5 flex-shrink-0" />
+                    <span className="text-sm text-warning">{tip}</span>
                 </div>
             )}
         </div>
@@ -100,12 +94,12 @@ export function EmptyStateCompact({
 }) {
     return (
         <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
-            <div className="bg-gray-100 p-3 rounded-full mb-3">
-                <Box className="text-gray-400" size={24} />
+            <div className="bg-surface-muted p-3 rounded-full mb-3">
+                <Box className="text-text-tertiary" size={24} />
             </div>
-            <h3 className="text-sm font-medium text-gray-900 mb-1">{title}</h3>
+            <h3 className="text-sm font-medium text-text mb-1">{title}</h3>
             {description && (
-                <p className="text-xs text-gray-500 mb-3">{description}</p>
+                <p className="text-xs text-text-secondary mb-3">{description}</p>
             )}
             {action}
         </div>
@@ -127,14 +121,14 @@ export function GuideCard({
     icon?: LucideIcon;
 }) {
     return (
-        <div className="bg-gradient-to-br from-indigo-50 to-white border border-indigo-100 rounded-xl p-6">
+        <div className="bg-primary-subtle/50 border border-primary/10 rounded-xl p-6">
             <div className="flex items-start gap-4">
-                <div className="bg-indigo-100 p-2 rounded-lg">
-                    <Icon size={24} className="text-indigo-600" />
+                <div className="bg-primary-subtle p-2 rounded-lg">
+                    <Icon size={24} className="text-primary" />
                 </div>
                 <div className="flex-1">
-                    <h4 className="font-medium text-gray-900 mb-1">{title}</h4>
-                    <p className="text-sm text-gray-600 mb-3">{description}</p>
+                    <h4 className="font-medium text-text mb-1">{title}</h4>
+                    <p className="text-sm text-text-secondary mb-3">{description}</p>
                     {action}
                 </div>
             </div>

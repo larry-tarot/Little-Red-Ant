@@ -1,4 +1,3 @@
-import React from 'react';
 import { ArrowLeft, Download, Loader2, CheckCircle, AlertCircle, ExternalLink } from 'lucide-react';
 import { VideoProject } from './types';
 
@@ -22,26 +21,26 @@ const VideoProjectHeader: React.FC<VideoProjectHeaderProps> = ({
     const completedCount = project.scenes.filter(s => s.status === 'COMPLETED').length;
 
     return (
-        <header className="bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center sticky top-0 z-10 shadow-sm">
+        <header className="bg-surface border-b border-border px-6 py-4 flex justify-between items-center sticky top-0 z-10 shadow-sm">
             <div className="flex items-center">
-                <button onClick={() => navigate('/video-projects')} className="mr-4 text-gray-500 hover:text-gray-700" title="返回项目列表">
+                <button onClick={() => navigate('/video-projects')} className="mr-4 text-text-tertiary hover:text-text-secondary" title="返回项目列表">
                     <ArrowLeft size={20} />
                 </button>
                 <div>
-                    <h1 className="text-xl font-bold text-gray-900 flex items-center">
+                    <h1 className="text-xl font-bold text-text flex items-center">
                         {project.title}
-                        <span className="ml-3 text-xs font-normal px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-full border border-indigo-100">
+                        <span className="ml-3 text-xs font-normal px-2 py-0.5 bg-primary-subtle text-primary rounded-full border border-primary-subtle">
                             视频工作台 V4.2
                         </span>
                     </h1>
-                    <p className="text-xs text-gray-500 mt-1">上次保存: {new Date(project.updated_at).toLocaleString()}</p>
+                    <p className="text-xs text-text-tertiary mt-1">上次保存: {new Date(project.updated_at).toLocaleString()}</p>
                 </div>
             </div>
             <div className="flex items-center space-x-4">
                 <div className="flex flex-col items-end mr-4">
-                    <span className="text-xs text-gray-500 mb-1">项目进度</span>
-                    <div className="w-32 h-2 bg-gray-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-green-500 transition-all duration-500" style={{ width: `${progress}%` }} />
+                    <span className="text-xs text-text-tertiary mb-1">项目进度</span>
+                    <div className="w-32 h-2 bg-surface-muted rounded-full overflow-hidden">
+                        <div className="h-full bg-success transition-all duration-500" style={{ width: `${progress}%` }} />
                     </div>
                 </div>
                 <button 
@@ -49,8 +48,8 @@ const VideoProjectHeader: React.FC<VideoProjectHeaderProps> = ({
                     disabled={completedCount < 2 || project.status === 'GENERATING'}
                     className={`flex items-center px-4 py-2 rounded-lg font-medium transition-colors
                         ${completedCount < 2 || project.status === 'GENERATING'
-                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
-                            : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm'
+                            ? 'bg-surface-muted text-text-tertiary cursor-not-allowed' 
+                            : 'bg-primary hover:bg-primary-hover text-primary-text shadow-sm'
                         }`}
                 >
                     {project.status === 'GENERATING' ? (
@@ -75,10 +74,10 @@ const VideoProjectHeader: React.FC<VideoProjectHeaderProps> = ({
                     disabled={!project.final_video_url || project.publish_status === 'PUBLISHING'}
                     className={`flex items-center px-4 py-2 rounded-lg font-medium transition-colors ml-2
                         ${!project.final_video_url || project.publish_status === 'PUBLISHING'
-                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                            ? 'bg-surface-muted text-text-tertiary cursor-not-allowed' 
                             : project.publish_status === 'PUBLISHED'
-                                ? 'bg-green-600 hover:bg-green-700 text-white shadow-sm'
-                                : 'bg-red-600 hover:bg-red-700 text-white shadow-sm'
+                                ? 'bg-success hover:bg-success text-primary-text shadow-sm'
+                                : 'bg-danger hover:bg-danger text-primary-text shadow-sm'
                         }`}
                 >
                     {project.publish_status === 'PUBLISHING' ? (

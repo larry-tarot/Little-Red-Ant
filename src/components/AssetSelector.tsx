@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import axios from '@/lib/axios';
 import { 
-    Music, Image as ImageIcon, Video, Search, 
-    Loader2, Play, Pause, CheckCircle, Upload
+    Video, Search, 
+    Loader2, Play, Pause, Upload
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import Modal from './Modal';
@@ -47,7 +47,7 @@ export default function AssetSelector({ isOpen, onClose, onSelect, type, title }
             if (res.data.success) {
                 setAssets(res.data.data);
             }
-        } catch (error) {
+        } catch (_error) {
             console.error('Failed to load assets');
             toast.error('加载素材失败');
         } finally {
@@ -72,7 +72,7 @@ export default function AssetSelector({ isOpen, onClose, onSelect, type, title }
                 toast.success('上传成功', { id: toastId });
                 fetchAssets();
             }
-        } catch (error) {
+        } catch (_error) {
             toast.error('上传失败', { id: toastId });
         }
     };
@@ -96,14 +96,14 @@ export default function AssetSelector({ isOpen, onClose, onSelect, type, title }
             title={title || `选择${type === 'audio' ? '音乐' : type === 'image' ? '图片' : '视频'}`}
             footer={
                 <div className="flex justify-between items-center w-full">
-                    <label className="cursor-pointer text-indigo-600 hover:text-indigo-800 text-sm font-medium flex items-center">
+                    <label className="cursor-pointer text-primary hover:text-primary-hover text-sm font-medium flex items-center">
                         <Upload size={16} className="mr-1" />
                         上传新文件
                         <input type="file" className="hidden" accept={`${type}/*`} onChange={handleUpload} />
                     </label>
                     <button
                         onClick={onClose}
-                        className="px-4 py-2 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-md text-sm font-medium"
+                        className="px-4 py-2 text-text-secondary bg-surface-muted hover:bg-surface-hover rounded-md text-sm font-medium"
                     >
                         取消
                     </button>
@@ -113,24 +113,24 @@ export default function AssetSelector({ isOpen, onClose, onSelect, type, title }
             <div className="flex flex-col h-[400px]">
                 {/* Search */}
                 <div className="mb-4 relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-text-tertiary" size={16} />
                     <input 
                         type="text"
                         placeholder="搜索素材..."
                         value={searchKeyword}
                         onChange={(e) => setSearchKeyword(e.target.value)}
-                        className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500"
+                        className="w-full pl-9 pr-4 py-2 border border-strong rounded-lg text-sm focus:ring-primary focus:border-primary"
                     />
                 </div>
 
                 {/* List */}
-                <div className="flex-1 overflow-y-auto border border-gray-100 rounded-lg bg-gray-50 p-2">
+                <div className="flex-1 overflow-y-auto border border-border rounded-lg bg-surface-muted p-2">
                     {loading ? (
                         <div className="flex items-center justify-center h-full">
-                            <Loader2 className="animate-spin text-indigo-600" size={24} />
+                            <Loader2 className="animate-spin text-primary" size={24} />
                         </div>
                     ) : filteredAssets.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center h-full text-gray-400">
+                        <div className="flex flex-col items-center justify-center h-full text-text-tertiary">
                             <p>暂无素材</p>
                         </div>
                     ) : (
@@ -138,12 +138,12 @@ export default function AssetSelector({ isOpen, onClose, onSelect, type, title }
                             {filteredAssets.map(asset => (
                                 <div 
                                     key={asset.id}
-                                    className="bg-white p-3 rounded-lg border border-gray-200 hover:border-indigo-300 cursor-pointer transition-all group flex items-center justify-between"
+                                    className="bg-surface p-3 rounded-lg border border-border hover:border-primary-subtle cursor-pointer transition-all group flex items-center justify-between"
                                     onClick={() => onSelect(asset)}
                                 >
                                     <div className="flex items-center overflow-hidden">
                                         {/* Preview Icon/Image */}
-                                        <div className="w-10 h-10 flex-shrink-0 bg-gray-100 rounded flex items-center justify-center mr-3 text-gray-500 relative overflow-hidden">
+                                        <div className="w-10 h-10 flex-shrink-0 bg-surface-muted rounded flex items-center justify-center mr-3 text-text-tertiary relative overflow-hidden">
                                             {asset.type === 'audio' ? (
                                                 <button
                                                     onClick={(e) => {
@@ -158,7 +158,7 @@ export default function AssetSelector({ isOpen, onClose, onSelect, type, title }
                                                             setPlayingId(asset.id);
                                                         }
                                                     }}
-                                                    className="w-full h-full flex items-center justify-center hover:bg-indigo-50 hover:text-indigo-600"
+                                                    className="w-full h-full flex items-center justify-center hover:bg-primary-subtle hover:text-primary"
                                                 >
                                                     {playingId === asset.id ? <Pause size={16} /> : <Play size={16} />}
                                                     <audio id={`modal-audio-${asset.id}`} src={asset.url} onEnded={() => setPlayingId(null)} className="hidden" />
@@ -171,17 +171,17 @@ export default function AssetSelector({ isOpen, onClose, onSelect, type, title }
                                         </div>
                                         
                                         <div className="min-w-0">
-                                            <p className="text-sm font-medium text-gray-900 truncate group-hover:text-indigo-600">
+                                            <p className="text-sm font-medium text-text truncate group-hover:text-primary">
                                                 {asset.filename}
                                             </p>
-                                            <p className="text-xs text-gray-500">
+                                            <p className="text-xs text-text-tertiary">
                                                 {formatSize(asset.size)} • {new Date(asset.created_at).toLocaleDateString()}
                                             </p>
                                         </div>
                                     </div>
                                     
                                     <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <span className="px-3 py-1 bg-indigo-600 text-white text-xs rounded-full">
+                                        <span className="px-3 py-1 bg-primary text-primary-text text-xs rounded-full">
                                             选择
                                         </span>
                                     </div>

@@ -29,39 +29,45 @@ interface TaskProgressProps {
     className?: string;
 }
 
+/**
+ * 任务状态样式配置
+ *
+ * 统一使用 design tokens（primary / success / warning / danger / text-tertiary），
+ * 保持与全局主题一致。
+ */
 const statusConfig = {
     PENDING: {
-        color: 'text-gray-500',
-        bgColor: 'bg-gray-100',
-        barColor: 'bg-gray-300',
+        color: 'text-text-tertiary',
+        bgColor: 'bg-surface-muted',
+        barColor: 'bg-border-strong',
         icon: Clock,
         label: '等待中'
     },
     PROCESSING: {
-        color: 'text-blue-600',
-        bgColor: 'bg-blue-50',
-        barColor: 'bg-blue-500',
+        color: 'text-primary',
+        bgColor: 'bg-primary-subtle',
+        barColor: 'bg-primary',
         icon: Loader2,
         label: '执行中'
     },
     COMPLETED: {
-        color: 'text-green-600',
-        bgColor: 'bg-green-50',
-        barColor: 'bg-green-500',
+        color: 'text-success',
+        bgColor: 'bg-success-subtle',
+        barColor: 'bg-success',
         icon: CheckCircle2,
         label: '已完成'
     },
     FAILED: {
-        color: 'text-red-600',
-        bgColor: 'bg-red-50',
-        barColor: 'bg-red-500',
+        color: 'text-danger',
+        bgColor: 'bg-danger-subtle',
+        barColor: 'bg-danger',
         icon: AlertCircle,
         label: '失败'
     },
     CANCELLED: {
-        color: 'text-gray-500',
-        bgColor: 'bg-gray-50',
-        barColor: 'bg-gray-400',
+        color: 'text-text-tertiary',
+        bgColor: 'bg-surface-muted',
+        barColor: 'bg-border-strong',
         icon: AlertCircle,
         label: '已取消'
     }
@@ -78,7 +84,7 @@ export default function TaskProgress({
 }: TaskProgressProps) {
     const config = statusConfig[status] || statusConfig.PENDING;
     const StatusIcon = config.icon;
-    const isRunning = status === 'PENDING' || status === 'PROCESSING';
+    const _isRunning = status === 'PENDING' || status === 'PROCESSING';
 
     // 计算实际进度
     const displayProgress = status === 'COMPLETED' ? 100 : Math.min(Math.max(progress, 0), 100);
@@ -89,20 +95,20 @@ export default function TaskProgress({
             <div className="space-y-1.5">
                 <div className="flex items-center justify-between text-xs">
                     <div className="flex items-center gap-1.5">
-                        <StatusIcon 
-                            size={14} 
-                            className={`${config.color} ${status === 'PROCESSING' ? 'animate-spin' : ''}`} 
+                        <StatusIcon
+                            size={14}
+                            className={`${config.color} ${status === 'PROCESSING' ? 'animate-spin' : ''}`}
                         />
                         <span className={`font-medium ${config.color}`}>
                             {config.label}
                         </span>
                         {currentStep && status === 'PROCESSING' && (
-                            <span className="text-gray-500 ml-1">· {currentStep}</span>
+                            <span className="text-text-tertiary ml-1">· {currentStep}</span>
                         )}
                     </div>
-                    <span className="text-gray-500">{Math.round(displayProgress)}%</span>
+                    <span className="text-text-tertiary">{Math.round(displayProgress)}%</span>
                 </div>
-                <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                <div className="h-1.5 bg-surface-muted rounded-full overflow-hidden">
                     <div
                         className={`h-full rounded-full transition-all duration-500 ${config.barColor}`}
                         style={{ width: `${displayProgress}%` }}
@@ -116,25 +122,25 @@ export default function TaskProgress({
                     {steps.map((step, index) => {
                         const isCompleted = index < currentStepIndex;
                         const isCurrent = index === currentStepIndex && status === 'PROCESSING';
-                        const isPending = index > currentStepIndex;
+                        const _isPending = index > currentStepIndex;
 
                         return (
                             <React.Fragment key={index}>
                                 <div className="flex items-center">
                                     {isCompleted ? (
-                                        <CheckCircle2 size={12} className="text-green-500" />
+                                        <CheckCircle2 size={12} className="text-success" />
                                     ) : isCurrent ? (
-                                        <Loader2 size={12} className="text-blue-500 animate-spin" />
+                                        <Loader2 size={12} className="text-primary animate-spin" />
                                     ) : (
-                                        <Circle size={12} className="text-gray-300" />
+                                        <Circle size={12} className="text-border-strong" />
                                     )}
                                     <span
                                         className={`ml-1 ${
                                             isCompleted
-                                                ? 'text-green-600'
+                                                ? 'text-success'
                                                 : isCurrent
-                                                    ? 'text-blue-600 font-medium'
-                                                    : 'text-gray-400'
+                                                    ? 'text-primary font-medium'
+                                                    : 'text-text-tertiary'
                                         }`}
                                     >
                                         {step}
@@ -143,7 +149,7 @@ export default function TaskProgress({
                                 {index < steps.length - 1 && (
                                     <div
                                         className={`w-4 h-px mx-1 ${
-                                            isCompleted ? 'bg-green-300' : 'bg-gray-200'
+                                            isCompleted ? 'bg-success/30' : 'bg-border'
                                         }`}
                                     />
                                 )}
@@ -155,7 +161,7 @@ export default function TaskProgress({
 
             {/* 错误信息 */}
             {error && status === 'FAILED' && (
-                <div className="text-xs text-red-600 bg-red-50 rounded px-2 py-1.5">
+                <div className="text-xs text-danger bg-danger-subtle rounded px-2 py-1.5">
                     {error}
                 </div>
             )}
@@ -178,13 +184,13 @@ export function TaskStatusBadge({
 
     return (
         <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs ${config.bgColor}`}>
-            <StatusIcon 
-                size={12} 
-                className={`${config.color} ${status === 'PROCESSING' ? 'animate-spin' : ''}`} 
+            <StatusIcon
+                size={12}
+                className={`${config.color} ${status === 'PROCESSING' ? 'animate-spin' : ''}`}
             />
             <span className={config.color}>{config.label}</span>
             {status === 'PROCESSING' && progress > 0 && (
-                <span className="text-gray-500">{Math.round(progress)}%</span>
+                <span className="text-text-tertiary">{Math.round(progress)}%</span>
             )}
         </div>
     );
@@ -192,6 +198,8 @@ export function TaskStatusBadge({
 
 /**
  * 任务类型标签
+ *
+ * 使用 design tokens 的 subtle 背景 + 文字色组合，保持视觉区分度。
  */
 export function TaskTypeLabel({ type }: { type: string }) {
     const typeNames: Record<string, string> = {
@@ -206,18 +214,18 @@ export function TaskTypeLabel({ type }: { type: string }) {
     };
 
     const typeColors: Record<string, string> = {
-        'PUBLISH': 'bg-purple-100 text-purple-700',
-        'SCRAPE_STATS': 'bg-blue-100 text-blue-700',
-        'SCRAPE_COMMENTS': 'bg-cyan-100 text-cyan-700',
-        'SCRAPE_TRENDS': 'bg-orange-100 text-orange-700',
-        'SCRAPE_COMPETITOR': 'bg-pink-100 text-pink-700',
-        'GENERATE_CONTENT': 'bg-green-100 text-green-700',
-        'GENERATE_IMAGE': 'bg-indigo-100 text-indigo-700',
-        'GENERATE_VIDEO': 'bg-rose-100 text-rose-700'
+        'PUBLISH': 'bg-primary-subtle text-primary',
+        'SCRAPE_STATS': 'bg-primary-subtle text-primary',
+        'SCRAPE_COMMENTS': 'bg-warning-subtle text-warning',
+        'SCRAPE_TRENDS': 'bg-warning-subtle text-warning',
+        'SCRAPE_COMPETITOR': 'bg-danger-subtle text-danger',
+        'GENERATE_CONTENT': 'bg-success-subtle text-success',
+        'GENERATE_IMAGE': 'bg-primary-subtle text-primary',
+        'GENERATE_VIDEO': 'bg-danger-subtle text-danger'
     };
 
     return (
-        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${typeColors[type] || 'bg-gray-100 text-gray-700'}`}>
+        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${typeColors[type] || 'bg-surface-muted text-text-secondary'}`}>
             {typeNames[type] || type}
         </span>
     );

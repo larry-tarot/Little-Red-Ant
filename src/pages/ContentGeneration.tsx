@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import axios from 'axios';
-import { Sparkles, FileText, Video, Edit3, History, ChevronLeft, ChevronRight, RotateCw, Copy, Save, ExternalLink, Film, Loader2, Calendar, Wand2, X, Image as ImageIcon } from 'lucide-react';
+import axios from '@/lib/axios';
+import { Sparkles, FileText, Video, Edit3, History, ChevronLeft, ChevronRight, RotateCw, Copy, Save, ExternalLink, Film, Loader2, Calendar, Wand2, X, Image as ImageIcon, AlertCircle, Eye, Mic2, Lightbulb } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import CardGenerator, { CardGeneratorHandle } from '../components/CardGenerator';
 import ImageEditor from '../components/ImageEditor';
@@ -17,8 +17,10 @@ import VideoGeneratorForm from '../components/content-generation/VideoGeneratorF
 import ComplianceReport from '../components/content-generation/ComplianceReport';
 
 // Hooks
-import { useContentGeneration, GeneratedContent, GeneratedImage, GenerationSession } from '../hooks/useContentGeneration';
+import { useContentGeneration, GeneratedContent, GeneratedImage } from '../hooks/useContentGeneration';
 import { useVideoGeneration } from '../hooks/useVideoGeneration';
+import FriendlyError from '../components/FriendlyError';
+import { wrapError } from '../utils/ErrorMessages';
 
 export default function ContentGeneration() {
   const location = useLocation();
@@ -34,7 +36,7 @@ export default function ContentGeneration() {
     topic, setTopic,
     keywords, setKeywords,
     style, setStyle,
-    characterDesc, setCharacterDesc,
+    characterDesc,
     customInstructions, setCustomInstructions,
     loading,
     errorMsg,
@@ -43,8 +45,8 @@ export default function ContentGeneration() {
     remixStructure, setRemixStructure,
     remixSourceTitle, setRemixSourceTitle,
     handleGenerate: hookHandleGenerate,
-    handleGenerateImage,
-    isMounted
+    cancelGenerate,
+    handleGenerateImage
   } = useContentGeneration();
 
   const {
@@ -52,12 +54,12 @@ export default function ContentGeneration() {
     videoPrompt, setVideoPrompt,
     videoImageUrl, setVideoImageUrl,
     videoLoading,
-    videoHistory, setVideoHistory,
+    videoHistory,
     currentVideoIndex, setCurrentVideoIndex,
-    videoError, setVideoError,
-    sceneVideos, setSceneVideos,
-    isStitching, setIsStitching,
-    stitchedVideoUrl, setStitchedVideoUrl,
+    videoError,
+    sceneVideos,
+    setIsStitching,
+    setStitchedVideoUrl,
     creatingProject, setCreatingProject,
     handleGenerateVideo: hookHandleGenerateVideo,
     handleGenerateSceneVideo: hookHandleGenerateSceneVideo
@@ -107,14 +109,14 @@ export default function ContentGeneration() {
       axios.get('/api/accounts').then(res => {
           const active = res.data.find((a: any) => a.is_active);
           setActiveAccount(active || null);
-      }).catch(console.error);
+      }).catch(() => toast.error('账号信息加载失败'));
   }, []);
 
   // Fetch Prompts
   useEffect(() => {
     axios.get('/api/prompts')
       .then(res => setPromptTemplates(res.data))
-      .catch(err => console.error('Failed to fetch prompts:', err));
+      .catch(() => toast.error('提示词模板加载失败'));
   }, []);
 
   // Handle Location State (Navigation)
@@ -260,7 +262,6 @@ export default function ContentGeneration() {
          
          // Let's use a ref to track the last auto-saved task ID
          if (currentSession.taskId && lastAutoSavedTaskIdRef.current !== currentSession.taskId) {
-             console.log('Auto-saving new generation:', currentSession.taskId);
              handleSaveDraft();
              lastAutoSavedTaskIdRef.current = currentSession.taskId;
          }
@@ -271,8 +272,8 @@ export default function ContentGeneration() {
   const lastAutoSavedTaskIdRef = useRef<string | null>(null);
 
   // Wrappers for Hook Functions
-  const handleGenerate = (e: React.FormEvent) => {
-      e.preventDefault();
+  const handleGenerate = (e?: React.FormEvent) => {
+      e?.preventDefault();
       setSelectedOptionIndex(0);
       setPublishStatus(null);
       hookHandleGenerate(activeAccount?.id);
@@ -366,8 +367,7 @@ export default function ContentGeneration() {
         }
         toast.success('已保存到草稿箱！(图片已本地化)');
       }
-    } catch (error) {
-      console.error('Save draft failed:', error);
+    } catch (_error) {
       toast.error('保存失败');
     } finally {
       setIsSaving(false);
@@ -415,7 +415,7 @@ export default function ContentGeneration() {
         accountId: activeAccount?.id // Explicitly pass accountId
       };
 
-      const res = await axios.post('/api/publish/publish', payload);
+      const _res = await axios.post('/api/publish/publish', payload);
       
       if (scheduledTime) {
           setPublishStatus(`任务已加入队列，将于 ${new Date(scheduledTime).toLocaleString()} 执行`);
@@ -428,7 +428,6 @@ export default function ContentGeneration() {
       toast.success('发布任务已提交');
       
     } catch (error: any) {
-      console.error('Publish failed:', error);
       const errorData = error.response?.data;
       const errorMsg = errorData?.error || error.message;
 
@@ -437,26 +436,26 @@ export default function ContentGeneration() {
           toast((t) => (
               <div className="flex flex-col">
                   <span className="font-medium mb-2">账号登录已失效</span>
-                  <span className="text-sm text-gray-500 mb-3">请前往账号矩阵重新登录小红书账号。</span>
+                  <span className="text-sm text-text-tertiary mb-3">请前往账号矩阵重新登录小红书账号。</span>
                   <div className="flex gap-2">
                       <button 
                           onClick={() => {
                               toast.dismiss(t.id);
                               navigate('/accounts');
                           }}
-                          className="px-3 py-1 bg-indigo-600 text-white text-xs rounded hover:bg-indigo-700"
+                          className="px-3 py-1 bg-primary text-primary-text text-xs rounded hover:bg-primary-hover"
                       >
                           去登录账号
                       </button>
                       <button 
                           onClick={() => toast.dismiss(t.id)}
-                          className="px-3 py-1 bg-gray-200 text-gray-700 text-xs rounded hover:bg-gray-300"
+                          className="px-3 py-1 bg-surface-hover text-text-secondary text-xs rounded hover:bg-surface-hover"
                       >
                           关闭
                       </button>
                   </div>
               </div>
-          ), { duration: 8000, icon: '🔒' });
+          ), { duration: 8000 });
           return;
       }
 
@@ -490,8 +489,7 @@ export default function ContentGeneration() {
               await handleSaveContentEdit(fixedContent);
               toast.success('已自动修复违规内容');
           }
-      } catch (error) {
-          console.error('Auto fix failed', error);
+      } catch (_error) {
           toast.error('修复失败，请重试');
       } finally {
           setIsFixingCompliance(false);
@@ -551,8 +549,8 @@ export default function ContentGeneration() {
             newHistory[currentIndex] = session;
             return newHistory;
         });
-    } catch (e) {
-        console.error('Compliance check failed', e);
+    } catch (_e) {
+        toast.error('合规检测失败');
     }
   };
 
@@ -573,7 +571,7 @@ export default function ContentGeneration() {
                   note: cols[4] || ''
               };
           }).filter(item => item !== null);
-      } catch (e) {
+      } catch (_e) {
           return [];
       }
   };
@@ -583,7 +581,7 @@ export default function ContentGeneration() {
       hookHandleGenerateSceneVideo(key, prompt);
   };
 
-  const handleBatchGenerateVideos = async () => {
+  const _handleBatchGenerateVideos = async () => {
       const scenes = parseScript(result?.options?.[selectedOptionIndex]?.content || '');
       if (scenes.length === 0) return;
 
@@ -599,7 +597,7 @@ export default function ContentGeneration() {
       }
   };
 
-  const handleStitchVideos = async () => {
+  const _handleStitchVideos = async () => {
       const scenes = parseScript(result?.options?.[selectedOptionIndex]?.content || '');
       const videoUrls = scenes.map((_, i) => {
           const key = `${currentIndex}-${selectedOptionIndex}-${i}`;
@@ -619,7 +617,7 @@ export default function ContentGeneration() {
           toast.success('视频合成指令已发送 (模拟)');
           setStitchedVideoUrl(videoUrls[0]); 
           
-      } catch (error) {
+      } catch (_error) {
           toast.error('合成失败');
       } finally {
           setIsStitching(false);
@@ -635,7 +633,7 @@ export default function ContentGeneration() {
           const res = await axios.post('/api/video-projects', {
               title: topic,
               script: scenes,
-              character_desc: characterDesc || (result as any)?.character_desc, 
+              character_desc: characterDesc || result?.character_desc,
               tags: result?.tags || [],
               description: `${topic}\n\n${scenes.map((s: any) => s.audio).join('')}\n\n${result?.tags?.map(t => `#${t}`).join(' ') || ''}`
           });
@@ -647,7 +645,7 @@ export default function ContentGeneration() {
                   navigate(`/video-studio/${projectId}`);
               }, 1000);
           }
-      } catch (error) {
+      } catch (_error) {
           toast.error('Failed to create project');
           setCreatingProject(false);
       }
@@ -686,21 +684,21 @@ export default function ContentGeneration() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8">
+    <div className="min-h-screen bg-surface-muted p-4 sm:p-6 lg:p-8">
       <div className="max-w-4xl mx-auto">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2 flex items-center">
-          <Sparkles className="mr-2 text-indigo-600" />
+        <h1 className="text-2xl font-bold text-text mb-2 flex items-center">
+          <Sparkles className="mr-2 text-primary" />
           AI 智能创作
         </h1>
-        <p className="text-gray-600 mb-8">
+        <p className="text-text-secondary mb-8">
           一站式 AI 创作平台，支持图文笔记、深度长文及视频创作。
         </p>
 
         {/* Top Tab Switcher */}
-        <div className="flex space-x-1 bg-gray-200 p-1 rounded-lg mb-8 w-fit">
+        <div className="flex space-x-1 bg-surface-hover p-1 rounded-lg mb-8 w-fit">
              <button
                  onClick={() => setActiveTab('note')}
-                 className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'note' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-600 hover:bg-gray-50'}`}
+                 className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'note' ? 'bg-surface text-primary shadow-sm' : 'text-text-secondary hover:bg-surface-muted'}`}
              >
                  <FileText size={16} className="mr-2" />
                  笔记创作
@@ -710,14 +708,14 @@ export default function ContentGeneration() {
                      setActiveTab('video_script');
                      setContentType('video_script');
                  }}
-                 className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'video_script' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-600 hover:bg-gray-50'}`}
+                 className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'video_script' ? 'bg-surface text-primary shadow-sm' : 'text-text-secondary hover:bg-surface-muted'}`}
              >
                  <Edit3 size={16} className="mr-2" />
                  视频脚本
              </button>
              <button
                  onClick={() => setActiveTab('video')}
-                 className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'video' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-600 hover:bg-gray-50'}`}
+                 className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'video' ? 'bg-surface text-primary shadow-sm' : 'text-text-secondary hover:bg-surface-muted'}`}
              >
                  <Video size={16} className="mr-2" />
                  视频生成
@@ -749,10 +747,10 @@ export default function ContentGeneration() {
             {/* Right Column: Main Content Area - Wider */}
             <div className="lg:col-span-9 space-y-4">
                 {/* Configuration Form - Always visible */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
-                    <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-indigo-50/50 to-purple-50/50">
-                        <h3 className="font-semibold text-gray-800 flex items-center">
-                            <Edit3 size={18} className="mr-2 text-indigo-600" />
+                <div className="bg-surface rounded-lg shadow-sm border border-border overflow-hidden">
+                    <div className="px-6 py-4 border-b border-border bg-gradient-to-r from-primary-subtle/50 to-surface-muted/50">
+                        <h3 className="font-semibold text-text flex items-center">
+                            <Edit3 size={18} className="mr-2 text-primary" />
                             创作配置
                         </h3>
                     </div>
@@ -800,20 +798,40 @@ export default function ContentGeneration() {
 
                 {/* Result Section */}
                 {result ? (
-                <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
+                <div className="bg-surface rounded-lg shadow-sm border border-border overflow-hidden">
                     {currentSession?.status === 'PENDING' ? (
                         <div className="p-12 text-center flex flex-col items-center justify-center min-h-[400px]">
-                            <Loader2 className="animate-spin h-12 w-12 text-indigo-500 mb-4" />
-                            <h3 className="text-lg font-medium text-gray-900">AI 正在创作中...</h3>
-                            <p className="text-gray-500 mt-2">任务已提交至后台，请留意全局任务监控。</p>
-                            <p className="text-xs text-gray-400 mt-4">您可以切换到其他页面，稍后回来查看结果。</p>
+                            <Loader2 className="animate-spin h-12 w-12 text-primary mb-4" />
+                            <h3 className="text-lg font-medium text-text">AI 正在创作中...</h3>
+                            <p className="text-text-tertiary mt-2">任务已提交至后台，请留意全局任务监控。</p>
+                            <p className="text-xs text-text-tertiary mt-4">您可以切换到其他页面，稍后回来查看结果。</p>
+                            <button
+                                onClick={cancelGenerate}
+                                className="mt-6 px-4 py-2 text-sm text-text-secondary bg-surface border border-strong rounded-md hover:bg-surface-muted transition-colors"
+                            >
+                                取消生成
+                            </button>
+                        </div>
+                    ) : currentSession?.status === 'FAILED' ? (
+                        <div className="p-8">
+                            <FriendlyError
+                                error={wrapError(currentSession.error || '内容生成失败').friendly}
+                                onRetry={() => handleGenerate()}
+                                action={(() => {
+                                    const code = wrapError(currentSession.error || '').friendly.code;
+                                    if (code === 'COOKIE_EXPIRED' || code === 'NO_ACTIVE_ACCOUNT') {
+                                        return { label: '前往账号矩阵', onClick: () => navigate('/accounts') };
+                                    }
+                                    return undefined;
+                                })()}
+                            />
                         </div>
                     ) : (
                     <div className="p-6 space-y-6">
                     
                     {/* Version Control Header */}
-                    <div className="flex justify-between items-center border-b border-gray-100 pb-4">
-                        <div className="flex items-center text-sm text-gray-500">
+                    <div className="flex justify-between items-center border-b border-border pb-4">
+                        <div className="flex items-center text-sm text-text-tertiary">
                             <History size={16} className="mr-2" />
                             <span>生成记录</span>
                         </div>
@@ -821,22 +839,22 @@ export default function ContentGeneration() {
                             <button 
                                 onClick={() => setCurrentIndex(prev => Math.max(0, prev - 1))}
                                 disabled={currentIndex <= 0}
-                                className="p-1 rounded-full hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed"
+                                className="p-1 rounded-full hover:bg-surface-muted disabled:opacity-30 disabled:cursor-not-allowed"
                             >
                                 <ChevronLeft size={20} />
                             </button>
-                            <span className="text-sm font-medium text-gray-700">
+                            <span className="text-sm font-medium text-text-secondary">
                                 版本 {currentIndex + 1} / {history.length}
                             </span>
                             <button 
                                 onClick={() => setCurrentIndex(prev => Math.min(history.length - 1, prev + 1))}
                                 disabled={currentIndex >= history.length - 1}
-                                className="p-1 rounded-full hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed"
+                                className="p-1 rounded-full hover:bg-surface-muted disabled:opacity-30 disabled:cursor-not-allowed"
                             >
                                 <ChevronRight size={20} />
                             </button>
                             
-                            <div className="h-4 w-px bg-gray-200 mx-2"></div>
+                            <div className="h-4 w-px bg-surface-hover mx-2"></div>
 
                             <button
                                 onClick={() => {
@@ -846,7 +864,7 @@ export default function ContentGeneration() {
                                     setActiveTab('video');
                                     toast.success('已切换至视频生成，请完善提示词');
                                 }}
-                                className="text-xs flex items-center text-pink-600 hover:text-pink-800 font-medium mr-2"
+                                className="text-xs flex items-center text-primary hover:text-primary-hover font-medium mr-2"
                                 title="一键转为视频"
                             >
                                 <Video size={14} className="mr-1" />
@@ -855,7 +873,7 @@ export default function ContentGeneration() {
                             
                             <button 
                                 onClick={handleGenerate} 
-                                className="text-xs flex items-center text-indigo-600 hover:text-indigo-800 font-medium"
+                                className="text-xs flex items-center text-primary hover:text-primary-hover font-medium"
                             >
                                 <RotateCw size={14} className="mr-1" />
                                 重新生成
@@ -886,13 +904,13 @@ export default function ContentGeneration() {
                     {/* Title */}
                     <div>
                         <div className="flex justify-between items-start mb-2">
-                        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">标题</span>
-                        <button onClick={() => copyToClipboard(result.title)} className="text-indigo-600 hover:text-indigo-800 text-xs flex items-center">
+                        <span className="text-xs font-semibold text-text-tertiary uppercase tracking-wider">标题</span>
+                        <button onClick={() => copyToClipboard(result.title)} className="text-primary hover:text-primary-hover text-xs flex items-center">
                             <Copy size={12} className="mr-1" /> 复制
                         </button>
                         </div>
-                        <div className="bg-gray-50 p-4 rounded-md">
-                        <h3 className="text-lg font-bold text-gray-900 leading-tight">
+                        <div className="bg-surface-muted p-4 rounded-md">
+                        <h3 className="text-lg font-bold text-text leading-tight">
                             {result.title}
                         </h3>
                         </div>
@@ -911,7 +929,7 @@ export default function ContentGeneration() {
                     {/* Content Options */}
                     <div>
                         <div className="flex justify-between items-start mb-2">
-                        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">正文</span>
+                        <span className="text-xs font-semibold text-text-tertiary uppercase tracking-wider">正文</span>
                         <div className="flex space-x-2">
                             {!isEditingContent ? (
                                 <button 
@@ -919,7 +937,7 @@ export default function ContentGeneration() {
                                         setIsEditingContent(true);
                                         setEditedContent(result.options?.[selectedOptionIndex]?.content || '');
                                     }}
-                                    className="text-gray-600 hover:text-indigo-600 text-xs flex items-center"
+                                    className="text-text-secondary hover:text-primary text-xs flex items-center"
                                 >
                                     <Edit3 size={12} className="mr-1" /> 编辑
                                 </button>
@@ -927,13 +945,13 @@ export default function ContentGeneration() {
                                 <div className="flex space-x-2">
                                     <button 
                                         onClick={() => handleSaveContentEdit(undefined)}
-                                        className="text-green-600 hover:text-green-800 text-xs flex items-center font-bold"
+                                        className="text-success hover:text-success text-xs flex items-center font-bold"
                                     >
                                         <Save size={12} className="mr-1" /> 保存
                                     </button>
                                     <button 
                                         onClick={() => setIsEditingContent(false)}
-                                        className="text-gray-500 hover:text-gray-700 text-xs flex items-center"
+                                        className="text-text-tertiary hover:text-text-secondary text-xs flex items-center"
                                     >
                                         取消
                                     </button>
@@ -941,7 +959,7 @@ export default function ContentGeneration() {
                             )}
                             <button 
                                 onClick={() => copyToClipboard(result.options?.[selectedOptionIndex]?.content || '')} 
-                                className="text-indigo-600 hover:text-indigo-800 text-xs flex items-center"
+                                className="text-primary hover:text-primary-hover text-xs flex items-center"
                             >
                                 <Copy size={12} className="mr-1" /> 复制
                             </button>
@@ -959,8 +977,8 @@ export default function ContentGeneration() {
                             className={`
                                 px-3 py-1.5 text-xs font-medium rounded-md transition-colors
                                 ${selectedOptionIndex === idx 
-                                ? 'bg-indigo-100 text-indigo-700 ring-1 ring-indigo-500' 
-                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}
+                                ? 'bg-primary-subtle text-primary ring-1 ring-primary' 
+                                : 'bg-surface-muted text-text-secondary hover:bg-surface-hover'}
                             `}
                             >
                             {opt.label}
@@ -968,9 +986,9 @@ export default function ContentGeneration() {
                         ))}
                         </div>
 
-                        <div className="bg-gray-50 p-4 rounded-md min-h-[200px]">
+                        <div className="bg-surface-muted p-4 rounded-md min-h-[200px]">
                         {(!result.options || result.options.length === 0) ? (
-                            <div className="text-red-500 p-4 text-center">
+                            <div className="text-danger p-4 text-center">
                                 数据加载异常 (Version Data Corrupted) - 请尝试重新生成
                             </div>
                         ) : (
@@ -985,25 +1003,25 @@ export default function ContentGeneration() {
                                 <textarea 
                                     value={editedContent}
                                     onChange={(e) => setEditedContent(e.target.value)}
-                                    className="w-full h-[300px] p-2 bg-white border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm font-mono"
+                                    className="w-full h-[300px] p-2 bg-surface border border-strong rounded-md focus:ring-primary focus:border-primary text-sm font-mono"
                                 />
                             ) : (
                                 contentType === 'video_script' ? (
                                     <div className="space-y-4">
-                                        <div className="flex justify-between items-center mb-4 bg-indigo-50 p-4 rounded-lg border border-indigo-100">
+                                        <div className="flex justify-between items-center mb-4 bg-primary-subtle p-4 rounded-lg border border-primary-subtle">
                                             <div>
-                                                <div className="text-sm font-bold text-indigo-800 flex items-center">
+                                                <div className="text-sm font-bold text-primary flex items-center">
                                                     <Film size={16} className="inline mr-2" />
                                                     分镜脚本已生成
                                                 </div>
-                                                <p className="text-xs text-indigo-600 mt-1 max-w-md">
+                                                <p className="text-xs text-primary mt-1 max-w-md">
                                                     脚本仅为文字大纲。如需生成画面、配音并合成完整视频，请点击右侧按钮进入<strong>「视频制作台」</strong>。
                                                 </p>
                                             </div>
                                             <button 
                                                 onClick={handleCreateVideoProject}
                                                 disabled={creatingProject}
-                                                className={`bg-indigo-600 hover:bg-indigo-700 text-white text-sm px-4 py-2 rounded-md flex items-center transition-colors shadow-sm
+                                                className={`bg-primary hover:bg-primary-hover text-primary-text text-sm px-4 py-2 rounded-md flex items-center transition-colors shadow-sm
                                                     ${creatingProject ? 'opacity-70 cursor-wait' : ''}
                                                 `}
                                             >
@@ -1022,31 +1040,32 @@ export default function ContentGeneration() {
                                         </div>
 
                                         {parseScript(result.options?.[selectedOptionIndex]?.content || '').map((scene: any, idx: number) => {
-                                            const key = `${currentIndex}-${selectedOptionIndex}-${idx}`;
+                                            const _key = `${currentIndex}-${selectedOptionIndex}-${idx}`;
                                             return (
-                                            <div key={idx} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm flex flex-col md:flex-row gap-4 opacity-75">
+                                            <div key={idx} className="bg-surface border border-border rounded-lg p-4 shadow-sm flex flex-col md:flex-row gap-4 opacity-75">
                                                 <div className="flex-1 space-y-2">
                                                     <div className="flex items-center justify-between">
-                                                        <span className="bg-gray-100 text-gray-700 px-2 py-1 rounded text-xs font-bold uppercase">
+                                                        <span className="bg-surface-muted text-text-secondary px-2 py-1 rounded text-xs font-bold uppercase">
                                                             Scene {idx + 1}
                                                         </span>
-                                                        <span className="text-xs text-gray-500 font-mono">
+                                                        <span className="text-xs text-text-tertiary font-mono">
                                                             {scene.shot}
                                                         </span>
                                                     </div>
-                                                    <div className="text-sm text-gray-800 font-medium">
-                                                        <span className="text-indigo-500 mr-2">👁️ 画面:</span>
-                                                        {scene.visual}
+                                                    <div className="text-sm text-text font-medium">
+                                                        <Eye size={14} className="inline text-primary mr-1.5" />
+                                                        画面: {scene.visual}
                                                     </div>
                                                 </div>
-                                                <div className="flex-1 space-y-2 border-t md:border-t-0 md:border-l border-gray-100 md:pl-4 pt-2 md:pt-0">
-                                                    <div className="text-sm text-gray-800">
-                                                        <span className="text-green-600 mr-2">🎙️ 口播:</span>
-                                                        {scene.audio}
+                                                <div className="flex-1 space-y-2 border-t md:border-t-0 md:border-l border-border md:pl-4 pt-2 md:pt-0">
+                                                    <div className="text-sm text-text">
+                                                        <Mic2 size={14} className="inline text-success mr-1.5" />
+                                                        口播: {scene.audio}
                                                     </div>
                                                     {scene.note && (
-                                                        <div className="text-xs text-gray-500 mt-1 italic">
-                                                            💡 {scene.note}
+                                                        <div className="text-xs text-text-tertiary mt-1 italic flex items-start">
+                                                            <Lightbulb size={12} className="inline text-warning mr-1.5 mt-0.5 flex-shrink-0" />
+                                                            {scene.note}
                                                         </div>
                                                     )}
                                                 </div>
@@ -1054,14 +1073,14 @@ export default function ContentGeneration() {
                                         )})}
                                         
                                         {parseScript(result.options?.[selectedOptionIndex]?.content || '').length === 0 && (
-                                             <div className="p-4 text-center text-gray-500 text-sm">
+                                             <div className="p-4 text-center text-text-tertiary text-sm">
                                                  脚本格式解析失败，显示原始文本：
-                                                 <pre className="mt-2 whitespace-pre-wrap text-left bg-gray-50 p-2 rounded text-xs">{result.options?.[selectedOptionIndex]?.content}</pre>
+                                                 <pre className="mt-2 whitespace-pre-wrap text-left bg-surface-muted p-2 rounded text-xs">{result.options?.[selectedOptionIndex]?.content}</pre>
                                              </div>
                                         )}
                                     </div>
                                 ) : (
-                                    <div className="prose prose-sm max-w-none text-gray-700 whitespace-pre-wrap">
+                                    <div className="prose prose-sm max-w-none text-text-secondary whitespace-pre-wrap">
                                         {result.options?.[selectedOptionIndex]?.content || '生成的内容为空 (No content generated)'}
                                     </div>
                                 )
@@ -1074,14 +1093,14 @@ export default function ContentGeneration() {
                     {/* Tags */}
                     <div>
                         <div className="flex justify-between items-start mb-2">
-                        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">标签</span>
-                        <button onClick={() => copyToClipboard((result.tags || []).map(t => `#${t}`).join(' '))} className="text-indigo-600 hover:text-indigo-800 text-xs flex items-center">
+                        <span className="text-xs font-semibold text-text-tertiary uppercase tracking-wider">标签</span>
+                        <button onClick={() => copyToClipboard((result.tags || []).map(t => `#${t}`).join(' '))} className="text-primary hover:text-primary-hover text-xs flex items-center">
                             <Copy size={12} className="mr-1" /> 复制
                         </button>
                         </div>
                         <div className="flex flex-wrap gap-2">
                         {(result.tags || []).map((tag, idx) => (
-                            <span key={idx} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-800">
+                            <span key={idx} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-subtle text-primary">
                             #{tag}
                             </span>
                         ))}
@@ -1090,7 +1109,7 @@ export default function ContentGeneration() {
 
                     {/* Card Generator (Moved to Bottom) - Only show if no AI images are generated */}
                     {contentType === 'note' && !generatedImages.some(img => img.url) && (
-                        <div className="pt-6 border-t border-gray-100">
+                        <div className="pt-6 border-t border-border">
                             <CardGenerator 
                                 ref={cardGeneratorRef}
                                 title={result.title}
@@ -1103,9 +1122,9 @@ export default function ContentGeneration() {
 
                     {/* Publish Action */}
                     {contentType !== 'video_script' && (
-                        <div className="pt-4 border-t border-gray-100">
+                        <div className="pt-4 border-t border-border">
                             {publishStatus && (
-                            <div className={`mb-4 p-3 rounded-md text-sm ${publishStatus.includes('中断') || publishStatus.includes('失败') ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-blue-700'}`}>
+                            <div className={`mb-4 p-3 rounded-md text-sm ${publishStatus.includes('中断') || publishStatus.includes('失败') ? 'bg-danger-subtle text-danger' : 'bg-primary-subtle text-primary'}`}>
                                 {publishStatus}
                             </div>
                             )}
@@ -1114,7 +1133,7 @@ export default function ContentGeneration() {
                             <button
                                 onClick={handleSaveDraft}
                                 disabled={isSaving || isPublishing}
-                                className={`flex-1 flex justify-center items-center py-3 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors
+                                className={`flex-1 flex justify-center items-center py-3 px-4 border border-strong rounded-md shadow-sm text-sm font-medium text-text-secondary bg-surface hover:bg-surface-muted transition-colors
                                 ${isSaving ? 'opacity-75 cursor-not-allowed' : ''}
                                 `}
                             >
@@ -1127,23 +1146,23 @@ export default function ContentGeneration() {
                             </button>
                             
                             <div className="flex items-center justify-end space-x-4">
-                                <label className="flex items-center space-x-2 text-sm text-gray-600 cursor-pointer select-none">
+                                <label className="flex items-center space-x-2 text-sm text-text-secondary cursor-pointer select-none">
                                     <input 
                                         type="checkbox" 
                                         checked={autoPublish} 
                                         onChange={(e) => setAutoPublish(e.target.checked)}
-                                        className="form-checkbox h-4 w-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500 transition duration-150 ease-in-out"
+                                        className="form-checkbox h-4 w-4 text-primary rounded border-strong focus:ring-primary transition duration-150 ease-in-out"
                                     />
                                     <span>自动点击发布</span>
                                 </label>
                                 
                                 <div className="flex items-center space-x-2">
-                                    <Calendar size={16} className="text-gray-500" />
+                                    <Calendar size={16} className="text-text-tertiary" />
                                     <input 
                                         type="datetime-local"
                                         value={scheduledTime}
                                         onChange={(e) => setScheduledTime(e.target.value)}
-                                        className="text-xs border border-gray-300 rounded p-1 text-gray-600 focus:ring-indigo-500 focus:border-indigo-500"
+                                        className="text-xs border border-strong rounded p-1 text-text-secondary focus:ring-primary focus:border-primary"
                                         placeholder="定时发布"
                                     />
                                 </div>
@@ -1152,8 +1171,8 @@ export default function ContentGeneration() {
                             <button
                                 onClick={handlePublish}
                                 disabled={isPublishing}
-                                className={`flex-[2] flex justify-center items-center py-3 px-4 rounded-md shadow-sm text-sm font-medium text-white transition-colors
-                                ${isPublishing ? 'bg-red-400 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'}
+                                className={`flex-[2] flex justify-center items-center py-3 px-4 rounded-md shadow-sm text-sm font-medium text-primary-text transition-colors
+                                ${isPublishing ? 'bg-danger cursor-not-allowed' : 'bg-danger hover:bg-danger'}
                                 `}
                             >
                                 {isPublishing ? (
@@ -1169,9 +1188,9 @@ export default function ContentGeneration() {
                                 )}
                             </button>
                             </div>
-                            <p className="mt-2 text-xs text-center text-gray-500">
+                            <p className="mt-2 text-xs text-center text-text-tertiary">
                             * {autoPublish ? '系统将自动上传并发布，请勿操作鼠标' : '将自动打开浏览器并填入文案，请手动点击发布'}
-                            {scheduledTime && <span className="text-indigo-600 font-medium ml-2"> (将于 {new Date(scheduledTime).toLocaleString()} 执行)</span>}
+                            {scheduledTime && <span className="text-primary font-medium ml-2"> (将于 {new Date(scheduledTime).toLocaleString()} 执行)</span>}
                             </p>
                         </div>
                     )}
@@ -1179,9 +1198,9 @@ export default function ContentGeneration() {
                     )}
                 </div>
                 ) : (
-                <div className="h-full min-h-[400px] flex flex-col items-center justify-center text-gray-400 p-8 border-2 border-dashed border-gray-200 rounded-lg bg-gray-50/50">
-                    <Sparkles size={48} className="mb-4 text-gray-300" />
-                    <p className="text-center text-gray-500">
+                <div className="h-full min-h-[400px] flex flex-col items-center justify-center text-text-tertiary p-8 border-2 border-dashed border-border rounded-lg bg-surface-muted/50">
+                    <Sparkles size={48} className="mb-4 text-text-tertiary" />
+                    <p className="text-center text-text-tertiary">
                     {loading 
                         ? 'AI 正在分析人设并生成文案...\n这通常需要 10-20 秒' 
                         : activeTab === 'note' 
@@ -1197,12 +1216,12 @@ export default function ContentGeneration() {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                {/* Left: Tips Sidebar */}
                <div className="lg:col-span-3 space-y-4">
-                  <div className="bg-gradient-to-br from-pink-50 to-purple-50 p-4 rounded-lg border border-pink-100">
-                    <h3 className="text-sm font-bold text-pink-800 flex items-center mb-3">
+                  <div className="bg-gradient-to-br from-primary-subtle to-primary-subtle p-4 rounded-lg border border-primary-subtle">
+                    <h3 className="text-sm font-bold text-primary-hover flex items-center mb-3">
                       <Film size={16} className="mr-2" />
                       视频生成技巧
                     </h3>
-                    <div className="space-y-2 text-xs text-pink-700">
+                    <div className="space-y-2 text-xs text-primary-hover">
                       <p><strong>文生视频：</strong>详细描述场景、动作、光影效果</p>
                       <p><strong>图生视频：</strong>上传参考图，描述如何让图片动起来</p>
                       <p><strong>提示词优化：</strong>使用 AI 优化按钮转换为英文，效果更好</p>
@@ -1213,10 +1232,10 @@ export default function ContentGeneration() {
                {/* Right: Main Content */}
                <div className="lg:col-span-9 space-y-4">
                   {/* Configuration Form */}
-                  <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
-                    <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-pink-50/50 to-purple-50/50">
-                      <h3 className="font-semibold text-gray-800 flex items-center">
-                        <Film size={18} className="mr-2 text-pink-600" />
+                  <div className="bg-surface rounded-lg shadow-sm border border-border overflow-hidden">
+                    <div className="px-6 py-4 border-b border-border bg-gradient-to-r from-primary-subtle/50 to-surface-muted/50">
+                      <h3 className="font-semibold text-text flex items-center">
+                        <Film size={18} className="mr-2 text-primary" />
                         视频创作配置
                       </h3>
                     </div>
@@ -1238,11 +1257,11 @@ export default function ContentGeneration() {
                   
                   {/* Result Section - Full width card */}
                   {currentVideoSession ? (
-                       <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
+                       <div className="bg-surface rounded-lg shadow-sm border border-border overflow-hidden">
                           <div className="p-6 space-y-6">
                               {/* History Header */}
-                              <div className="flex justify-between items-center border-b border-gray-100 pb-4">
-                                   <div className="flex items-center text-sm text-gray-500">
+                              <div className="flex justify-between items-center border-b border-border pb-4">
+                                   <div className="flex items-center text-sm text-text-tertiary">
                                        <History size={16} className="mr-2" />
                                        <span>视频记录</span>
                                    </div>
@@ -1250,17 +1269,17 @@ export default function ContentGeneration() {
                                        <button 
                                            onClick={() => setCurrentVideoIndex(prev => Math.max(0, prev - 1))}
                                            disabled={currentVideoIndex <= 0}
-                                           className="p-1 rounded-full hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed"
+                                           className="p-1 rounded-full hover:bg-surface-muted disabled:opacity-30 disabled:cursor-not-allowed"
                                        >
                                            <ChevronLeft size={20} />
                                        </button>
-                                       <span className="text-sm font-medium text-gray-700">
+                                       <span className="text-sm font-medium text-text-secondary">
                                            {currentVideoIndex + 1} / {videoHistory.length}
                                        </span>
                                        <button 
                                            onClick={() => setCurrentVideoIndex(prev => Math.min(videoHistory.length - 1, prev + 1))}
                                            disabled={currentVideoIndex >= videoHistory.length - 1}
-                                           className="p-1 rounded-full hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed"
+                                           className="p-1 rounded-full hover:bg-surface-muted disabled:opacity-30 disabled:cursor-not-allowed"
                                        >
                                            <ChevronRight size={20} />
                                        </button>
@@ -1272,41 +1291,41 @@ export default function ContentGeneration() {
                                   {currentVideoSession.videoUrl ? (
                                       <video controls className="w-full h-full" src={currentVideoSession.videoUrl} />
                                   ) : (
-                                      <div className="text-white text-center">
+                                      <div className="text-primary-text text-center">
                                           {currentVideoSession.status === 'FAILED' ? (
-                                              <div className="text-red-400 flex flex-col items-center">
-                                                  <span className="mb-2 text-2xl">❌</span>
+                                              <div className="text-danger flex flex-col items-center">
+                                                  <AlertCircle size={32} className="mb-2" />
                                                   生成失败: {currentVideoSession.error}
                                               </div>
                                           ) : (
                                               <>
-                                                  <Loader2 className="animate-spin mx-auto mb-4 text-indigo-400" size={32} />
+                                                  <Loader2 className="animate-spin mx-auto mb-4 text-primary" size={32} />
                                                   <p className="font-medium text-lg">AI 正在绘制视频...</p>
-                                                  <p className="text-sm text-gray-400 mt-2">预计耗时 2-5 分钟</p>
-                                                  <p className="text-xs text-gray-500 mt-1">Wan2.6 模型正在计算光影与动态</p>
+                                                  <p className="text-sm text-text-tertiary mt-2">预计耗时 2-5 分钟</p>
+                                                  <p className="text-xs text-text-tertiary mt-1">Wan2.6 模型正在计算光影与动态</p>
                                               </>
                                           )}
                                       </div>
                                   )}
                               </div>
                               {/* Prompt Display */}
-                              <div className="bg-gray-50 p-4 rounded-md">
-                                  <h3 className="text-sm font-semibold text-gray-700 mb-1">提示词:</h3>
-                                  <p className="text-gray-600 text-sm">{currentVideoSession.prompt}</p>
+                              <div className="bg-surface-muted p-4 rounded-md">
+                                  <h3 className="text-sm font-semibold text-text-secondary mb-1">提示词:</h3>
+                                  <p className="text-text-secondary text-sm">{currentVideoSession.prompt}</p>
                                   {currentVideoSession.imageUrl && (
                                       <div className="mt-3">
-                                          <h3 className="text-sm font-semibold text-gray-700 mb-1">参考原图:</h3>
-                                          <img src={currentVideoSession.imageUrl} className="h-20 rounded border border-gray-200" alt="Ref" />
+                                          <h3 className="text-sm font-semibold text-text-secondary mb-1">参考原图:</h3>
+                                          <img src={currentVideoSession.imageUrl} className="h-20 rounded border border-border" alt="Ref" />
                                       </div>
                                   )}
                               </div>
                           </div>
                        </div>
                    ) : (
-                       <div className="h-full min-h-[400px] flex flex-col items-center justify-center text-gray-400 p-8 border-2 border-dashed border-gray-200 rounded-lg bg-gray-50/50">
-                          <Film size={48} className="mb-4 text-gray-300" />
-                          <h3 className="text-lg font-medium text-gray-600 mb-2">AI 视频创作</h3>
-                          <p className="text-center text-gray-500 max-w-md">
+                       <div className="h-full min-h-[400px] flex flex-col items-center justify-center text-text-tertiary p-8 border-2 border-dashed border-border rounded-lg bg-surface-muted/50">
+                          <Film size={48} className="mb-4 text-text-tertiary" />
+                          <h3 className="text-lg font-medium text-text-secondary mb-2">AI 视频创作</h3>
+                          <p className="text-center text-text-tertiary max-w-md">
                              选择"文生视频"或"图生视频"，让 AI 为您生成 5 秒的高清动态视频。<br/>
                              支持中文提示词，适合制作笔记首图或动态背景。
                           </p>
@@ -1320,32 +1339,32 @@ export default function ContentGeneration() {
       {/* Structure Modal */}
       {showStructureModal && remixStructure && (
           <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-              <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[80vh] overflow-y-auto">
+              <div className="bg-surface rounded-lg shadow-xl max-w-lg w-full max-h-[80vh] overflow-y-auto">
                   <div className="p-6">
                       <div className="flex justify-between items-start mb-4">
-                          <h3 className="text-lg font-bold text-gray-900 flex items-center">
-                              <Sparkles className="mr-2 text-indigo-600" size={20} />
+                          <h3 className="text-lg font-bold text-text flex items-center">
+                              <Sparkles className="mr-2 text-primary" size={20} />
                               爆款结构详情
                           </h3>
-                          <button onClick={() => setShowStructureModal(false)} className="text-gray-400 hover:text-gray-600">
+                          <button onClick={() => setShowStructureModal(false)} className="text-text-tertiary hover:text-text-secondary">
                               <X size={20} />
                           </button>
                       </div>
                       
                       <div className="space-y-4">
-                          <div className="bg-indigo-50 p-3 rounded-md border border-indigo-100">
-                              <p className="text-xs text-indigo-800 mb-1 font-bold">AI 指令状态：</p>
-                              <p className="text-sm text-indigo-700">
+                          <div className="bg-primary-subtle p-3 rounded-md border border-primary-subtle">
+                              <p className="text-xs text-primary mb-1 font-bold">AI 指令状态：</p>
+                              <p className="text-sm text-primary">
                                   已注入系统提示词。AI 将严格遵循以下结构生成内容，而不仅仅是参考标题。
                               </p>
                           </div>
 
                           {remixStructure.visual_analysis && (
-                              <div className="bg-purple-50 p-3 rounded-md border border-purple-100">
-                                  <h4 className="text-sm font-bold text-purple-900 mb-1 flex items-center">
+                              <div className="bg-primary-subtle p-3 rounded-md border border-primary-subtle">
+                                  <h4 className="text-sm font-bold text-primary mb-1 flex items-center">
                                       <Video size={14} className="mr-1"/> 视觉/分镜分析
                                   </h4>
-                                  <div className="text-xs text-purple-800 max-h-32 overflow-y-auto whitespace-pre-wrap">
+                                  <div className="text-xs text-primary max-h-32 overflow-y-auto whitespace-pre-wrap">
                                       {remixStructure.visual_analysis}
                                   </div>
                               </div>
@@ -1353,30 +1372,30 @@ export default function ContentGeneration() {
 
                           {/* Image Analysis Display (For Note Mode) */}
                           {remixStructure.note_type !== 'video' && remixStructure.visual_analysis && (
-                               <div className="bg-blue-50 p-3 rounded-md border border-blue-100 mt-2">
-                                  <h4 className="text-sm font-bold text-blue-900 mb-1 flex items-center">
+                               <div className="bg-primary-subtle p-3 rounded-md border border-primary-subtle mt-2">
+                                  <h4 className="text-sm font-bold text-primary mb-1 flex items-center">
                                       <ImageIcon size={14} className="mr-1"/> 配图视觉分析
                                   </h4>
-                                  <div className="text-xs text-blue-800 max-h-32 overflow-y-auto whitespace-pre-wrap">
+                                  <div className="text-xs text-primary max-h-32 overflow-y-auto whitespace-pre-wrap">
                                       {remixStructure.visual_analysis}
                                   </div>
                               </div>
                           )}
 
                           <div className="grid grid-cols-2 gap-3">
-                              <div className="bg-gray-50 p-3 rounded border border-gray-100">
-                                  <span className="block text-xs text-gray-500 font-bold mb-1">开头钩子</span>
-                                  <span className="text-sm text-gray-800">{remixStructure.hook_type || '通用'}</span>
+                              <div className="bg-surface-muted p-3 rounded border border-border">
+                                  <span className="block text-xs text-text-tertiary font-bold mb-1">开头钩子</span>
+                                  <span className="text-sm text-text">{remixStructure.hook_type || '通用'}</span>
                               </div>
-                              <div className="bg-gray-50 p-3 rounded border border-gray-100">
-                                  <span className="block text-xs text-gray-500 font-bold mb-1">情感基调</span>
-                                  <span className="text-sm text-gray-800">{remixStructure.tone || '默认'}</span>
+                              <div className="bg-surface-muted p-3 rounded border border-border">
+                                  <span className="block text-xs text-text-tertiary font-bold mb-1">情感基调</span>
+                                  <span className="text-sm text-text">{remixStructure.tone || '默认'}</span>
                               </div>
                           </div>
 
-                          <div className="bg-gray-50 p-3 rounded border border-gray-100">
-                              <span className="block text-xs text-gray-500 font-bold mb-2">结构脉络</span>
-                              <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
+                          <div className="bg-surface-muted p-3 rounded border border-border">
+                              <span className="block text-xs text-text-tertiary font-bold mb-2">结构脉络</span>
+                              <ul className="list-disc list-inside text-sm text-text-secondary space-y-1">
                                   {remixStructure.structure_breakdown?.map((s: string, i: number) => (
                                       <li key={i}>{s}</li>
                                   ))}
@@ -1387,7 +1406,7 @@ export default function ContentGeneration() {
                       <div className="mt-6 flex justify-end">
                           <button 
                               onClick={() => setShowStructureModal(false)}
-                              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 text-sm font-medium"
+                              className="px-4 py-2 bg-surface-muted text-text-secondary rounded-md hover:bg-surface-hover text-sm font-medium"
                           >
                               关闭
                           </button>

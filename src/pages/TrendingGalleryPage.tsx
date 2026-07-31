@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
 import TrendingNotesGallery from '../components/TrendingNotesGallery';
 import HotTrends from '../components/HotTrends';
 import { useNavigate, useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { LayoutGrid, TrendingUp } from 'lucide-react';
+import { useState, useEffect } from "react";
 
 export default function TrendingGalleryPage({ defaultTab = 'gallery' }: { defaultTab?: string }) {
     const navigate = useNavigate();
@@ -37,22 +37,22 @@ export default function TrendingGalleryPage({ defaultTab = 'gallery' }: { defaul
     return (
         <div className="space-y-6">
             <div className="flex flex-col gap-2">
-                <h1 className="text-2xl font-bold text-gray-900">爆款内容库</h1>
-                <p className="text-gray-500">
+                <h1 className="text-2xl font-bold text-text">爆款内容库</h1>
+                <p className="text-text-tertiary">
                     一站式发现全网热点与爆款，智能拆解结构助力创作。
                 </p>
             </div>
 
             {/* Top Level Tabs */}
-            <div className="border-b border-gray-200">
+            <div className="border-b border-border">
                 <nav className="-mb-px flex space-x-8" aria-label="Tabs">
                     <button
                         onClick={() => handleTabChange('gallery')}
                         className={`
                             whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center
                             ${activeTab === 'gallery'
-                                ? 'border-indigo-500 text-indigo-600'
-                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
+                                ? 'border-primary text-primary'
+                                : 'border-transparent text-text-tertiary hover:text-text-secondary hover:border-strong'}
                         `}
                     >
                         <LayoutGrid className="mr-2 h-5 w-5" />
@@ -63,8 +63,8 @@ export default function TrendingGalleryPage({ defaultTab = 'gallery' }: { defaul
                         className={`
                             whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center
                             ${activeTab === 'trends'
-                                ? 'border-indigo-500 text-indigo-600'
-                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
+                                ? 'border-primary text-primary'
+                                : 'border-transparent text-text-tertiary hover:text-text-secondary hover:border-strong'}
                         `}
                     >
                         <TrendingUp className="mr-2 h-5 w-5" />

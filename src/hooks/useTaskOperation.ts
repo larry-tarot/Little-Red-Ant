@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import axios from 'axios';
+import axios from '@/lib/axios';
 import toast from 'react-hot-toast';
 
 interface UseTaskOperationOptions {
@@ -99,7 +99,6 @@ export function useTaskOperation({
             }
         } catch (error: any) {
             setLoading(false);
-            console.error('Task trigger failed:', error);
             toast.error(error.message || '请求失败', { id: toastId });
             onError?.(error);
         }
