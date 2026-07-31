@@ -1,7 +1,31 @@
 # 小红蚁 (Little Red Ant) - 架构文档
 
-> 最后更新: 2026-07-27
-> 版本: 4.1
+> 最后更新: 2026-07-31
+> 版本: 4.2
+
+## 2026-07-31 本轮重构要点
+
+本轮完成以下 4 个维度的架构演进：
+
+### 1. 前后端共享 Zod Schema
+- 新建 `shared/schemas/index.ts`，集中所有请求/参数/响应 Schema
+- 后端 `api/schemas/index.ts` 改为 re-export，路由通过 `validateBody` / `validateParams` / `validateQuery` 统一接入
+- 前端通过 `tsconfig` 的 `@shared/*` 路径别名复用类型
+- 已迁移 15 个有参数路由（`drafts` / `notes` / `assets` / `comments` / `compliance` / `config` / `niche` / `notifications` / `optimizations` / `prompts` / `settings` / `trends` / `trending_notes` / `user` / `video_projects`）
+
+### 2. 统一列表数据 Hook
+- `src/hooks/useListData.ts` 抽象服务端/客户端分页、筛选、加载、错误处理、乐观更新、请求取消
+- 已迁移 `NoteManagement` / `VideoProjectList` / `AssetsLibrary` / `Drafts`（前端用 client 模式 + 筛选函数）
+
+### 3. CI/CD 稳定性
+- 新增 `scripts/ci.mjs` 串接 ESLint / TypeScript / 单测 / 前端测试 / 生产构建 / 生产 E2E
+- `ux-flows.mjs` 增加 `apiSeedFailedTask` 预置失败任务，移除对真实 RPA 失败时机的依赖
+- `ux-flows.mjs` 在断言失败或页面异常时返回非零退出码
+- GitHub Actions：Node 锁定 20.13.1，E2E 跑生产构建，补充 Linux WebKit2GTK 依赖
+
+### 4. 自定义 Hooks 收敛
+- `useAnalytics` / `useCompetitors` 抽取数据请求与状态逻辑
+- 业务页面通过 hooks 复用，避免重复样板代码
 
 ## 技术栈
 

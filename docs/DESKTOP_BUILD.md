@@ -1,6 +1,6 @@
 # 小红蚁桌面版(Tauri 2)构建指南
 
-> 最后更新: 2026-07-24
+> 最后更新: 2026-07-31
 
 本文档面向**贡献者**,介绍如何在本地或 CI 打包小红蚁桌面版。
 
@@ -9,14 +9,20 @@
 桌面版用 **Tauri 2** + **Node sidecar** 模式:
 
 ```
-xiaohongyi.exe (Rust 主进程, ~105MB)
-  └─ 启动 xiaohongyi-backend.exe (Node sidecar, ~82MB)
+xiaohongyi.exe (Rust 主进程)
+  └─ 启动 xiaohongyi-backend-<TRIPLE>.exe (Node sidecar, ~66 MB)
         └─ Express on 127.0.0.1:14753
               ├─ /api/*     (业务 API)
               └─ /*         (serve dist/, SPA fallback)
 ```
 
 WebView 加载 `http://localhost:14753`,与后端完全同源(生产模式)。
+
+## 2026-07-31 本轮更新
+
+- sidecar 二进制大小从 ~82 MB 缩减到 ~66 MB(同步 2026-07 依赖裁剪)
+- Node 版本锁定 20.13.1(与 `.nvmrc` 对齐),本地与 CI 统一
+- `.github/workflows/ci.yml` 的 `desktop-build` job 已补齐 Linux `libwebkit2gtk-4.1-dev` 等系统依赖
 
 ## 前置依赖
 
