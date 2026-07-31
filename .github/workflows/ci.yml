@@ -17,7 +17,7 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '20'
+        node-version: '20.13.1'
         cache: 'npm'
 
     - name: Install dependencies
@@ -44,25 +44,20 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '20.13.1'
           cache: 'npm'
       - name: Install dependencies
         run: npm ci
       - name: Install Playwright browsers
         run: npx playwright install chromium
-      - name: Start servers & run E2E tests
-        run: |
-          npx tsx api/server.ts &
-          sleep 8
-          npm run client:dev &
-          sleep 8
-          node tests/e2e/verify.mjs
+      - name: Run E2E tests against production build
+        run: npm run test:e2e:prod
 
   docker-build:
     needs: build-and-test
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -85,3 +80,61 @@ jobs:
         tags: little-red-ant:latest
         cache-from: type=gha
         cache-to: type=gha,mode=max
+
+  # Tauri 2 桌面版三平台构建矩阵
+  # 产物:Windows .exe / macOS .dmg / Linux .deb + .AppImage
+  desktop-build:
+    needs: build-and-test
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    name: desktop-build (${{ matrix.os }})
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.13.1'
+        cache: 'npm'
+
+    - name: Setup Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Cache Cargo
+      uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: ./src-tauri -> target
+
+    - name: Install Linux build deps (webkit2gtk)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential file wget libappindicator3-dev librsvg2-dev
+
+    - name: Add macOS targets
+      if: matrix.os == 'macos-latest'
+      run: |
+        rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
+    - name: Install npm dependencies
+      run: npm ci
+
+    - name: Build Tauri desktop installer
+      run: npm run tauri:build
+
+    - name: Upload installer artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: xiaohongyi-${{ matrix.os }}
+        path: |
+          src-tauri/target/release/bundle/**/*.exe
+          src-tauri/target/release/bundle/**/*.dmg
+          src-tauri/target/release/bundle/**/*.deb
+          src-tauri/target/release/bundle/**/*.AppImage
+        if-no-files-found: warn
+        retention-days: 14
