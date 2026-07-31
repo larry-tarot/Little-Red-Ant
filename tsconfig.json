@@ -42,5 +42,8 @@
     "shared",
     "scripts",
     "tests"
+  ],
+  "exclude": [
+    "scripts/_archive"
   ]
 }

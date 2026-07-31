@@ -496,7 +496,11 @@ export default function Home() {
                     <p className="text-xs text-text-tertiary mt-1">数据来源：{timeRange === '7d' ? '过去7天' : '过去30天'}每日统计</p>
                 </div>
             </div>
-            <div className="h-[300px] w-full">
+            {/* 
+               LEARN: key 包含 chartMetric+timeRange 强制 Recharts 卸载重建
+               否则切换指标时 dataKey 变化但 data 引用不变，动画不会重播 
+            */}
+            <div className="h-[300px] w-full" key={`chart-${chartMetric}-${timeRange}`}>
                 <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                         <defs>
@@ -528,6 +532,9 @@ export default function Home() {
                             stroke="var(--primary)"
                             strokeWidth={3}
                             fill="url(#colorValue)"
+                            isAnimationActive={true}
+                            animationDuration={800}
+                            dot={false}
                             activeDot={{ r: 6, strokeWidth: 0, fill: 'var(--primary)' }}
                         />
                     </AreaChart>

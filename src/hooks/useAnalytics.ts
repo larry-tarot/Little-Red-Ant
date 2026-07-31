@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import axios from '@/lib/axios';
 import { toast } from 'react-hot-toast';
+import { format } from 'date-fns';
 import type { SummaryStats, NoteStat, EngagementStats, PaginationState } from '../components/analytics/types';
 import { getFriendlyError, extractAxiosErrorMessage } from '../utils/ErrorMessages';
 
@@ -50,6 +51,8 @@ export function useAnalytics() {
             if (Array.isArray(historyRes.data)) {
                 const normalized = historyRes.data.map((item: any) => ({
                     ...item,
+                    // 日期统一转为 MM-dd 格式，避免 X 轴标签过长
+                    date: format(new Date(item.date), 'MM-dd'),
                     interaction: item.interaction ?? (item.likes + item.comments + item.collects)
                 }));
                 setChartData(normalized);
