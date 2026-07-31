@@ -5,9 +5,8 @@
   "identifier": "com.magicCzc.xiaohongyi",
   "build": {
     "frontendDist": "../dist",
-    "devUrl": "http://localhost:3001",
-    "beforeDevCommand": "node scripts/sync-tauri-resources.mjs && npm run dev",
-    "beforeBuildCommand": "node scripts/sync-tauri-resources.mjs && npm run build:frontend && npm run build:api"
+    "beforeDevCommand": "npm run client:dev",
+    "beforeBuildCommand": "node scripts/sync-tauri-resources.mjs"
   },
   "app": {
     "windows": [
@@ -20,13 +19,14 @@
         "minHeight": 640,
         "resizable": true,
         "fullscreen": false,
-        "decorations": true,
+        "decorations": false,
         "transparent": false,
-        "center": true
+        "center": true,
+        "devtools": true
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; connect-src 'self' http://127.0.0.1:14753 http://localhost:14753 http://localhost:5173; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; media-src 'self'"
     }
   },
   "bundle": {
@@ -35,13 +35,19 @@
       "nsis"
     ],
     "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
       "icons/icon.ico"
     ],
     "externalBin": [
       "binaries/xiaohongyi-backend"
     ],
     "resources": {
-      "resources/api-dist": "api-dist"
+      "resources/api-dist": "api-dist",
+      "resources/node_modules": "node_modules",
+      "resources/.env.example": ".env.example"
     },
     "copyright": "Copyright © 2026 magicCzc",
     "category": "Productivity",
@@ -60,6 +66,16 @@
       "webviewInstallMode": {
         "type": "downloadBootstrapper"
       }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "active": true,
+      "endpoints": [
+        "https://releases.xiaohongyi.example.com/update/{{target}}-{{arch}}/{{current_version}}"
+      ],
+      "dialog": true,
+      "pubkey": ""
     }
   }
 }
