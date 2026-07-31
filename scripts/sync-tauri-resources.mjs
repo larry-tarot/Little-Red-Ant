@@ -34,14 +34,44 @@ const externalList = match[1]
   .map(l => l.trim().replace(/^['"]|['"],?$/g, '').replace(/,\s*$/, ''))
   .filter(l => l && !l.startsWith('//'));
 
+// 前端专用包,后端 sidecar 不需要,排除以减小资源体积
+const SKIP_PKGS = new Set([
+  'react', 'react-dom', 'react-router-dom', 'react-hot-toast',
+  'lucide-react', 'recharts', 'clsx', 'tailwind-merge', 'html2canvas',
+  '@testing-library/jest-dom', '@testing-library/react', '@testing-library/user-event',
+  'vite', 'vitest', '@vitejs/plugin-react', 'esbuild', 'eslint',
+  'typescript', 'tsx', 'postcss', 'autoprefixer', 'tailwindcss',
+  'concurrently', 'nodemon', 'wait-on', 'cross-env',
+  'happy-dom', 'globals', 'babel-plugin-react-dev-locator',
+  'vite-tsconfig-paths', 'rollup', '@rollup/plugin-commonjs',
+  // playwright 用于 RPA,但 RPA 需要浏览器二进制,sidecar 中无法运行
+  // 桌面版通过 sidecar 只提供 API 服务,RPA 操作需在 Web 版或有浏览器的环境中执行
+  'playwright', 'playwright-core', 'playwright-extra',
+  'puppeteer-extra-plugin-stealth', 'ghost-cursor',
+]);
+
 console.log(`📦 [tauri-resources] 同步 ${externalList.length} 个 EXTERNAL 包到 src-tauri/resources/node_modules/`);
+console.log(`   (跳过 ${SKIP_PKGS.size} 个前端专用包)`);
 await mkdir(OUT_DIR, { recursive: true });
 
+// 清理 resources 中不再需要的旧包(从旧构建残留的)
+console.log(`🧹 [tauri-resources] 清理旧包...`);
+if (existsSync(OUT_DIR)) {
+  const existing = await readdir(OUT_DIR);
+  for (const pkg of existing) {
+    if (SKIP_PKGS.has(pkg) || pkg.startsWith('@types/') || pkg.startsWith('@testing-library/')) {
+      const pkgPath = path.join(OUT_DIR, pkg);
+      console.log(`   🗑️  ${pkg} (旧包,删除)`);
+      await rm(pkgPath, { recursive: true, force: true }).catch(() => {});
+    }
+  }
+}
+
 // 同步 api-dist 源文件
-// 注意:db/ 已经被 esbuild bundle 进 server.mjs,public/temp 是运行时在 userData 下的目录
-console.log(`📦 [tauri-resources] 同步 api-dist/server.mjs + package.json`);
+// 注意:db/ 已经被 esbuild bundle 进 server.cjs,public/temp 是运行时在 userData 下的目录
+console.log(`📦 [tauri-resources] 同步 api-dist/server.cjs + package.json`);
 await mkdir(OUT_API_DIST, { recursive: true });
-for (const f of ['server.mjs', 'package.json']) {
+for (const f of ['server.cjs', 'server.mjs', 'package.json']) {
   const src = path.join(API_DIST, f);
   const dest = path.join(OUT_API_DIST, f);
   if (!existsSync(src)) {
@@ -55,7 +85,23 @@ for (const f of ['server.mjs', 'package.json']) {
   console.log(`   📁 api-dist/${f}`);
 }
 
+// 同步 .env.example 到 resources/(供 Tauri 打包后 first-run 复制到 userData)
+const ENV_EXAMPLE_SRC = path.join(ROOT, '.env.example');
+const ENV_EXAMPLE_DEST = path.join(ROOT, 'src-tauri', 'resources', '.env.example');
+if (existsSync(ENV_EXAMPLE_SRC)) {
+  await copyFile(ENV_EXAMPLE_SRC, ENV_EXAMPLE_DEST);
+  console.log(`   📁 .env.example → resources/.env.example`);
+} else {
+  console.log(`   ⚠️  .env.example 不存在,跳过`);
+}
+
 for (const pkg of externalList) {
+  // 跳过前端专用包,减小资源体积
+  if (SKIP_PKGS.has(pkg) || pkg.startsWith('@types/') || pkg.startsWith('@testing-library/')) {
+    console.log(`   ⏭️  ${pkg} (前端专用,跳过)`);
+    continue;
+  }
+
   let srcPkg;
   let destPkg;
   if (pkg.startsWith('@')) {

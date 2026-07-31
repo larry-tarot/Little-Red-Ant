@@ -86,6 +86,8 @@ temp/
 *.sqlite-journal
 public/uploads/assets/
 public/outputs/
+# 动态登录二维码 (运行时生成,不入 git)
+public/qr-codes/
 
 # Debug & Development
 debug/

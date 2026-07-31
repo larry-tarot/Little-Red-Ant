@@ -1,9 +1,9 @@
 /**
- * 生成小红蚁桌面版所需的图标资源
- *  - resources/icon.png      256x256 应用图标
- *  - resources/tray-icon.png 32x32 托盘图标
- *  - resources/icon.ico      Windows 多尺寸 ICO(16/32/48/64/128/256)
- *  - resources/installer-sidebar.bmp  NSIS 安装包左侧 164x314 BMP
+ * 生成小红蚁桌面版所需的图标资源(两套位置)
+ *  - src-tauri/icons/     Tauri 2 跨平台打包(图标文件命名固定)
+ *      - 32x32.png, 128x128.png, 128x128@2x.png, icon.icns, icon.ico, icon.png
+ *  - resources/           项目内部使用
+ *      - icon.png(256x256), tray-icon.png(32x32), icon.ico, installer-sidebar.bmp
  *
  * 不依赖 sharp/canvas 等重型库,手写 PNG/ICO 编码。
  * 主色:小红书红(#FF2442) + 紫色渐变
@@ -16,8 +16,12 @@ import zlib from 'node:zlib';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const OUT = path.resolve(__dirname, '..', 'resources');
-if (!existsSync(OUT)) await mkdir(OUT, { recursive: true });
+const ROOT = path.resolve(__dirname, '..');
+const TAURI_ICONS = path.join(ROOT, 'src-tauri', 'icons');
+const RESOURCES_ICONS = path.join(ROOT, 'resources');
+for (const dir of [TAURI_ICONS, RESOURCES_ICONS]) {
+  if (!existsSync(dir)) await mkdir(dir, { recursive: true });
+}
 
 // 配色:渐变紫红
 const COLORS = {
@@ -285,6 +289,29 @@ function encodeBMP(img) {
   return buf;
 }
 
+// =============== ICNS 编码(macOS) ===============
+// Tauri 2 接受最简 ICNS 容器,只装一个 icp4(16x16 PNG)+ icp5(32x32)+ icp6(64x64)+ ic07(128x128)+ ic08(256x256)+ ic09(512x512)+ ic10(1024x1024)
+// 实际 Tauri 2 只用 icon.icns 路径,内容可以是 PNG-based ICNS,我们用最简 ic08(256x256) 单图格式
+function encodeICNS(png256) {
+  // 1. ic08 块:256x256 PNG
+  const ic08Type = Buffer.from('ic08', 'ascii');
+  const ic08Size = Buffer.alloc(4);
+  ic08Size.writeUInt32BE(8 + png256.length, 0);
+  const ic08 = Buffer.concat([ic08Type, ic08Size, png256]);
+  // 2. info 块
+  const infoType = Buffer.from('info', 'ascii');
+  const infoData = Buffer.alloc(4);
+  infoData.writeUInt32BE(0, 0); // 高度/宽度都是 256
+  const infoSize = Buffer.alloc(4);
+  infoSize.writeUInt32BE(8 + infoData.length, 0);
+  const info = Buffer.concat([infoType, infoSize, infoData]);
+  // 3. 总容器
+  const icnsType = Buffer.from('icns', 'ascii');
+  const totalSize = Buffer.alloc(4);
+  totalSize.writeUInt32BE(8 + info.length + ic08.length, 0);
+  return Buffer.concat([icnsType, totalSize, info, ic08]);
+}
+
 // =============== 渲染 + 写盘 ===============
 console.log('🎨 生成图标...');
 
@@ -292,13 +319,25 @@ const sizes = [16, 32, 48, 64, 128, 256];
 const icoImages = sizes.map(s => ({ size: s, data: encodePNG(renderIcon(s)) }));
 const icoBuf = encodeICO(icoImages);
 
-await writeFile(path.join(OUT, 'icon.png'), encodePNG(renderIcon(256)));
-await writeFile(path.join(OUT, 'tray-icon.png'), encodePNG(renderIcon(32)));
-await writeFile(path.join(OUT, 'icon.ico'), icoBuf);
-await writeFile(path.join(OUT, 'installer-sidebar.bmp'), encodeBMP(renderIcon(164)));
+const png256 = encodePNG(renderIcon(256));
+const png128 = encodePNG(renderIcon(128));
+const png32 = encodePNG(renderIcon(32));
 
-console.log('✅ icon.png      256x256');
-console.log('✅ tray-icon.png 32x32');
-console.log('✅ icon.ico      16/32/48/64/128/256');
-console.log('✅ installer-sidebar.bmp 164x314');
+// Tauri 2 icons(命名固定,跨平台打包需要)
+await writeFile(path.join(TAURI_ICONS, '32x32.png'), png32);
+await writeFile(path.join(TAURI_ICONS, '128x128.png'), png128);
+// 128x128@2x.png = 256x256(2x DPR)
+await writeFile(path.join(TAURI_ICONS, '128x128@2x.png'), png256);
+await writeFile(path.join(TAURI_ICONS, 'icon.ico'), icoBuf);
+await writeFile(path.join(TAURI_ICONS, 'icon.png'), png256);
+await writeFile(path.join(TAURI_ICONS, 'icon.icns'), encodeICNS(png256));
+
+// 项目内部 resources/
+await writeFile(path.join(RESOURCES_ICONS, 'icon.png'), png256);
+await writeFile(path.join(RESOURCES_ICONS, 'tray-icon.png'), png32);
+await writeFile(path.join(RESOURCES_ICONS, 'icon.ico'), icoBuf);
+await writeFile(path.join(RESOURCES_ICONS, 'installer-sidebar.bmp'), encodeBMP(renderIcon(164)));
+
+console.log('✅ src-tauri/icons/32x32.png, 128x128.png, 128x128@2x.png, icon.ico, icon.png, icon.icns');
+console.log('✅ resources/icon.png, tray-icon.png, icon.ico, installer-sidebar.bmp');
 console.log('🎉 完成');

@@ -1,7 +1,5 @@
 
 import { VideoProjectService } from '../api/services/video/VideoProjectService.js';
-import db from '../api/db.js';
-
 try {
     console.log('Testing Database Connection...');
     const projects = VideoProjectService.listProjects();

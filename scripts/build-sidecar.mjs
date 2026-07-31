@@ -9,12 +9,13 @@
  *
  * 关键设计:
  * 1. pkg 会把所有 .js/.mjs 源码 + node_modules 嵌进二进制
- * 2. native 模块(better-sqlite3 / sharp)需要 .node 文件 -- pkg 5.16+ 支持通过 --assets 嵌入
+ * 2. native 模块(better-sqlite3 / sharp)需要 .node 文件 -- pkg 6.x 通过 package.json 的
+ *    pkg.assets 数组指定要嵌入的额外文件(CLI 不再支持 --assets flag)
  * 3. 失败时降级:输出 .bin 文件,告诉用户装 Node
  */
 
 import { execSync } from 'node:child_process';
-import { existsSync, mkdirSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, statSync, writeFileSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -29,8 +30,8 @@ console.log(`   api-dist: ${path.relative(ROOT, API_DIST)}`);
 console.log(`   输出目录: ${path.relative(ROOT, OUT_DIR)}`);
 
 // 1. 前置检查
-if (!existsSync(API_DIST) || !existsSync(path.join(API_DIST, 'server.mjs'))) {
-  console.error('❌ [build-sidecar] 找不到 api-dist/server.mjs');
+if (!existsSync(API_DIST) || !existsSync(path.join(API_DIST, 'server.cjs'))) {
+  console.error('❌ [build-sidecar] 找不到 api-dist/server.cjs');
   console.error('   请先跑: npm run build:api');
   process.exit(1);
 }
@@ -69,37 +70,90 @@ try {
   try {
     pkgBin = execSync('npx --no-install @yao-pkg/pkg --version', { cwd: ROOT, stdio: 'pipe' }).toString().trim();
   } catch {
-    // 没装,临时装
-    console.log('📦 [build-sidecar] 安装 @yao-pkg/pkg...');
-    execSync('npm install --no-save @yao-pkg/pkg@6.21.0', { cwd: ROOT, stdio: 'inherit' });
+    // 没装,根据 Node.js 版本选择兼容的 pkg 版本
+    const nodeMajor = parseInt(process.versions.node, 10);
+    const pkgVersionSpec = nodeMajor >= 22 ? '@yao-pkg/pkg@6.21.0' : '@yao-pkg/pkg@5.16.1';
+    console.log(`📦 [build-sidecar] 安装 ${pkgVersionSpec} (Node ${process.versions.node})...`);
+    execSync(`npm install --no-save ${pkgVersionSpec}`, { cwd: ROOT, stdio: 'inherit' });
   }
 
   console.log(`📦 [build-sidecar] 打包: ${target.pkgTarget}`);
 
-  execSync(
-    [
-      'npx',
-      '--no-install',
-      '@yao-pkg/pkg',
-      '--targets', target.pkgTarget,
-      '--output', outputPath,
-      '--public',
-      '--compress', 'GZip',
-      // 重要:把 .node 文件和必要数据文件嵌入
-      // pkg 默认不抓 .node,需要 --assets 列出
-      '--assets', path.join(API_DIST, '**/*'),
-      '--',
-      path.join(API_DIST, 'server.mjs'),
-    ].join(' '),
-    {
-      stdio: 'inherit',
-      cwd: ROOT,
-      env: {
-        ...process.env,
-        PKG_CACHE_PATH: path.join(ROOT, '.pkg-cache'),
-      },
+  // 检测 pkg 版本,5.x 支持 --assets CLI flag,6.x 必须用 pkg.config.mjs
+  // 当前项目用 5.16.1(支持预编译 base binary,无需 MSVC)
+  const pkgVersion = execSync('npx --no-install @yao-pkg/pkg --version', { cwd: ROOT, stdio: 'pipe' }).toString().trim();
+  const isPkgV6Plus = pkgVersion.startsWith('6.') || pkgVersion.startsWith('7.');
+  console.log(`   pkg 版本: ${pkgVersion} (${isPkgV6Plus ? '6.x,需 config 文件' : '5.x,支持 --assets'})`);
+
+  if (isPkgV6Plus) {
+    // pkg 6.x:使用 --sea 模式(利用 Node.js 的 SEA 特性,无需预编译 base binary)
+    // 注意: --sea 模式要求 Node.js >= 20,且只支持单文件入口
+    // server.cjs 已被 esbuild bundle 成单文件,外部依赖通过 pkg.config.mjs 的 assets 声明嵌入
+    // 显式传入 --config 确保 native .node 文件被正确打包
+    const pkgConfig = path.join(API_DIST, 'pkg.config.mjs');
+    if (!existsSync(pkgConfig)) {
+      throw new Error('找不到 pkg.config.mjs,需要配置 assets 以嵌入 native 模块');
     }
-  );
+    console.log(`   pkg 版本: ${pkgVersion} (6.x+, --sea 模式, config: ${pkgConfig})`);
+    execSync(
+      [
+        'npx', '--no-install', '@yao-pkg/pkg',
+        '--sea',
+        '--compress', 'GZip',
+        '--config', pkgConfig,
+        '--output', outputPath,
+        '--',
+        path.join(API_DIST, 'server.cjs'),
+      ].join(' '),
+      {
+        stdio: 'inherit',
+        cwd: ROOT,
+        env: { ...process.env, PKG_CACHE_PATH: path.join(ROOT, '.pkg-cache') },
+      }
+    );
+  } else {
+    // pkg 5.x: --assets CLI flag 还能用
+    // 先修补 undici 的 node:sqlite 引用(pkg 5.x 不识别这个 built-in module)
+    const undiciDir = path.join(API_DIST, 'node_modules', 'cheerio', 'node_modules', 'undici');
+    const undiciFilesToPatch = [
+      'lib/cache/sqlite-cache-store.js',
+      'lib/util/runtime-features.js',
+    ];
+    const undiciPatches = [];
+    for (const file of undiciFilesToPatch) {
+      const fp = path.join(undiciDir, file);
+      if (existsSync(fp)) {
+        const original = readFileSync(fp, 'utf-8');
+        undiciPatches.push({ path: fp, original });
+        const patched = original.replace(/require\('node:sqlite'\)/g, 'null /* patched for pkg */');
+        writeFileSync(fp, patched, 'utf-8');
+        console.log(`   🔧 修补 undici/${file} (node:sqlite)`);
+      }
+    }
+
+    execSync(
+      [
+        'npx', '--no-install', '@yao-pkg/pkg',
+        '--targets', target.pkgTarget,
+        '--output', outputPath,
+        '--public',
+        '--compress', 'GZip',
+        '--assets', path.join(API_DIST, '**/*'),
+        '--',
+        path.join(API_DIST, 'server.cjs'),
+      ].join(' '),
+      {
+        stdio: 'inherit',
+        cwd: ROOT,
+        env: { ...process.env, PKG_CACHE_PATH: path.join(ROOT, '.pkg-cache') },
+      }
+    );
+    // 恢复 undici 文件(不影响后续开发)
+    for (const p of undiciPatches) {
+      writeFileSync(p.path, p.original, 'utf-8');
+      console.log(`   🔧 恢复 ${path.relative(API_DIST, p.path)}`);
+    }
+  }
 
   const elapsed = Date.now() - start;
   if (!existsSync(outputPath)) {
@@ -116,7 +170,7 @@ try {
   console.error('');
   console.error('🔧 备选方案: 目录式 sidecar(不打包成单二进制)');
   console.error('   1. 删除 src-tauri/tauri.conf.json 里的 externalBin');
-  console.error('   2. src-tauri/Cargo.toml 里 sidecar 调用改成直接 node api-dist/server.mjs');
+  console.error('   2. src-tauri/Cargo.toml 里 sidecar 调用改成直接 node api-dist/server.cjs');
   console.error('   3. 把 api-dist/ + node_modules/ 加进 bundle.resources');
   console.error('   4. 用户机器需要装 Node.js(>= 20)');
   console.error('');
