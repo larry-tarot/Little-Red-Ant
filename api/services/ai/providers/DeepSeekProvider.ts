@@ -11,7 +11,7 @@ export class DeepSeekProvider implements AIProvider {
         // Try DB settings first
         const dbKey = await SettingsService.get('deepseek_api_key');
         const dbUrl = await SettingsService.get('deepseek_base_url');
-        const dbModel = await SettingsService.get('deepseek_model');
+        const _dbModel = await SettingsService.get('deepseek_model');
 
         const apiKey = dbKey || process.env.DEEPSEEK_API_KEY;
         const baseURL = dbUrl || process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com';
@@ -66,7 +66,7 @@ export class DeepSeekProvider implements AIProvider {
         return JSON.parse(cleanContent) as T;
     }
 
-    async generateImage(prompt: string, options?: any): Promise<string> {
+    async generateImage(_prompt: string, _options?: any): Promise<string> {
         throw new Error("DeepSeek does not support image generation yet.");
     }
 }

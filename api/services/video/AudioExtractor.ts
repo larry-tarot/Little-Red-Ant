@@ -35,7 +35,7 @@ export class AudioExtractor {
                     console.log('[AudioExtractor] Extraction finished');
                     resolve(outputPath);
                 })
-                .on('error', (err) => {
+                .on('error', (err: Error) => {
                     console.error('[AudioExtractor] Error:', err);
                     reject(err);
                 })

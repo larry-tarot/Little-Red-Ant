@@ -19,6 +19,9 @@ export interface SummaryStats {
     total_likes: number;
     total_comments: number;
     total_collects: number;
+    total_shares: number;
+    last_sync_at?: string | null;
+    needs_sync: boolean;
 }
 
 /**
@@ -64,32 +67,64 @@ export class AnalyticsService {
                 total_views: 0,
                 total_likes: 0,
                 total_comments: 0,
-                total_collects: 0
+                total_collects: 0,
+                total_shares: 0,
+                last_sync_at: null,
+                needs_sync: true
             };
         }
 
+        // 先判断该账号是否有正常写入的 note_stats 记录
+        // 如果没有，尝试把 account_id 为 NULL 的历史脏数据也纳入统计，
+        // 避免旧数据因为账号 ID 缺失导致分析面板全部显示为 0。
+        const activeRowsCount = (db.prepare('SELECT COUNT(*) as count FROM note_stats WHERE account_id = ?')
+            .get(activeAccount.id) as { count: number }).count;
+        const accountFilter = activeRowsCount > 0 ? 'account_id = ?' : '(account_id = ? OR account_id IS NULL)';
+
         // 查询该账号的笔记总数
-        const totalNotes = db.prepare('SELECT COUNT(*) as count FROM note_stats WHERE account_id = ?')
+        const totalNotes = db.prepare(`SELECT COUNT(*) as count FROM note_stats WHERE ${accountFilter}`)
             .get(activeAccount.id) as { count: number };
 
-        // 聚合查询阅读、点赞、评论、收藏总数
+        // 聚合查询阅读、点赞、收藏、分享总数（来自 note_stats 笔记维度快照）
         const sums = db.prepare(`
             SELECT
                 SUM(views) as total_views,
                 SUM(likes) as total_likes,
-                SUM(comments) as total_comments,
-                SUM(collects) as total_collects
+                SUM(collects) as total_collects,
+                SUM(shares) as total_shares
             FROM note_stats
-            WHERE account_id = ?
+            WHERE ${accountFilter}
         `).get(activeAccount.id) as any;
+
+        // 总评论数从 comments 表统计（实际收到的评论），而不是 note_stats.comments。
+        // 原因：创作者中心 API 的 comments_count 经常为 0 或不准确，
+        // 而 comments 表由同步评论任务写入，更能反映真实互动量。
+        const commentCountRow = db.prepare(`
+            SELECT COUNT(*) as count
+            FROM comments
+            WHERE account_id = ?
+        `).get(activeAccount.id) as { count: number };
+
+        // 查询最近一次同步时间，用于前端展示数据新鲜度
+        const lastSyncRow = db.prepare(`
+            SELECT MAX(record_date) as last_sync_at
+            FROM note_stats
+            WHERE ${accountFilter}
+        `).get(activeAccount.id) as { last_sync_at: string | null } | undefined;
+
+        const lastSyncAt = lastSyncRow?.last_sync_at || null;
+        const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000);
 
         return {
             account_name: activeAccount.nickname,
             total_notes: totalNotes.count,
             total_views: sums.total_views || 0,
             total_likes: sums.total_likes || 0,
-            total_comments: sums.total_comments || 0,
-            total_collects: sums.total_collects || 0
+            total_comments: commentCountRow.count || 0,
+            total_collects: sums.total_collects || 0,
+            total_shares: sums.total_shares || 0,
+            last_sync_at: lastSyncAt,
+            needs_sync: !lastSyncAt || new Date(lastSyncAt).getTime() < sixHoursAgo.getTime()
         };
     }
 

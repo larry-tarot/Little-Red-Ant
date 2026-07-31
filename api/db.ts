@@ -1,7 +1,6 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import fs from 'fs';
 import { config } from './config.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -477,6 +476,8 @@ export function initDB() {
       latest_notes TEXT, -- JSON Array of recent notes
       analysis_result TEXT, -- AI Analysis
       fans_count INTEGER DEFAULT 0,
+      notes_count INTEGER DEFAULT 0,
+      likes_count INTEGER DEFAULT 0,
       last_updated DATETIME,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
@@ -515,6 +516,14 @@ export function initDB() {
           console.log('Migrating competitors table: Adding last_error...');
           db.prepare("ALTER TABLE competitors ADD COLUMN last_error TEXT").run();
       }
+      if (!columnNames.includes('desc')) {
+          console.log('Migrating competitors table: Adding desc...');
+          db.prepare("ALTER TABLE competitors ADD COLUMN desc TEXT").run();
+      }
+      if (!columnNames.includes('likes_count')) {
+          console.log('Migrating competitors table: Adding likes_count...');
+          db.prepare("ALTER TABLE competitors ADD COLUMN likes_count INTEGER DEFAULT 0").run();
+      }
   } catch (e) {
       console.error('Migration competitors failed:', e);
   }
@@ -529,11 +538,45 @@ export function initDB() {
       cover TEXT,
       url TEXT,
       likes INTEGER DEFAULT 0,
+      comments INTEGER DEFAULT 0,
+      collects INTEGER DEFAULT 0,
+      views INTEGER DEFAULT 0,
+      content TEXT,
+      tags TEXT, -- JSON Array
       publish_date TEXT,
       scraped_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (competitor_id) REFERENCES competitors(id) ON DELETE CASCADE
     )
   `);
+
+  // Migration: Add rich fields to competitor_notes if not exists
+  try {
+      const columns = db.prepare("PRAGMA table_info(competitor_notes)").all() as any[];
+      const columnNames = columns.map(c => c.name);
+
+      if (!columnNames.includes('comments')) {
+          console.log('Migrating competitor_notes table: Adding comments...');
+          db.prepare("ALTER TABLE competitor_notes ADD COLUMN comments INTEGER DEFAULT 0").run();
+      }
+      if (!columnNames.includes('collects')) {
+          console.log('Migrating competitor_notes table: Adding collects...');
+          db.prepare("ALTER TABLE competitor_notes ADD COLUMN collects INTEGER DEFAULT 0").run();
+      }
+      if (!columnNames.includes('views')) {
+          console.log('Migrating competitor_notes table: Adding views...');
+          db.prepare("ALTER TABLE competitor_notes ADD COLUMN views INTEGER DEFAULT 0").run();
+      }
+      if (!columnNames.includes('content')) {
+          console.log('Migrating competitor_notes table: Adding content...');
+          db.prepare("ALTER TABLE competitor_notes ADD COLUMN content TEXT").run();
+      }
+      if (!columnNames.includes('tags')) {
+          console.log('Migrating competitor_notes table: Adding tags...');
+          db.prepare("ALTER TABLE competitor_notes ADD COLUMN tags TEXT").run(); // JSON Array
+      }
+  } catch (e) {
+      console.error('Migration competitor_notes failed:', e);
+  }
 
   // Competitor Stats History (For Trends)
   db.exec(`
@@ -554,16 +597,16 @@ export function initDB() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       username TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
-      role TEXT DEFAULT 'admin', -- 'admin', 'editor'
+      role TEXT DEFAULT 'admin', -- 'admin', 'editor', 'viewer'
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
-  // Migration: Add alias and permissions to admin_users
+  // Migration: Add alias / permissions / is_active / updated_at / password_changed_at to admin_users
   try {
       const columns = db.prepare("PRAGMA table_info(admin_users)").all() as any[];
       const columnNames = columns.map(c => c.name);
-      
+
       if (!columnNames.includes('alias')) {
           console.log('Migrating admin_users table: Adding alias...');
           db.prepare("ALTER TABLE admin_users ADD COLUMN alias TEXT").run();
@@ -573,9 +616,40 @@ export function initDB() {
           console.log('Migrating admin_users table: Adding permissions...');
           db.prepare("ALTER TABLE admin_users ADD COLUMN permissions TEXT").run(); // JSON Array
       }
+
+      if (!columnNames.includes('is_active')) {
+          console.log('Migrating admin_users table: Adding is_active...');
+          // 默认 1（启用），id=1（根管理员）永远保持启用
+          db.prepare("ALTER TABLE admin_users ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1").run();
+      }
+
+      if (!columnNames.includes('updated_at')) {
+          console.log('Migrating admin_users table: Adding updated_at...');
+          db.prepare("ALTER TABLE admin_users ADD COLUMN updated_at DATETIME").run();
+      }
+
+      if (!columnNames.includes('password_changed_at')) {
+          console.log('Migrating admin_users table: Adding password_changed_at...');
+          db.prepare("ALTER TABLE admin_users ADD COLUMN password_changed_at DATETIME").run();
+      }
+
+      if (!columnNames.includes('password_version')) {
+          console.log('Migrating admin_users table: Adding password_version...');
+          db.prepare("ALTER TABLE admin_users ADD COLUMN password_version INTEGER NOT NULL DEFAULT 1").run();
+      }
   } catch (e) {
       console.error('Migration admin_users failed:', e);
   }
+
+  // Login Attempts Table (Brute-force protection)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS login_attempts (
+      username TEXT PRIMARY KEY,
+      failed_count INTEGER NOT NULL DEFAULT 0,
+      locked_until DATETIME,
+      last_attempt_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
 
   // Prompt Templates Table (For Custom AI Styles)
   db.exec(`

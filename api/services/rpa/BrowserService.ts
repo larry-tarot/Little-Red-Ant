@@ -12,9 +12,10 @@
  */
 
 import { Logger } from '../LoggerService.js';
-import type { IBrowserDriver, GetPageOptions, AuthenticatedPage } from './interfaces/IBrowserDriver.js';
+import type { IBrowserDriver } from './interfaces/IBrowserDriver.js';
 import { PlaywrightDriver } from './drivers/PlaywrightDriver.js';
 import { CamoufoxDriver } from './drivers/CamoufoxDriver.js';
+import { RPAUtils } from './utils/RPAUtils.js';
 
 export class BrowserService {
     private static instance: BrowserService;
@@ -50,17 +51,19 @@ export class BrowserService {
         type: 'CREATOR' | 'MAIN_SITE' | 'ANONYMOUS',
         headless: boolean = true,
         accountId?: number
-    ): Promise<{ browser: any; context: any; page: any }> {
+    ): Promise<{ _browser: any; browser: any; context: any; page: any }> {
         const result = await this.driver.getAuthenticatedPage({
             purpose: type,
             headless,
             accountId,
         });
-        // Original API exposed { browser, context, page } — keep that for compat.
-        // Note: 'browser' is now the same handle as 'context' for Playwright persistent
-        // contexts, which matches the pre-refactor behavior.
+        // Inject environment polyfills (e.g., __name) into every page we hand out.
+        await RPAUtils.initPage(result.page);
+        // 原 API 暴露 { browser, context, page }；同时保留 _browser 别名，
+        // 让现有调用方（publish.ts、comments.ts 等）无需修改。
         return {
-            browser: result.context,
+            _browser: result.browser,
+            browser: result.browser,
             context: result.context,
             page: result.page,
         };

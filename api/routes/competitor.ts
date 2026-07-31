@@ -3,11 +3,24 @@ import { enqueueTask } from '../services/queue.js';
 import { DataSanitizer } from '../utils/DataSanitizer.js';
 import { wrapError } from '../utils/ErrorMessages.js';
 import { CompetitorService } from '../services/core/CompetitorService.js';
+import { validateBody, validateParams } from '../middleware/validation.js';
+import { CompetitorAnalyzeSchema, IdParamSchema } from '../schemas/index.js';
 
 const router = Router();
 
+/**
+ * 统一错误响应格式
+ */
+function errorResponse(res: any, status: number, message: string, originalError?: any) {
+    return res.status(status).json({
+        success: false,
+        error: message,
+        friendlyError: originalError ? wrapError(originalError) : undefined
+    });
+}
+
 // Get List
-router.get('/', (req, res) => {
+router.get('/', (_req, res) => {
     try {
         const data = CompetitorService.listCompetitors();
         res.json({ success: true, data });
@@ -21,25 +34,28 @@ router.get('/', (req, res) => {
 });
 
 // Get Details (Notes & History)
-router.get('/:id', (req, res) => {
+router.get('/:id', validateParams(IdParamSchema), (req, res) => {
     try {
         const data = CompetitorService.getCompetitorDetail(req.params.id);
-        if (!data) return res.status(404).json({ error: 'Competitor not found' });
+        if (!data) return errorResponse(res, 404, 'Competitor not found');
 
         res.json({ success: true, data });
     } catch (error: any) {
-        res.status(500).json({ error: error.message });
+        console.error('Get competitor detail failed:', error);
+        errorResponse(res, 500, error.message || 'Internal server error', error);
     }
 });
 
 // Add/Analyze (Async)
-router.post('/analyze', async (req, res) => {
+router.post('/analyze', validateBody(CompetitorAnalyzeSchema), async (req, res) => {
     const { url: urlFromBody } = req.body;
-    if (!urlFromBody) return res.status(400).json({ error: 'URL or User ID required' });
 
     try {
         // 从 URL 中提取用户 ID
         const userId = DataSanitizer.extractUserId(urlFromBody);
+        if (!userId) {
+            return errorResponse(res, 400, '无法从 URL 中提取小红书用户 ID');
+        }
 
         // 添加或刷新竞品记录
         const { dbId, isExisting } = CompetitorService.addOrRefreshCompetitor(userId);
@@ -56,17 +72,18 @@ router.post('/analyze', async (req, res) => {
         });
     } catch (error: any) {
         console.error('Add competitor failed:', error);
-        res.status(500).json({ error: error.message });
+        errorResponse(res, 500, error.message || 'Internal server error', error);
     }
 });
 
 // Delete
-router.delete('/:id', (req, res) => {
+router.delete('/:id', validateParams(IdParamSchema), (req, res) => {
     try {
         CompetitorService.deleteCompetitor(req.params.id);
         res.json({ success: true });
     } catch (error: any) {
-        res.status(500).json({ error: error.message });
+        console.error('Delete competitor failed:', error);
+        errorResponse(res, 500, error.message || 'Internal server error', error);
     }
 });
 

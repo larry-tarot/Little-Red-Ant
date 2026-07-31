@@ -8,7 +8,7 @@
  * Drizzle 生成的迁移会与现有表冲突。Schema 在此仅作"事实表"。
  */
 
-import { sqliteTable, integer, text, real, index, primaryKey } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, integer, text, real, index } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
 
 // --- Core Identity & Auth ---
@@ -165,6 +165,7 @@ export const competitors = sqliteTable('competitors', {
     userId: text('user_id').unique(),
     nickname: text('nickname'),
     avatar: text('avatar'),
+    desc: text('desc'),
     latestNotes: text('latest_notes'),
     analysisResult: text('analysis_result'),
     fansCount: integer('fans_count').default(0),
@@ -183,6 +184,11 @@ export const competitorNotes = sqliteTable('competitor_notes', {
     cover: text('cover'),
     url: text('url'),
     likes: integer('likes').default(0),
+    comments: integer('comments').default(0),
+    collects: integer('collects').default(0),
+    views: integer('views').default(0),
+    content: text('content'),
+    tags: text('tags'),
     publishDate: text('publish_date'),
     scrapedAt: text('scraped_at').default(sql`CURRENT_TIMESTAMP`),
 });

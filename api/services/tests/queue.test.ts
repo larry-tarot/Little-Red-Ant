@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { enqueueTask, getNextPendingTask, completeTask, Task } from '../queue.js';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { enqueueTask, getNextPendingTask } from '../queue.js';
 import db from '../../db.js';
 
 // Mock DB

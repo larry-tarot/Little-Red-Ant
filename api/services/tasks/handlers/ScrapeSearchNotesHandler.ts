@@ -14,7 +14,10 @@ import { Logger } from '../../LoggerService.js';
  *   - autoAnalyze: boolean (optional) - Auto-trigger analysis for top notes, default true
  */
 export class ScrapeSearchNotesHandler implements TaskHandler {
-    async handle(task: any, onProgress?: (e: TaskProgressEvent) => void): Promise<any> {
+    async handle(task: any, onProgress?: (e: TaskProgressEvent) => void, signal?: AbortSignal): Promise<any> {
+        if (signal?.aborted) {
+            throw new Error('TASK_CANCELLED');
+        }
         const keyword = task.payload.keyword;
         const sort = task.payload.sort || 'general';
         const limit = task.payload.limit || 20;
@@ -67,8 +70,8 @@ export class ScrapeSearchNotesHandler implements TaskHandler {
             Logger.info('Worker', `Auto-analyzing top ${topNotes.length} notes for keyword: "${keyword}"`);
 
             for (const note of topNotes) {
-                const noteIdMatch = note.note_url.match(/\/(explore|discovery\/item)\/([a-zA-Z0-9]+)/);
-                const noteId = noteIdMatch && noteIdMatch[2] ? noteIdMatch[2] : note.note_id;
+                // 优先使用已经规范化好的 note_id，避免正则解析 URL 失败或受 xsec_token 干扰
+                const noteId = note.note_id || extractNoteIdFromUrl(note.note_url);
 
                 if (noteId) {
                     enqueueTask('ANALYZE_NOTE', { noteId });
@@ -87,4 +90,19 @@ export class ScrapeSearchNotesHandler implements TaskHandler {
             limit
         };
     }
+}
+
+/**
+ * 功能描述：从笔记 URL 中安全提取小红书 note_id
+ *
+ * 参数说明：
+ * - url: [string | undefined] 笔记链接，可能带查询参数
+ *
+ * 返回说明：
+ * - [string | null] 24 位十六进制笔记 ID，解析失败返回 null
+ */
+function extractNoteIdFromUrl(url?: string): string | null {
+    if (!url) return null;
+    const match = url.match(/\/(?:explore|discovery\/item)\/([0-9a-f]{24})/i);
+    return match ? match[1] : null;
 }

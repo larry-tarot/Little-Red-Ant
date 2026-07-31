@@ -60,12 +60,12 @@ export class ContentService {
 
         const userPrompt = params.contentType === 'note' || !params.contentType 
             ? PromptService.buildUserPrompt(params)
-            : `本次选题：${params.topic}\n${params.keywords ? `关键词要求：${params.keywords.join(', ')}` : ''}\n请开始创作。`;
+            : `本次选题：${params._topic}\n${params._keywords ? `关键词要求：${params._keywords.join(', ')}` : ''}\n请开始创作。`;
 
         const provider = AIFactory.getTextProvider();
         
         try {
-            Logger.info('ContentService', 'Generating note...', { topic: params.topic, type: params.contentType });
+            Logger.info('ContentService', 'Generating note...', { topic: params._topic, type: params.contentType });
             const result = await provider.generateJSON<GeneratedNote>([
                 { role: "system", content: systemPromptTemplate },
                 { role: "user", content: userPrompt }

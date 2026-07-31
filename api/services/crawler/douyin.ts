@@ -32,7 +32,7 @@ export async function fetchDouyinHotSearch(): Promise<TrendItem[]> {
         });
     });
 
-    const page = await context.newPage();
+    const _page = await context.newPage();
     
     // Douyin Billboard (Mobile Web Version usually redirects to app, but /hot might work or search page)
     // Desktop URL: https://www.douyin.com/hot
@@ -58,7 +58,7 @@ export async function fetchDouyinHotSearch(): Promise<TrendItem[]> {
     // Wait for content - Douyin hot list usually has specific class
     try {
         await desktopPage.waitForSelector('[class*="hot-list"], [class*="billboard-item"]', { timeout: 10000 });
-    } catch (e) {
+    } catch (_e) {
         console.log('Timeout waiting for selector, checking page content...');
     }
 

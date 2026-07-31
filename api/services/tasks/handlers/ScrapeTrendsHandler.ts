@@ -10,7 +10,10 @@ import { TrendService } from '../../core/TrendService.js';
 import { Logger } from '../../LoggerService.js';
 
 export class ScrapeTrendsHandler implements TaskHandler {
-    async handle(task: any): Promise<any> {
+    async handle(task: any, _onProgress?: (e: any) => void, signal?: AbortSignal): Promise<any> {
+        if (signal?.aborted) {
+            throw new Error('TASK_CANCELLED');
+        }
         const source = task.payload.source || 'weibo';
         const category = task.payload.category || 'recommend';
         

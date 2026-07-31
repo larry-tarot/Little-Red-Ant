@@ -8,6 +8,7 @@ import { AccountService } from '../core/AccountService.js';
 import { CommentAnalysisService } from '../ai/CommentAnalysisService.js';
 import { RPAUtils } from './utils/RPAUtils.js';
 import { SettingsService } from '../SettingsService.js';
+import { requireActiveAccount } from './auth.js';
 
 // Safety Configuration
 const SAFETY_CONFIG = {
@@ -17,22 +18,53 @@ const SAFETY_CONFIG = {
     DAILY_REPLY_LIMIT: 30
 };
 
+/**
+ * 功能描述：检查当前页面是否因登录态失效被重定向到登录页
+ *
+ * 参数说明：
+ * - page: any Playwright 页面实例
+ * - context: string 当前操作描述，用于日志
+ *
+ * 返回说明：
+ * - void 页面正常时无返回值
+ *
+ * 异常情况：
+ * - COOKIE_EXPIRED: 页面被重定向到登录页或出现登录相关元素
+ */
+async function assertNotLoginPage(page: any, context: string): Promise<void> {
+    try {
+        const href = page.url();
+        const isLoginUrl = href.includes('/login') || href.includes('/sign');
+        const isLoginPage = await page.evaluate(() => {
+            const pageText = document.body ? document.body.innerText : '';
+            const hasPhoneInput = !!document.querySelector('input[placeholder*="手机号"]');
+            const hasLoginText = pageText.includes('手机号登录') || pageText.includes('验证码登录') || pageText.includes('登录');
+            return hasPhoneInput || hasLoginText;
+        });
+
+        if (isLoginUrl || isLoginPage) {
+            Logger.warn('RPA:Comments', `${context}: redirected to login page (${href})`);
+            throw new Error('COOKIE_EXPIRED: Session expired, please re-authorize in Account Matrix');
+        }
+    } catch (e: any) {
+        // 避免将判定本身的异常吞掉
+        if (e.message && e.message.includes('COOKIE_EXPIRED')) throw e;
+        Logger.warn('RPA:Comments', `Failed to check login state: ${e.message}`);
+    }
+}
+
 const delay = (min = SAFETY_CONFIG.MIN_DELAY_MS, max = SAFETY_CONFIG.MAX_DELAY_MS) => 
     new Promise(r => setTimeout(r, Math.floor(Math.random() * (max - min + 1) + min)));
 
 export async function scrapeComments(targetNoteId?: string) {
-    // 1. Get Authenticated Page (Prefer MAIN_SITE for Notification Center)
-    // We try MAIN_SITE first because /notification is on www.xiaohongshu.com
-    // If MAIN_SITE is missing, we try CREATOR as a fallback (cookies might be shared)
-    let session;
-    try {
-        session = await BrowserService.getInstance().getAuthenticatedPage('MAIN_SITE', true); // Headless for background operation
-    } catch (e) {
-        Logger.warn('RPA:Comments', 'Main Site cookie missing, trying Creator cookie...');
-        session = await BrowserService.getInstance().getAuthenticatedPage('CREATOR', true);
-    }
+    // 0. 前置检查：评论/通知中心必须依赖小红书主站登录态
+    requireActiveAccount('MAIN_SITE');
 
-    const { browser, page } = session;
+    // 1. Get Authenticated Page (MAIN_SITE only)
+    // 评论、@、通知均位于 www.xiaohongshu.com，必须使用主站 Cookie。
+    const session = await BrowserService.getInstance().getAuthenticatedPage('MAIN_SITE', true); // Headless for background operation
+
+    const { _browser, page } = session;
     
     // Inject polyfills for environment compatibility
     await RPAUtils.initPage(page);
@@ -41,7 +73,7 @@ export async function scrapeComments(targetNoteId?: string) {
     const debugPath = path.join(process.cwd(), 'data', 'debug_comments_network.json');
     const debugHtmlPath = path.join(process.cwd(), 'data', 'debug_comments_page.html');
     const debugData: any[] = [];
-    let responseHandler: ((response: any) => Promise<void>) | undefined;
+    let responseHandler: ((response: any) => void) | undefined;
 
     try {
         if (targetNoteId) {
@@ -52,48 +84,57 @@ export async function scrapeComments(targetNoteId?: string) {
 
         // 2. Setup API Interception
         // Store ALL fetched items, not just the last page
-        let allCapturedItems: any[] = [];
+        const allCapturedItems: any[] = [];
         const SEVEN_DAYS_AGO = Date.now() - (7 * 24 * 60 * 60 * 1000);
         
-        responseHandler = async (response: any) => {
+        responseHandler = (response: any) => {
             const url = response.url();
-            // Filter for likely API endpoints
-            if (url.includes('/api/sns/web/v1/') && response.request().method() === 'GET') {
-                try {
-                    // Check content type
-                    const contentType = response.headers()['content-type'] || '';
-                    if (contentType.includes('application/json')) {
-                        const json = await response.json();
-                        
-                        // Capture useful packets
-                        // Case A: Notification Center (message, mention, notice)
-                        // Case B: Note Detail Comments (comment/list)
-                        const isNotification = url.includes('message') || url.includes('mention') || url.includes('notice');
-                        const isNoteComments = url.includes('/comment/list') || url.includes('/feed');
+            const method = response.request().method();
+            if (method !== 'GET' && method !== 'POST') return;
 
-                        if (isNotification || isNoteComments) {
-                            // Save to debug log
-                            debugData.push({ url, data: json });
-                            if (debugData.length > 50) debugData.shift();
-                            
-                            let newItems = [];
-                            const dataRoot = json.data || {};
-                            
-                            if (Array.isArray(dataRoot)) newItems = dataRoot;
-                            else if (dataRoot.messages) newItems = dataRoot.messages;
-                            else if (dataRoot.message_list) newItems = dataRoot.message_list;
-                            else if (dataRoot.comments) newItems = dataRoot.comments; // For note detail
-                            
-                            if (newItems.length > 0) {
-                                Logger.info('RPA:Comments', `Captured page with ${newItems.length} items`);
-                                allCapturedItems.push(...newItems);
-                            }
-                        }
-                    }
-                } catch (e) {
-                    // Ignore JSON parse errors
+            // 拦截与评论/通知相关的 API，同时排除容易混入噪音的 feed/social 端点。
+            // 小红书通知中心常见路径：/message、/notice、/mention、/notification、/comment
+            const lowerUrl = url.toLowerCase();
+            const isCommentOrNotification =
+                (lowerUrl.includes('comment') ||
+                    lowerUrl.includes('message') ||
+                    lowerUrl.includes('mention') ||
+                    lowerUrl.includes('notice') ||
+                    lowerUrl.includes('notification') ||
+                    lowerUrl.includes('/msg') ||
+                    lowerUrl.includes('/at')) &&
+                !lowerUrl.includes('/feed') &&
+                !lowerUrl.includes('/social') &&
+                !lowerUrl.includes('/inbox') &&
+                !lowerUrl.includes('/recommend') &&
+                !lowerUrl.includes('/explore') &&
+                !lowerUrl.includes('/im/');
+
+            if (!isCommentOrNotification) return;
+            if (response.status() >= 400) return;
+
+            response.json().then((json: any) => {
+                // 保存到调试日志（最多保留 100 条）
+                debugData.push({ url, data: json, time: new Date().toISOString() });
+                if (debugData.length > 100) debugData.shift();
+
+                const dataRoot = json.data || {};
+                const candidates: any[] = [];
+
+                // 兼容多种可能的数据结构
+                for (const key of ['messages', 'message_list', 'comments', 'items', 'list', 'data']) {
+                    const arr = dataRoot[key];
+                    if (Array.isArray(arr)) candidates.push(...arr);
                 }
-            }
+                if (Array.isArray(dataRoot)) candidates.push(...dataRoot);
+
+                if (candidates.length > 0) {
+                    Logger.info('RPA:Comments', `Captured ${candidates.length} items from ${url.split('?')[0].slice(-40)}`);
+                    allCapturedItems.push(...candidates);
+                }
+            }).catch(() => {
+                // Ignore non-JSON responses
+            });
         };
         
         page.on('response', responseHandler);
@@ -103,6 +144,7 @@ export async function scrapeComments(targetNoteId?: string) {
             // Navigate to Note Detail Page
             // Try different URL formats: /explore/id or /discovery/item/id
             await page.goto(`https://www.xiaohongshu.com/explore/${targetNoteId}`, { waitUntil: 'domcontentloaded' });
+            await assertNotLoginPage(page, 'Note detail');
             await delay(3000);
             
             // Open comment section if needed (usually open by default on web, but good to ensure)
@@ -110,32 +152,90 @@ export async function scrapeComments(targetNoteId?: string) {
         } else {
             // Default: Notification Center
             await page.goto('https://www.xiaohongshu.com/notification', { waitUntil: 'domcontentloaded' });
+            await assertNotLoginPage(page, 'Notification center');
             await delay(3000);
 
             // Click "Comments and @" tab
+            // 小红书通知中心标签文案可能为："评论和@" / "评论" / "评论和@我" / "互动"
             try {
-                const commentTab = page.locator('div, span, li').filter({ hasText: /^评论和@$/ }).first();
-                if (await commentTab.isVisible()) {
-                    await commentTab.click();
-                    await delay(2000);
-                } else {
-                     // Fallback logic...
-                     const secondTab = page.locator('.channel-list .channel-item').nth(1);
-                     if (await secondTab.count() > 0) {
-                         await secondTab.click();
-                         await delay(2000);
-                     }
+                const tabSelectors = [
+                    { hasText: /^评论和@$/ },
+                    { hasText: /^评论和@我$/ },
+                    { hasText: /^评论$/ },
+                    { hasText: /^互动$/ },
+                    { hasText: /^评论\s*\/?\s*@$/ }
+                ];
+                let clicked = false;
+                for (const filter of tabSelectors) {
+                    const commentTab = page.locator('div, span, li, a, button').filter(filter).first();
+                    const visible = await commentTab.isVisible().catch(() => false);
+                    if (visible) {
+                        await commentTab.click();
+                        clicked = true;
+                        const label = (filter as any).hasText?.source || JSON.stringify(filter);
+                        Logger.info('RPA:Comments', `Clicked comment tab matching ${label}`);
+                        await delay(2000);
+                        break;
+                    }
                 }
-            } catch(e) {}
+
+                if (!clicked) {
+                    // Fallback logic: 尝试第二个频道标签
+                    const channelSelectors = [
+                        '.channel-list .channel-item',
+                        '.tab-list .tab-item',
+                        '[class*="channel-list"] > *',
+                        '[class*="tab-list"] > *'
+                    ];
+                    for (const sel of channelSelectors) {
+                        const tabs = page.locator(sel);
+                        const count = await tabs.count();
+                        if (count >= 2) {
+                            await tabs.nth(1).click();
+                            clicked = true;
+                            Logger.info('RPA:Comments', `Fallback clicked second tab via ${sel}`);
+                            await delay(2000);
+                            break;
+                        }
+                    }
+                }
+
+                if (!clicked) {
+                    Logger.warn('RPA:Comments', 'Could not find comment tab, will capture all notification APIs');
+                }
+            } catch(_e: any) {
+                Logger.warn('RPA:Comments', `Tab click failed: ${_e.message}`);
+            }
         }
 
         // 3.1 Scroll Loop for 7 Days of Data
         Logger.info('RPA:Comments', 'Starting scroll loop to fetch 7 days of history...');
         let noNewDataCount = 0;
-        let lastItemCount = 0;
-        
+        let lastUniqueCount = 0;
+        const seenIdsDuringScroll = new Set<string>();
+
+        /**
+         * 更新已见 ID 集合并返回当前唯一数量
+         *
+         * 设计思路：同一接口可能被多次触发（重试/预加载），用 raw length 判断
+         * 是否拿到新数据不可靠，改用以 ID 去重后的唯一数量。
+         */
+        const updateUniqueCount = () => {
+            let changed = false;
+            for (const item of allCapturedItems) {
+                const parsed = parseCommentItem(item);
+                if (parsed && parsed.id && !seenIdsDuringScroll.has(parsed.id)) {
+                    seenIdsDuringScroll.add(parsed.id);
+                    changed = true;
+                }
+            }
+            return { count: seenIdsDuringScroll.size, changed };
+        };
+
         // Limit max scrolls to prevent infinite loops (e.g. 20 pages ~ 400 items)
         for (let i = 0; i < 20; i++) {
+            const unique = updateUniqueCount();
+
             // Check if we have data older than 7 days
             if (allCapturedItems.length > 0) {
                 // Find the oldest item time
@@ -143,23 +243,23 @@ export async function scrapeComments(targetNoteId?: string) {
                 const oldestItem = allCapturedItems[allCapturedItems.length - 1];
                 let itemTime = 0;
                 if (oldestItem.time) itemTime = oldestItem.time * 1000;
-                
+
                 if (itemTime > 0 && itemTime < SEVEN_DAYS_AGO) {
                     Logger.info('RPA:Comments', 'Reached 7 days history limit. Stopping scroll.');
                     break;
                 }
             }
 
-            if (allCapturedItems.length === lastItemCount) {
+            if (unique.count === lastUniqueCount) {
                 noNewDataCount++;
             } else {
                 noNewDataCount = 0; // Reset if we got new data
             }
-            
-            lastItemCount = allCapturedItems.length;
+
+            lastUniqueCount = unique.count;
 
             if (noNewDataCount >= 3) {
-                Logger.info('RPA:Comments', 'No new data after 3 scrolls. Stopping.');
+                Logger.info('RPA:Comments', `No new unique data after 3 scrolls (unique=${unique.count}). Stopping.`);
                 break;
             }
 
@@ -214,8 +314,8 @@ export async function scrapeComments(targetNoteId?: string) {
                 Logger.warn('RPA:Comments', `Scroll failed: ${e.message}`);
             }
             
-            Logger.info('RPA:Comments', `Total Captured Items so far: ${allCapturedItems.length}`);
-            
+            Logger.info('RPA:Comments', `Total Captured Items so far: ${allCapturedItems.length}, unique: ${updateUniqueCount().count}`);
+
             // Wait for network and render
             await delay(2000, 4000);
         }
@@ -229,56 +329,40 @@ export async function scrapeComments(targetNoteId?: string) {
 
         if (allCapturedItems.length > 0) {
             Logger.info('RPA:Comments', `Processing ${allCapturedItems.length} raw items from API`);
-            
+
             // Deduplicate by ID
             const uniqueMap = new Map();
-            
+
             allCapturedItems.forEach((item: any) => {
-                // ... (Parsing logic similar to before)
-                let parsedItem = null;
-                
-                if (item.type === 'mention/comment' || item.type === 'comment/comment') {
-                    const userInfo = item.user_info || {};
-                    const commentInfo = item.comment_info || {};
-                    const noteInfo = item.note_info || {}; // Capture Note Info if available
+                const parsedItem = parseCommentItem(item);
+                if (!parsedItem) return;
 
-                    parsedItem = {
-                        user_nickname: userInfo.nickname || 'Unknown',
-                        user_avatar: userInfo.image || '',
-                        content: commentInfo.content || item.title || 'New Interaction',
-                        create_time_str: item.time ? new Date(item.time * 1000).toISOString() : new Date().toISOString(),
-                        id: commentInfo.id || item.id || '',
-                        reply_status: 'UNREAD',
-                        type: item.type === 'mention/comment' ? 'MENTION' : 'COMMENT',
-                        root_note_id: commentInfo.note_id || noteInfo.id || ''
-                    };
-                } else {
-                    // Legacy fallback
-                    const user = item.from_user || item.user || item.userInfo || {};
-                    parsedItem = {
-                        user_nickname: user.nickname || 'Unknown',
-                        user_avatar: user.images || user.avatar || '',
-                        content: item.content || item.target_note?.title || 'New Interaction',
-                        create_time_str: new Date(item.time || Date.now()).toLocaleString(),
-                        id: item.id || '',
-                        reply_status: 'UNREAD',
-                        type: 'COMMENT', // Default to comment for unknown types
-                        root_note_id: item.target_note?.id || ''
-                    };
+                // 保存前强制校验：缺少关键字段的数据不写入数据库
+                if (!parsedItem.user_nickname || parsedItem.user_nickname === 'Unknown') {
+                    Logger.warn('RPA:Comments', `Skipping item without valid user_nickname: ${JSON.stringify(parsedItem).slice(0, 200)}`);
+                    return;
+                }
+                if (!parsedItem.content) {
+                    Logger.warn('RPA:Comments', `Skipping item without content: id=${parsedItem.id}`);
+                    return;
+                }
+                // root_note_id 不一定每条通知都有（例如系统通知、点赞通知），
+                // 对于评论/@ 通知缺失时保留空字符串，不再整条丢弃。
+                if (!parsedItem.root_note_id) {
+                    Logger.info('RPA:Comments', `Keeping item without root_note_id: id=${parsedItem.id}`);
+                    parsedItem.root_note_id = '';
                 }
 
-                if (parsedItem && parsedItem.user_nickname !== 'Unknown') {
-                    uniqueMap.set(parsedItem.id, parsedItem);
-                }
+                uniqueMap.set(parsedItem.id, parsedItem);
             });
-            
+
             items = Array.from(uniqueMap.values());
         }
-        
+
         // Method B: DOM Scraping (Fallback)
         if (items.length === 0) {
-            Logger.warn('RPA:Comments', 'API failed, using DOM Scraper');
-            
+            Logger.warn('RPA:Comments', 'API interception empty, using DOM Scraper');
+
             // Dump HTML for diagnosis
             const html = await page.content();
             if (!fs.existsSync(path.dirname(debugHtmlPath))) fs.mkdirSync(path.dirname(debugHtmlPath), { recursive: true });
@@ -286,32 +370,46 @@ export async function scrapeComments(targetNoteId?: string) {
 
             items = await page.evaluate(() => {
                 // Broadest possible selector for notification items
-                const nodes = Array.from(document.querySelectorAll('.message-item, .notification-item, .item-container, div[class*="item"]'));
-                
+                const nodes = Array.from(document.querySelectorAll(
+                    '.message-item, .notification-item, .item-container, ' +
+                    '[class*="message-item"], [class*="notification-item"], ' +
+                    '.msg-item, .comment-item, [class*="comment-item"], ' +
+                    'div[class*="item"], li[class*="item"]'
+                ));
+
                 return nodes.map((el: any) => {
                     const text = el.innerText || '';
                     if (text.length < 5) return null; // Skip empty noise
-                    
+
                     // Basic extraction
-                    const userEl = el.querySelector('.user-name, .nickname, .name, h4, span[class*="name"]');
-                    const contentEl = el.querySelector('.content, .desc, .comment, p, span[class*="content"]');
+                    const userEl = el.querySelector('.user-name, .nickname, .name, h4, [class*="name"], [class*="nickname"]');
+                    const contentEl = el.querySelector('.content, .desc, .comment, p, [class*="content"], [class*="desc"]');
                     const imgEl = el.querySelector('img');
-                    
+
                     // Detect if it's a mention
-                    const isMention = text.includes('@了你') || text.includes('提到了你');
+                    const isMention = text.includes('@了你') || text.includes('提到了你') || text.includes('@你');
 
                     if (!userEl || !contentEl) return null;
                     if (text.includes('赞了') || text.includes('收藏了') || text.includes('关注了')) return null;
+
+                    // 尝试从列表项里的链接解析笔记 ID
+                    let rootNoteId = '';
+                    const linkEl = el.querySelector('a[href*="/explore/"], a[href*="/discovery/item/"], a[href*="/item/"]');
+                    if (linkEl) {
+                        const href = linkEl.getAttribute('href') || '';
+                        const match = href.match(/(?:explore|item|discovery\/item)\/([0-9a-f]{24})/i);
+                        if (match) rootNoteId = match[1];
+                    }
 
                     return {
                         user_nickname: userEl.innerText.trim(),
                         user_avatar: imgEl ? imgEl.src : '',
                         content: contentEl.innerText.trim(),
-                        create_time_str: new Date().toLocaleString(), // Approximate
-                        id: el.getAttribute('data-id') || Math.random().toString(36).substr(2, 9),
+                        create_time_str: new Date().toISOString(), // 统一使用 ISO 格式
+                        id: el.getAttribute('data-id') || `cmt_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
                         reply_status: 'UNREAD',
                         type: isMention ? 'MENTION' : 'COMMENT',
-                        root_note_id: '' // Hard to get note ID from DOM list view without link parsing
+                        root_note_id: rootNoteId
                     };
                 }).filter(i => i !== null);
             });
@@ -328,24 +426,26 @@ export async function scrapeComments(targetNoteId?: string) {
             }
 
             const stmt = db.prepare(`
-                INSERT INTO comments (id, user_nickname, user_avatar, content, create_time, reply_status, account_id, type, root_note_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(id) DO UPDATE SET 
+                INSERT INTO comments (id, note_id, user_nickname, user_avatar, content, create_time, reply_status, account_id, type, root_note_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    note_id=excluded.note_id,
                     reply_status=excluded.reply_status,
                     create_time=excluded.create_time,
                     type=excluded.type,
                     root_note_id=excluded.root_note_id
             `);
 
-            const insertTransaction = db.transaction((comments) => {
+            const insertTransaction = db.transaction((comments: any[]) => {
                 for (const item of comments) {
                     // Normalization
                     const id = item.id || `cmt_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
                     const nick = item.user_nickname || item.from_user?.nickname || 'Unknown';
                     const avatar = item.user_avatar || item.from_user?.images || '';
                     const content = item.content || item.target_note?.title || '';
-                    
-                    stmt.run(id, nick, avatar, content, item.create_time_str, item.reply_status || 'UNREAD', activeAccountId, item.type || 'COMMENT', item.root_note_id || '');
+                    const noteId = item.note_id || item.root_note_id || '';
+
+                    stmt.run(id, noteId, nick, avatar, content, item.create_time_str, item.reply_status || 'UNREAD', activeAccountId, item.type || 'COMMENT', item.root_note_id || '');
                 }
             });
             insertTransaction(items);
@@ -380,12 +480,15 @@ export async function scrapeComments(targetNoteId?: string) {
     } finally {
         if (page && responseHandler) {
             page.off('response', responseHandler);
-            try { await page.close(); } catch(e) {}
+            try { await page.close(); } catch(_e) { /* ignore */ }
         }
     }
 }
 
 export async function replyToComment(commentId: string, replyContent: string) {
+    // 0. 前置检查：必须有已激活且具备主站/任意 Cookie 的账号
+    requireActiveAccount('MAIN_SITE');
+
     // Safety Check: Sensitive Words
     const FORBIDDEN_WORDS = ['加v', '私', '微信号', '公众号', '代购', '淘宝', '天猫', '京东', '拼多多', '链接', 'http'];
     for (const word of FORBIDDEN_WORDS) {
@@ -396,13 +499,14 @@ export async function replyToComment(commentId: string, replyContent: string) {
 
     // [Change] Use Notification Center for replies to ensure consistency with scraping
     const session = await BrowserService.getInstance().getAuthenticatedPage('MAIN_SITE', true);
-    const { browser, page } = session;
+    const { _browser, page } = session;
 
     // Inject polyfills
     await RPAUtils.initPage(page);
 
     try {
         await page.goto('https://www.xiaohongshu.com/notification', { waitUntil: 'domcontentloaded' });
+        await assertNotLoginPage(page, 'Reply notification center');
         await delay(3000);
 
         // Click "Comments and @" tab to filter view
@@ -412,7 +516,7 @@ export async function replyToComment(commentId: string, replyContent: string) {
                 await commentTab.click();
                 await delay(2000);
             }
-        } catch(e) {}
+        } catch(_e) { /* ignore */ }
         
         Logger.info('RPA:Reply', `Locating comment ${commentId}...`);
         
@@ -457,8 +561,8 @@ export async function replyToComment(commentId: string, replyContent: string) {
 
         // 2. Check if Input is ALREADY Visible (e.g. previously clicked)
         // Heuristic: If there is a "取消" (Cancel) button, the input is likely open.
-        let cancelButton = commentLocator.locator('button, div, span').filter({ hasText: /^取消$/ }).first();
-        let isInputOpen = await cancelButton.isVisible().catch(() => false);
+        const cancelButton = commentLocator.locator('button, div, span').filter({ hasText: /^取消$/ }).first();
+        const isInputOpen = await cancelButton.isVisible().catch(() => false);
         
         let input = commentLocator.locator('textarea, [contenteditable="true"], [role="textbox"]').first();
 
@@ -514,7 +618,7 @@ export async function replyToComment(commentId: string, replyContent: string) {
             try {
                 input = commentLocator.locator('textarea, [contenteditable="true"], [role="textbox"]').first();
                 await input.waitFor({ state: 'visible', timeout: 5000 });
-            } catch (e) {
+            } catch (_e) {
                  await Logger.saveScreenshot(page, 'reply-input-timeout');
                  throw new Error('Input box did not appear after clicking reply');
             }
@@ -586,7 +690,140 @@ export async function replyToComment(commentId: string, replyContent: string) {
         throw error;
     } finally {
         if (page) {
-            try { await page.close(); } catch(e) {}
+            try { await page.close(); } catch(_e) { /* ignore */ }
         }
     }
+}
+
+/**
+ * 功能描述：从任意字符串中解析小红书笔记 ID
+ *
+ * 设计思路：
+ * 小红书笔记链接常见格式：
+ * - https://www.xiaohongshu.com/explore/65a1b2c3d4e5f6
+ * - https://www.xiaohongshu.com/discovery/item/65a1b2c3d4e5f6
+ * 也可能直接是 note_id（24 位十六进制字符串）。
+ *
+ * 参数说明：
+ * - raw: [any] 可能是链接、ID 或其他数据
+ *
+ * 返回说明：
+ * - string 解析到的 note_id；无法解析时返回空字符串
+ */
+function extractNoteId(raw: any): string {
+    if (!raw) return '';
+
+    // 1. 如果本身就是 24 位十六进制字符串，直接返回
+    if (typeof raw === 'string' && /^[0-9a-f]{24}$/i.test(raw.trim())) {
+        return raw.trim();
+    }
+
+    // 2. 从链接中匹配
+    const text = String(raw);
+    const match = text.match(/(?:explore|item|discovery\/item)\/([0-9a-f]{24})/i);
+    if (match) return match[1];
+
+    // 3. 兜底：尝试匹配任意 24 位十六进制
+    const looseMatch = text.match(/([0-9a-f]{24})/i);
+    if (looseMatch) return looseMatch[1];
+
+    return '';
+}
+
+/**
+ * 功能描述：从原始 API item 中通用解析评论/@ 数据
+ *
+ * 设计思路：
+ * 小红书通知中心 API 结构多次变化，本函数尝试多条字段路径提取：
+ * 1. 新版通知 item：item.user_info + item.comment_info + item.note_info
+ * 2. 通用消息 item：item.from_user / item.user + item.content + item.target_note
+ * 3. 评论详情 item：item.user + item.content + item.note_id
+ * 4. 兜底：从 item.link / item.url / item.note_id 解析 root_note_id
+ *
+ * 参数说明：
+ * - item: [any] API 返回的单条原始数据
+ *
+ * 返回说明：
+ * - 标准化对象；如果无法解析出关键字段，返回 null
+ */
+function parseCommentItem(item: any): any | null {
+    if (!item || typeof item !== 'object') return null;
+
+    // 尝试提取时间戳（支持秒/毫秒/字符串）
+    const rawTime = item.time ||
+        item.create_time ||
+        item.createTime ||
+        item.timestamp ||
+        item.pub_time ||
+        item.publish_time ||
+        item.display_time ||
+        item.msg_time ||
+        item.create_time_str;
+
+    let time: number | null = null;
+    if (typeof rawTime === 'number') {
+        // 秒级时间戳转毫秒
+        time = rawTime < 1e12 ? rawTime * 1000 : rawTime;
+    } else if (typeof rawTime === 'string') {
+        const parsed = new Date(rawTime).getTime();
+        if (!isNaN(parsed)) time = parsed;
+    }
+
+    // 路径 1：新版通知中心（mention/comment、comment/comment）
+    if (item.type === 'mention/comment' || item.type === 'comment/comment' || item.comment_info) {
+        const userInfo = item.user_info || item.user || {};
+        const commentInfo = item.comment_info || item.comment || {};
+        const noteInfo = item.note_info || item.note || item.target_note || {};
+
+        // 从多个可能位置提取笔记 ID
+        const noteId =
+            extractNoteId(commentInfo.note_id) ||
+            extractNoteId(noteInfo.id) ||
+            extractNoteId(noteInfo.note_id) ||
+            extractNoteId(item.note_id) ||
+            extractNoteId(item.target_note_id) ||
+            extractNoteId(item.link) ||
+            extractNoteId(item.url) ||
+            '';
+
+        return {
+            user_nickname: userInfo.nickname || userInfo.user_name || userInfo.name || '',
+            user_avatar: userInfo.image || userInfo.avatar || userInfo.images || '',
+            content: commentInfo.content || item.content || item.title || '',
+            create_time_str: time ? new Date(time).toISOString() : new Date().toISOString(),
+            id: String(commentInfo.id || item.id || item.message_id || `cmt_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`),
+            reply_status: 'UNREAD',
+            type: item.type === 'mention/comment' ? 'MENTION' : 'COMMENT',
+            root_note_id: noteId,
+            note_id: noteId
+        };
+    }
+
+    // 路径 2：通用消息结构
+    const user = item.from_user || item.user || item.userInfo || item.user_info || {};
+    const note = item.target_note || item.note_info || item.note || {};
+    const content = item.content || item.comment?.content || item.title || item.desc || '';
+
+    if (!content) return null;
+
+    const noteId =
+        extractNoteId(note.id) ||
+        extractNoteId(note.note_id) ||
+        extractNoteId(item.note_id) ||
+        extractNoteId(item.target_note_id) ||
+        extractNoteId(item.link) ||
+        extractNoteId(item.url) ||
+        '';
+
+    return {
+        user_nickname: user.nickname || user.user_name || user.name || '',
+        user_avatar: user.images || user.avatar || user.image || '',
+        content,
+        create_time_str: time ? new Date(time).toISOString() : new Date().toISOString(),
+        id: String(item.id || item.message_id || `cmt_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`),
+        reply_status: 'UNREAD',
+        type: item.type?.includes('mention') || content.includes('@') ? 'MENTION' : 'COMMENT',
+        root_note_id: noteId,
+        note_id: noteId
+    };
 }

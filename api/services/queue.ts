@@ -3,7 +3,9 @@ import db from '../db.js';
 import crypto from 'crypto';
 import { NotificationService } from './NotificationService.js';
 import { EventEmitter } from 'events';
+import { Logger } from './LoggerService.js';
 import type { TaskProgressEvent } from './tasks/TaskHandler.js';
+import { taskController } from './tasks/TaskController.js';
 
 // Global Event Bus for Task Notifications
 export const taskEvents = new EventEmitter();
@@ -21,7 +23,7 @@ const memoryQueue: string[] = [];
 export interface Task {
     id: string;
     type: string;
-    status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
+    status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
     payload: any;
     result?: any;
     error?: string;
@@ -31,6 +33,39 @@ export interface Task {
     priority: number; // Higher value = Higher priority (Default 0, High 10, Low -10)
     created_at: string;
     updated_at: string;
+}
+
+/**
+ * 功能描述：根据任务类型划分资源隔离类别
+ *
+ * 设计思路：
+ * - RPA 任务会占用浏览器实例和网络 IO，与 CPU/IO 密集的 AI 任务分开
+ * - AI 任务主要占用 API 调用和本地计算，避免被 RPA 阻塞
+ * - 其他任务归为通用队列
+ */
+export function getTaskCategory(type: string): 'rpa' | 'ai' | 'general' {
+    const rpaTypes = new Set([
+        'SCRAPE_STATS',
+        'SCRAPE_COMMENTS',
+        'SCRAPE_TRENDS',
+        'SCRAPE_SEARCH_NOTES',
+        'SCRAPE_COMPETITOR',
+        'PUBLISH',
+        'CHECK_HEALTH'
+    ]);
+
+    const aiTypes = new Set([
+        'GENERATE_CONTENT',
+        'GENERATE_IMAGE',
+        'GENERATE_VIDEO',
+        'ANALYZE_NOTE',
+        'CLASSIFY_NOTES',
+        'VIDEO_STITCH'
+    ]);
+
+    if (rpaTypes.has(type)) return 'rpa';
+    if (aiTypes.has(type)) return 'ai';
+    return 'general';
 }
 
 export function enqueueTask(type: string, payload: any, scheduledAt?: string, priority: number = 0): string {
@@ -53,7 +88,7 @@ export function enqueueTask(type: string, payload: any, scheduledAt?: string, pr
              const d = new Date(scheduledAt);
              if (isNaN(d.getTime())) scheduledTime = undefined;
              else scheduledTime = d.toISOString();
-         } catch(e) { scheduledTime = undefined; }
+         } catch(_e) { scheduledTime = undefined; }
     }
 
     if (scheduledTime) {
@@ -238,17 +273,21 @@ export function completeTask(id: string, result: any = {}) {
 
 export function failTask(id: string, error: string) {
     const task = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id) as any;
-    const maxRetries = 3; 
-    
+    const maxRetries = 3;
+
     let errorLog = [];
     try {
         errorLog = JSON.parse(task.result || '[]');
         if (!Array.isArray(errorLog)) errorLog = [];
-    } catch(e) {}
-    
+    } catch(_e) { /* ignore */ }
+
     errorLog.push({ timestamp: new Date().toISOString(), error });
 
-    if ((task.attempts || 0) < maxRetries) {
+    // 不可重试错误：配置/登录问题重试也无意义，直接失败并通知用户
+    const nonRetryablePattern = /NO_ACTIVE_ACCOUNT|COOKIE_EXPIRED|LOGIN_REQUIRED|API_KEY_INVALID|BROWSER_ERROR/i;
+    const shouldRetry = (task.attempts || 0) < maxRetries && !nonRetryablePattern.test(error);
+
+    if (shouldRetry) {
         // Retry with backoff
         const backoffDelay = Math.pow(2, task.attempts || 0) * 60 * 1000; 
         const nextRun = new Date(Date.now() + backoffDelay).toISOString();
@@ -265,18 +304,18 @@ export function failTask(id: string, error: string) {
         WHERE id = ?
         `);
         stmt.run(JSON.stringify(errorLog), error, nextRun, new Date().toISOString(), id);
-        console.log(`[Queue] Task ${id} failed. Retrying (${(task.attempts || 0) + 1}/${maxRetries}) in ${backoffDelay/1000}s...`);
+        Logger.info('Queue', `Task ${id} failed. Retrying (${(task.attempts || 0) + 1}/${maxRetries}) in ${backoffDelay/1000}s...`);
     } else {
         // Final Failure
         const stmt = db.prepare('UPDATE tasks SET status = \'FAILED\', result = ?, error = ?, updated_at = ? WHERE id = ?');
         stmt.run(JSON.stringify(errorLog), error, new Date().toISOString(), id);
-        console.log(`[Queue] Task ${id} failed permanently after ${maxRetries} retries.`);
+        Logger.info('Queue', `Task ${id} failed permanently after ${maxRetries} retries.`);
 
         let title = '任务失败';
         let msg = `任务 ID: ${id.slice(0, 8)} 执行失败: ${error}`;
         
         let payload: any = {};
-        try { payload = JSON.parse(task.payload); } catch(e) {}
+        try { payload = JSON.parse(task.payload); } catch(_e) { /* ignore */ }
 
         switch(task.type) {
             case 'SCRAPE_TRENDS': title = '热点抓取失败'; break;
@@ -293,6 +332,9 @@ export function failTask(id: string, error: string) {
 }
 
 export function cancelTask(id: string) {
+    // 先发送取消信号，正在执行中的任务可以优雅退出
+    taskController.abort(id);
+
     const result = db.prepare(`
         UPDATE tasks 
         SET status = 'CANCELLED', updated_at = ? 
@@ -305,9 +347,9 @@ export function cancelTask(id: string) {
 export function recoverStaleTasks() {
     console.log('[Queue] Checking for stale tasks...');
     
-    // Threshold: Tasks stuck in PROCESSING for more than 30 minutes
-    // (Assuming no task takes longer than 30m without updating progress/status)
-    const threshold = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+    // Threshold: Tasks stuck in PROCESSING for more than 10 minutes
+    // (RPA tasks are capped at 5 minutes; 10 minutes is a safe upper bound)
+    const threshold = new Date(Date.now() - 10 * 60 * 1000).toISOString();
     
     const staleTasks = db.prepare(`
         SELECT id, type, attempts FROM tasks 

@@ -13,12 +13,18 @@ export interface TaskProgressEvent {
 export interface TaskHandler {
     /**
      * 执行任务。
-     * @param onProgress 可选进度回调。Handler 应在关键阶段调用一次或多次,
-     *                   例如 10% 启动 / 50% 中段 / 90% 终态前。Handler 不应
-     *                   自己写 DB 或 emit 事件 —— 仅通过回调传出,由 Worker 统一处理。
+     *
+     * 参数说明：
+     * - task: [any] 任务对象，包含 id/type/payload 等
+     * - onProgress: [(event: TaskProgressEvent) => void] 可选进度回调
+     * - signal: [AbortSignal] 取消信号，Handler 应在长耗时操作中检查 signal.aborted
+     *
+     * 返回说明：
+     * - Promise<any> 任务执行结果
      */
     handle(
         task: any,
-        onProgress?: (event: TaskProgressEvent) => void
+        onProgress?: (event: TaskProgressEvent) => void,
+        signal?: AbortSignal
     ): Promise<any>;
 }

@@ -17,108 +17,621 @@ let loginState: {
   type?: 'CREATOR' | 'MAIN_SITE';
   message?: string;
   qrCodeUrl?: string;
+  page?: any;
+  context?: any;
+  browser?: Browser | null;
+  lastQrRefreshAt?: number;
 } = { status: 'IDLE' };
 
 export function getLoginState() {
   return loginState;
 }
 
+/**
+ * 功能描述：重置登录状态并清理浏览器引用
+ *
+ * 设计思路：
+ * 登录流程结束（成功/失败/取消）时，必须释放 Playwright 页面/上下文/浏览器引用，
+ * 避免内存泄漏和进程残留。
+ */
+async function resetLoginState(
+  status: 'IDLE' | 'SUCCESS' | 'FAILED',
+  message?: string
+): Promise<void> {
+  const { page, context, browser } = loginState;
+
+  loginState = { status, message };
+
+  if (page) {
+    try {
+      await page.close();
+    } catch (_e) {
+      /* ignore */
+    }
+  }
+  if (context) {
+    try {
+      await context.close();
+    } catch (_e) {
+      /* ignore */
+    }
+  }
+  if (browser) {
+    try {
+      await browser.close();
+    } catch (_e) {
+      /* ignore */
+    }
+  }
+}
+
+/**
+ * 功能描述：刷新当前登录流程的二维码
+ *
+ * 设计思路：
+ * 小红书二维码有效期约 5 分钟，用户可能因扫码超时而需要刷新。
+ * 刷新时复用当前登录页面，重新加载并截图，避免重启整个浏览器流程。
+ * 增加 3 秒刷新冷却，防止用户/前端疯狂点击。
+ *
+ * 返回说明：
+ * - { success: boolean; qrCodeUrl?: string; message?: string }
+ */
+export async function refreshQrCode(): Promise<{
+  success: boolean;
+  qrCodeUrl?: string;
+  message?: string;
+}> {
+  if (loginState.status !== 'WAITING_FOR_SCAN') {
+    return { success: false, message: '当前不在扫码流程中' };
+  }
+
+  const now = Date.now();
+  if (loginState.lastQrRefreshAt && now - loginState.lastQrRefreshAt < 3000) {
+    return { success: false, message: '刷新太频繁，请稍后再试', qrCodeUrl: loginState.qrCodeUrl };
+  }
+
+  const { page, type } = loginState;
+  if (!page) {
+    return { success: false, message: '登录页面已丢失，请重新发起登录' };
+  }
+
+  try {
+    loginState.lastQrRefreshAt = now;
+
+    // 重新加载登录页以获取新二维码
+    const loginUrl =
+      type === 'CREATOR'
+        ? 'https://creator.xiaohongshu.com/publish/publish'
+        : 'https://www.xiaohongshu.com';
+
+    await page.goto(loginUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await page.waitForTimeout(2500);
+
+    const prefix = type === 'CREATOR' ? 'creator-login' : 'main-site-login';
+    const newQrCodeUrl = await captureQrCode(page, prefix);
+
+    if (newQrCodeUrl) {
+      loginState.qrCodeUrl = newQrCodeUrl;
+      Logger.info('Auth', `QR code refreshed: ${newQrCodeUrl}`);
+      return { success: true, qrCodeUrl: newQrCodeUrl };
+    }
+
+    return { success: false, message: '刷新二维码截图失败，请重试', qrCodeUrl: loginState.qrCodeUrl };
+  } catch (e: any) {
+    Logger.error('Auth', `Failed to refresh QR code: ${e.message}`);
+    return { success: false, message: `刷新失败: ${e.message}`, qrCodeUrl: loginState.qrCodeUrl };
+  }
+}
+
+/**
+ * 功能描述：截取登录页面二维码并生成前端可访问的 URL
+ *
+ * 参数说明：
+ * - page: Page Playwright 页面实例
+ * - prefix: string 文件名前缀，用于区分创作者/主站登录
+ *
+ * 返回说明：
+ * - string | undefined 二维码图片的相对 URL，截图失败时返回 undefined
+ */
+async function captureQrCode(page: any, prefix: string): Promise<string | undefined> {
+    try {
+        const qrDir = path.join(process.cwd(), 'public', 'qr-codes');
+        if (!fs.existsSync(qrDir)) fs.mkdirSync(qrDir, { recursive: true });
+        const qrPath = path.join(qrDir, `${prefix}-${Date.now()}.png`);
+        await page.waitForTimeout(2000);
+        await page.screenshot({ path: qrPath, fullPage: true });
+        const url = `/qr-codes/${path.basename(qrPath)}`;
+        Logger.info('Auth', `Captured QR code for ${prefix}: ${url}`);
+        return url;
+    } catch (e: any) {
+        Logger.warn('Auth', `Failed to capture QR screenshot for ${prefix}: ${e.message}`);
+        return undefined;
+    }
+}
+
+/**
+ * 功能描述：检测小红书主站登录状态
+ *
+ * 设计思路：
+ * 小红书网页版登录态判断不能依赖单一选择器，需结合 URL、DOM 和 Cookie 综合判断，
+ * 避免页面跳转间隙误判为未登录。
+ */
+async function detectMainSiteLogin(page: any): Promise<boolean> {
+    return await page.evaluate((selectors: any) => {
+        const href = window.location.href;
+        const pageText = document.body ? document.body.innerText : '';
+
+        // 1. 如果仍在登录相关页面，认为未登录
+        if (href.includes('/login') || href.includes('/sign')) return false;
+
+        // 2. 检查明确的未登录指示器（登录按钮/登录容器）
+        const loggedOut = document.querySelector(selectors.Common.Login.LoggedOutIndicators.MainSite);
+        if (loggedOut) return false;
+
+        // 3. 检查明确的登录指示器（右上角个人中心/头像）
+        const loggedIn = document.querySelector(selectors.Common.Login.LoggedInIndicators.MainSite);
+        if (loggedIn) return true;
+
+        // 4. 兜底：页面上没有登录按钮，且存在"我的"入口
+        //    这里避免使用容易误判的 class 选择器，只依赖明确的文案和登录按钮缺失。
+        const hasMyEntry = pageText.includes('我') && (
+            !!document.querySelector('a[href*="/user/profile"]') ||
+            !!document.querySelector('a[href="/user/me"]')
+        );
+        const hasLoginButton = pageText.includes('登录') || pageText.includes('手机号登录') || pageText.includes('验证码登录');
+
+        return hasMyEntry && !hasLoginButton;
+    }, Selectors);
+}
+
+/**
+ * 功能描述：检测小红书创作服务平台登录状态
+ */
+async function detectCreatorLogin(page: any): Promise<boolean> {
+    const currentUrl = page.url();
+    if (!currentUrl.includes('creator.xiaohongshu.com') || currentUrl.includes('/login')) {
+        return false;
+    }
+
+    return await page.evaluate((selectors: any) => {
+        return !!document.querySelector(selectors.Common.Login.LoggedInIndicators.Creator);
+    }, Selectors);
+}
+
+/**
+ * 功能描述：验证 Playwright storageState 中是否包含有效登录 Cookie
+ *
+ * 参数说明：
+ * - storageState: any Playwright 导出的 storageState 对象
+ *
+ * 返回说明：
+ * - boolean true 表示包含非空 cookie 数组
+ */
+function hasValidSessionCookies(storageState: any): boolean {
+    if (!storageState) return false;
+    const cookies = storageState.cookies;
+    return Array.isArray(cookies) && cookies.length > 0 && cookies.some((c: any) => c.name && c.value);
+}
+
+/**
+ * 功能描述：判断浏览器上下文是否包含小红书主站认证 Cookie
+ *
+ * 设计思路：
+ * 小红书主站登录态除了通过 DOM 判断外，还可以通过关键 Cookie 是否存在来确认。
+ * 当页面未刷新或 DOM 选择器失效时，Cookie 检测可以作为兜底手段。
+ *
+ * 参数说明：
+ * - cookies: any[] Playwright 导出的 cookie 数组
+ *
+ * 返回说明：
+ * - boolean true 表示存在主站认证相关 Cookie
+ */
+function hasMainSiteAuthCookies(cookies: any[]): boolean {
+    if (!Array.isArray(cookies) || cookies.length === 0) return false;
+    // 只有真正的会话/认证 Cookie 才能证明已登录；
+    // webId/a1/gid 等是访客标识，未登录时也会存在，不能作为登录依据。
+    const authCookieNames = ['web_session', 'websectoken'];
+    return cookies.some((cookie) => authCookieNames.includes(cookie.name) && !!cookie.value);
+}
+
+/**
+ * 功能描述：校验是否存在已激活的账号，并具备指定类型的有效 Cookie
+ *
+ * 设计思路：
+ * 小红书网页版操作（浏览/发布/评论等）均依赖登录态，失败时统一抛出 NO_ACTIVE_ACCOUNT 或
+ * COOKIE_EXPIRED 错误，方便上层转换为友好的用户提示。
+ *
+ * 参数说明：
+ * - type: 'CREATOR' | 'MAIN_SITE' | 'ANY' 需要校验的 Cookie 类型
+ *   - CREATOR: 必须有 creator_cookies 或 legacy cookies
+ *   - MAIN_SITE: 必须有 main_site_cookies，或创作中心 Cookie（二者通常共享登录态）
+ *   - ANY: 只要有一种有效 Cookie 即可
+ *
+ * 返回说明：
+ * - { id: number } 活跃账号的 ID
+ *
+ * 异常情况：
+ * - NO_ACTIVE_ACCOUNT: 没有激活账号
+ * - COOKIE_EXPIRED: 激活账号缺少指定类型的 Cookie
+ */
+export function requireActiveAccount(type: 'CREATOR' | 'MAIN_SITE' | 'ANY' = 'ANY'): { id: number } {
+    const activeAccount = db.prepare(
+        'SELECT id, creator_cookies, main_site_cookies, cookies FROM accounts WHERE is_active = 1 LIMIT 1'
+    ).get() as { id: number; creator_cookies?: string; main_site_cookies?: string; cookies?: string } | undefined;
+
+    if (!activeAccount) {
+        throw new Error('NO_ACTIVE_ACCOUNT: Please bind a Xiaohongshu account in Account Matrix first');
+    }
+
+    let hasCookie = false;
+    if (type === 'CREATOR') {
+        // 创作平台权限只认 creator_cookies（或历史 cookies 字段）
+        hasCookie = !!(activeAccount.creator_cookies || activeAccount.cookies);
+    } else if (type === 'MAIN_SITE') {
+        // 主站浏览权限必须严格匹配主站 Cookie，禁止用创作者 Cookie 回退，
+        // 避免把发布权限误判为可预览权限。
+        hasCookie = !!activeAccount.main_site_cookies;
+    } else {
+        // ANY: 任意一种有效 Cookie 即可
+        hasCookie = !!(activeAccount.creator_cookies || activeAccount.main_site_cookies || activeAccount.cookies);
+    }
+
+    if (!hasCookie) {
+        throw new Error('COOKIE_EXPIRED: Account cookies missing, please re-authorize in Account Matrix');
+    }
+
+    return { id: activeAccount.id };
+}
+
+/**
+ * 功能描述：校验指定账号是否存在且具备指定类型的有效 Cookie
+ *
+ * 参数说明：
+ * - accountId: number 账号 ID
+ * - type: 'CREATOR' | 'MAIN_SITE' | 'ANY' 需要校验的 Cookie 类型
+ *
+ * 返回说明：
+ * - void 校验通过时无返回值
+ *
+ * 异常情况：
+ * - NO_ACTIVE_ACCOUNT: 账号不存在
+ * - COOKIE_EXPIRED: 该账号缺少指定类型的 Cookie
+ */
+export function requireAccountCookie(accountId: number, type: 'CREATOR' | 'MAIN_SITE' | 'ANY' = 'ANY'): void {
+    const account = db.prepare(
+        'SELECT creator_cookies, main_site_cookies, cookies FROM accounts WHERE id = ?'
+    ).get(accountId) as { creator_cookies?: string; main_site_cookies?: string; cookies?: string } | undefined;
+
+    if (!account) {
+        throw new Error(`NO_ACTIVE_ACCOUNT: Account ${accountId} not found`);
+    }
+
+    let hasCookie = false;
+    if (type === 'CREATOR') {
+        hasCookie = !!(account.creator_cookies || account.cookies);
+    } else if (type === 'MAIN_SITE') {
+        // 主站浏览权限严格只认 main_site_cookies
+        hasCookie = !!account.main_site_cookies;
+    } else {
+        hasCookie = !!(account.creator_cookies || account.main_site_cookies || account.cookies);
+    }
+
+    if (!hasCookie) {
+        throw new Error(`COOKIE_EXPIRED: Account ${accountId} cookies missing, please re-authorize in Account Matrix`);
+    }
+}
+
+/**
+ * 功能描述：判断页面是否被反爬拦截
+ */
+async function detectAntiBot(page: any): Promise<{ blocked: boolean; reason?: string }> {
+    return await page.evaluate((selectors: any) => {
+        const href = window.location.href;
+        const pageText = document.body ? document.body.innerText : '';
+
+        if (document.querySelector(selectors.Common.AntiBot.Captcha)) {
+            return { blocked: true, reason: '需要安全验证（滑块/验证码）' };
+        }
+        if (pageText.includes('访问太频繁') || pageText.includes('操作过于频繁')) {
+            return { blocked: true, reason: '访问频率受限' };
+        }
+        if (pageText.includes('网络异常') || pageText.includes('请检查网络')) {
+            return { blocked: true, reason: '网络异常' };
+        }
+        if (href.includes('/blocked') || href.includes('/verify')) {
+            return { blocked: true, reason: '页面被拦截' };
+        }
+        return { blocked: false };
+    }, Selectors);
+}
+
+/**
+ * 功能描述：使用浏览器验证创作者平台 Cookie 是否有效
+ *
+ * 设计思路：
+ * 健康检查不能因一次网络抖动或 DOM 选择器失效就误删有效 Cookie。
+ * 这里采用"重试 3 次 + 区分明确过期与疑似异常"的策略：
+ * - 明确过期：页面被重定向到登录页
+ * - 疑似异常：超时、选择器未匹配、反爬拦截等，继续重试，不删 Cookie
+ */
+async function verifyCreatorWithBrowser(
+    session: { context?: any; page?: any },
+    account: { id: number; nickname?: string }
+): Promise<boolean> {
+    const { page } = session;
+    if (!page) {
+        Logger.warn('Auth', `Cannot verify creator: page missing for account ${account.nickname || account.id}`);
+        return true;
+    }
+    let lastReason = '';
+
+    for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+            await page.goto('https://creator.xiaohongshu.com/creator/home', {
+                waitUntil: 'domcontentloaded',
+                timeout: 30000,
+            });
+            await page.waitForTimeout(3000);
+
+            const antiBot = await detectAntiBot(page);
+            if (antiBot.blocked) {
+                lastReason = `被拦截: ${antiBot.reason}`;
+                Logger.warn('Auth', `Creator health check attempt ${attempt} blocked: ${antiBot.reason}`);
+                continue;
+            }
+
+            const url = page.url();
+            if (url.includes('/login')) {
+                Logger.warn('Auth', `Creator Cookie definitely expired (redirected to login): ${account.nickname || account.id}`);
+                return false;
+            }
+
+            const isLoggedIn = await page.evaluate((selectors: any) => {
+                return !!document.querySelector(selectors.Common.Login.LoggedInIndicators.Creator);
+            }, Selectors);
+
+            if (isLoggedIn) {
+                return true;
+            }
+
+            lastReason = '未找到登录态 DOM 指示器';
+            Logger.warn('Auth', `Creator health check attempt ${attempt} DOM indicator missing`);
+        } catch (e: any) {
+            lastReason = e.message;
+            Logger.warn('Auth', `Creator health check attempt ${attempt} error: ${e.message}`);
+        }
+    }
+
+    Logger.warn('Auth', `Creator Cookie suspicious after retries (${lastReason}): ${account.nickname || account.id}`);
+    // 重试后仍无法确认登录态，保守起见不清除，让下次任务触发时再验证
+    return true;
+}
+
+/**
+ * 功能描述：使用浏览器验证主站 Cookie 是否有效
+ *
+ * 设计思路：
+ * 主站验证以首页可访问性为准（而非个人主页），避免 user_id 缺失/受限导致误判。
+ * 同样采用重试策略，只有明确被重定向到登录页才判定过期。
+ */
+async function verifyMainSiteWithBrowser(
+    session: { context?: any; page?: any },
+    account: { id: number; nickname?: string }
+): Promise<boolean> {
+    const { page, context } = session;
+    if (!page || !context) {
+        Logger.warn('Auth', `Cannot verify main site: page/context missing for account ${account.nickname || account.id}`);
+        return true;
+    }
+    let lastReason = '';
+
+    for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+            await page.goto('https://www.xiaohongshu.com', {
+                waitUntil: 'domcontentloaded',
+                timeout: 30000,
+            });
+            await page.waitForTimeout(3000);
+
+            const antiBot = await detectAntiBot(page);
+            if (antiBot.blocked) {
+                lastReason = `被拦截: ${antiBot.reason}`;
+                Logger.warn('Auth', `Main site health check attempt ${attempt} blocked: ${antiBot.reason}`);
+                continue;
+            }
+
+            const url = page.url();
+            const isLoginRedirect = url.includes('/login') || url.includes('redirectPath');
+
+            if (isLoginRedirect) {
+                Logger.warn('Auth', `Main Site Cookie definitely expired (redirected to login): ${account.nickname || account.id}`);
+                return false;
+            }
+
+            // 首页未触发登录重定向，且存在主站认证 Cookie，即认为有效
+            const cookieLogin = hasMainSiteAuthCookies(await context.cookies());
+            if (cookieLogin) {
+                return true;
+            }
+
+            lastReason = '缺少主站认证 Cookie';
+            Logger.warn('Auth', `Main site health check attempt ${attempt} missing auth cookies`);
+        } catch (e: any) {
+            lastReason = e.message;
+            Logger.warn('Auth', `Main site health check attempt ${attempt} error: ${e.message}`);
+        }
+    }
+
+    Logger.warn('Auth', `Main Site Cookie suspicious after retries (${lastReason}): ${account.nickname || account.id}`);
+    return true;
+}
+
+/**
+ * 功能描述：轻量 HTTP 验证主站 Cookie 是否有效
+ *
+ * 设计思路：
+ * 通过 axios 访问首页并禁止跟随重定向，若服务器返回 302/301 到登录页则判定过期。
+ * 相比启动浏览器更轻量、更快、更不容易因页面渲染问题误判。
+ */
+async function verifyMainSiteWithRequest(accountId?: number): Promise<boolean> {
+    try {
+        const cookies = getCookies('MAIN_SITE', accountId);
+        if (!cookies || cookies.length === 0) return false;
+
+        const cookieHeader = cookies.map((c: any) => `${c.name}=${c.value}`).join('; ');
+
+        const res = await axios.get('https://www.xiaohongshu.com', {
+            headers: {
+                'Cookie': cookieHeader,
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Referer': 'https://www.xiaohongshu.com/',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            },
+            validateStatus: (status) => status < 500,
+            maxRedirects: 0,
+            timeout: 15000,
+        });
+
+        // 30x 跳转到登录页说明 Cookie 已失效
+        if (res.status === 301 || res.status === 302) {
+            const location = res.headers['location'] || '';
+            if (location.includes('/login') || location.includes('sign')) {
+                console.warn(`[Auth] Main site session expired: redirect to ${location}`);
+                return false;
+            }
+        }
+
+        // 200 但返回登录相关 HTML，也视为失效（兜底）
+        if (res.status === 200 && typeof res.data === 'string') {
+            const html = res.data.toLowerCase();
+            if (html.includes('手机号登录') || html.includes('验证码登录')) {
+                console.warn(`[Auth] Main site session expired: login page HTML detected`);
+                return false;
+            }
+        }
+
+        return true;
+    } catch (e: any) {
+        if (e.response && (e.response.status === 301 || e.response.status === 302)) {
+            console.warn(`[Auth] Main site session expired: Redirected`);
+            return false;
+        }
+        console.warn(`[Auth] Main site session verification error: ${e.message}`);
+        return false;
+    }
+}
+
+/**
+ * 功能描述：解析加密存储的 Cookie 字符串为 Playwright Cookie 数组
+ */
+function parseEncryptedCookies(encrypted: string): any[] {
+    try {
+        const decrypted = EncryptionService.decrypt(encrypted);
+        const parsed = JSON.parse(decrypted);
+        if (parsed.cookies && Array.isArray(parsed.cookies)) return parsed.cookies;
+        if (Array.isArray(parsed)) return parsed;
+    } catch (_e) {
+        // 解密失败时尝试直接解析（可能未加密）
+        try {
+            const parsed = JSON.parse(encrypted);
+            if (parsed.cookies && Array.isArray(parsed.cookies)) return parsed.cookies;
+            if (Array.isArray(parsed)) return parsed;
+        } catch (_e2) {
+            return [];
+        }
+    }
+    return [];
+}
+
+/**
+ * 功能描述：全量账号健康检查
+ *
+ * 设计思路：
+ * 1. 优先使用轻量 HTTP 请求判断 Cookie 是否过期，避免频繁启动浏览器。
+ * 2. HTTP 判定失败时，再启动浏览器做二次确认；浏览器检查采用重试机制，
+ *    只有明确被重定向到登录页才清除 Cookie，避免误清。
+ * 3. 每次检查使用独立匿名浏览器会话，检查完毕后彻底关闭，防止进程泄漏。
+ */
 export async function checkAllAccountsHealth() {
     Logger.info('Auth', 'Starting daily account health check...');
     const accounts = AccountService.getAccountsWithCookies();
-    
+
     for (const acc of accounts) {
         Logger.info('Auth', `Checking account: ${acc.nickname || acc.id}`);
-        // Use BrowserService for health check instead of raw launch
-        const session = await BrowserService.getInstance().getAuthenticatedPage('ANONYMOUS', true); // Headless
-        const { browser, page } = session;
+        let session: { browser?: any; context?: any; page?: any } | null = null;
 
         try {
             // 1. Check Creator Cookies
             if (acc.creator_cookies) {
                 Logger.info('Auth', `Checking Creator cookies for: ${acc.nickname || acc.id}`);
-                const decryptedCookies = EncryptionService.decrypt(acc.creator_cookies);
-                const cookies = JSON.parse(decryptedCookies);
-                
-                // Add cookies to current context
-                if (cookies.cookies) await session.context.addCookies(cookies.cookies);
-                else if (Array.isArray(cookies)) await session.context.addCookies(cookies);
-                
-                try {
-                    await page.goto('https://creator.xiaohongshu.com/creator/home', { waitUntil: 'domcontentloaded', timeout: 30000 });
-                    await page.waitForTimeout(3000); // Wait for potential redirect
-                    
-                    // Check if redirected to login
-                    if (page.url().includes('/login')) {
-                        Logger.warn('Auth', `Creator Cookie Expired: ${acc.nickname || acc.id}`);
-                        AccountService.clearCreatorCookies(acc.id);
-                    } else {
-                        // Double check if we are really logged in
-                        const isLoggedIn = await page.evaluate((selectors: any) => {
-                            return !!document.querySelector(selectors.Common.Login.LoggedInIndicators.Creator);
-                        }, Selectors);
-                        
-                        if (isLoggedIn) {
-                            Logger.info('Auth', `Creator Cookie Valid: ${acc.nickname || acc.id}`);
-                        } else {
-                            Logger.warn('Auth', `Creator Cookie Suspicious: ${acc.nickname || acc.id}`);
-                            AccountService.clearCreatorCookies(acc.id);
-                        }
+
+                // 1.1 轻量 HTTP 预检
+                let creatorValid = await verifySessionWithRequest(acc.id);
+
+                // 1.2 HTTP 预检失败时，再用浏览器复核（带重试）
+                if (!creatorValid) {
+                    Logger.warn('Auth', `Creator HTTP check failed for ${acc.nickname || acc.id}, falling back to browser check`);
+                    session = await BrowserService.getInstance().getAuthenticatedPage('ANONYMOUS', true);
+                    const cookies = parseEncryptedCookies(acc.creator_cookies);
+                    if (cookies.length > 0) {
+                        await session.context.addCookies(cookies);
                     }
-                } catch (e: any) {
-                    Logger.error('Auth', `Creator check failed: ${e.message}`);
+                    creatorValid = await verifyCreatorWithBrowser(session, acc);
                 }
-                // Do not close context, just clear cookies for next check if needed, but we use new page anyway
-                await session.context.clearCookies();
+
+                if (creatorValid) {
+                    Logger.info('Auth', `Creator Cookie Valid: ${acc.nickname || acc.id}`);
+                } else {
+                    Logger.warn('Auth', `Creator Cookie Expired: ${acc.nickname || acc.id}`);
+                    AccountService.clearCreatorCookies(acc.id);
+                }
             }
 
             // 2. Check Main Site Cookies
             if (acc.main_site_cookies) {
                 Logger.info('Auth', `Checking Main Site cookies for: ${acc.nickname || acc.id}`);
-                const decryptedCookies = EncryptionService.decrypt(acc.main_site_cookies);
-                const cookies = JSON.parse(decryptedCookies);
-                
-                if (cookies.cookies) await session.context.addCookies(cookies.cookies);
-                else if (Array.isArray(cookies)) await session.context.addCookies(cookies);
-                
-                try {
-                    await page.goto('https://www.xiaohongshu.com', { waitUntil: 'domcontentloaded', timeout: 30000 });
-                    await page.waitForTimeout(3000);
-                    
-                    const isLoggedOut = await page.evaluate(function(selectors: any) {
-                        return !!document.querySelector(selectors.Common.Login.LoggedOutIndicators.MainSite);
-                    }, Selectors);
-                    
-                    const isLoggedIn = await page.evaluate(function(selectors: any) {
-                        return !!document.querySelector(selectors.Common.Login.LoggedInIndicators.MainSite);
-                    }, Selectors);
 
-                    if (isLoggedOut || !isLoggedIn) {
-                        Logger.warn('Auth', `Main Site Cookie Expired: ${acc.nickname || acc.id}`);
-                        AccountService.clearMainSiteCookies(acc.id);
+                // 2.1 轻量 HTTP 预检
+                let mainSiteValid = await verifyMainSiteWithRequest(acc.id);
+
+                // 2.2 HTTP 预检失败时，再用浏览器复核（带重试）
+                if (!mainSiteValid) {
+                    Logger.warn('Auth', `Main Site HTTP check failed for ${acc.nickname || acc.id}, falling back to browser check`);
+                    if (!session) {
+                        session = await BrowserService.getInstance().getAuthenticatedPage('ANONYMOUS', true);
                     } else {
-                        Logger.info('Auth', `Main Site Cookie Valid: ${acc.nickname || acc.id}`);
+                        await session.context.clearCookies();
                     }
-                } catch (e: any) {
-                     Logger.error('Auth', `Main Site check failed: ${e.message}`);
+                    const cookies = parseEncryptedCookies(acc.main_site_cookies);
+                    if (cookies.length > 0) {
+                        await session.context.addCookies(cookies);
+                    }
+                    mainSiteValid = await verifyMainSiteWithBrowser(session, acc);
                 }
-                 await session.context.clearCookies();
+
+                if (mainSiteValid) {
+                    Logger.info('Auth', `Main Site Cookie Valid: ${acc.nickname || acc.id}`);
+                } else {
+                    Logger.warn('Auth', `Main Site Cookie Expired: ${acc.nickname || acc.id}`);
+                    AccountService.clearMainSiteCookies(acc.id);
+                }
             }
 
             // 3. Update Overall Status
-            // Re-fetch to get latest status
             const updatedAcc = db.prepare('SELECT creator_cookies, main_site_cookies FROM accounts WHERE id = ?').get(acc.id) as any;
             if (!updatedAcc.creator_cookies && !updatedAcc.main_site_cookies) {
                 db.prepare("UPDATE accounts SET status = 'EXPIRED' WHERE id = ?").run(acc.id);
             } else {
                 db.prepare("UPDATE accounts SET status = 'ACTIVE' WHERE id = ?").run(acc.id);
             }
-
         } catch (e: any) {
             Logger.error('Auth', `Health check error for ${acc.nickname || acc.id}`, e);
         } finally {
-             // Close only page
-             if (page) { try { await page.close(); } catch(e) {} }
+            // 健康检查每个账号都新建一个匿名浏览器会话，必须彻底关闭
+            // page -> context -> browser，避免 Chrome 进程泄漏。
+            if (session?.page) { try { await session.page.close(); } catch(_e) { /* ignore */ } }
+            if (session?.context) { try { await session.context.close(); } catch(_e) { /* ignore */ } }
+            if (session?.browser) { try { await session.browser.close(); } catch(_e) { /* ignore */ } }
         }
     }
     Logger.info('Auth', 'Daily account health check completed.');
@@ -129,179 +642,260 @@ export async function startCreatorLogin(accountId?: number): Promise<void> {
   if (loginState.status === 'WAITING_FOR_SCAN') return;
 
   loginState = { status: 'WAITING_FOR_SCAN', type: 'CREATOR' };
-  
+
   let browser: Browser | null = null;
   try {
-    // 自动检测无图形环境，Docker / Linux 服务器使用 headless 模式
     const isHeadless = process.env.HEADLESS === 'true' || (process.platform === 'linux' && !process.env.DISPLAY);
+    Logger.info('Auth', `Starting creator login (headless=${isHeadless}, accountId=${accountId || 'new'})`);
+
     browser = await launchBrowser(isHeadless);
     const context = await createBrowserContext(browser);
     const page = await context.newPage();
-    
-    console.log('Navigating to Xiaohongshu Creator Center login...');
+
+    // 将页面引用存入全局状态，支持二维码刷新和后续清理
+    loginState.page = page;
+    loginState.context = context;
+    loginState.browser = browser;
+
+    Logger.info('Auth', 'Navigating to Xiaohongshu Creator Center login...');
     await page.goto('https://creator.xiaohongshu.com/publish/publish', { waitUntil: 'domcontentloaded' });
 
-    // 无图形环境下截图二维码，供前端展示
-    if (isHeadless) {
-      try {
-        const qrDir = path.join(process.cwd(), 'public', 'qr-codes');
-        if (!fs.existsSync(qrDir)) fs.mkdirSync(qrDir, { recursive: true });
-        const qrPath = path.join(qrDir, `creator-login-${Date.now()}.png`);
-        await page.waitForTimeout(2000);
-        await page.screenshot({ path: qrPath, fullPage: true });
-        loginState.qrCodeUrl = `/qr-codes/${path.basename(qrPath)}`;
-        console.log(`[Creator Login] Headless mode QR screenshot saved: ${loginState.qrCodeUrl}`);
-      } catch (e) {
-        console.error('[Creator Login] Failed to capture QR screenshot:', e);
-      }
-    }
-    
+    // 无论是否 headless 都尝试截图二维码：桌面版弹窗可能被遮挡，前端展示二维码更可靠
+    loginState.qrCodeUrl = await captureQrCode(page, 'creator-login');
+
     // Check loop: 5 minutes
     for (let i = 0; i < 150; i++) {
       if (loginState.status === 'FAILED') break;
 
+      const antiBot = await detectAntiBot(page);
+      if (antiBot.blocked) {
+        Logger.warn('Auth', `Creator login blocked: ${antiBot.reason}`);
+        await resetLoginState('FAILED', `登录被拦截：${antiBot.reason}`);
+        return;
+      }
+
       const currentUrl = page.url();
-      const isOnLoginPage = currentUrl.includes('/login');
-      const isCreatorPage = currentUrl.includes('creator.xiaohongshu.com');
-      
-      if (i % 5 === 0) console.log(`[Creator Login] URL: ${currentUrl}`);
+      if (i % 5 === 0) Logger.info('Auth', `[Creator Login] URL: ${currentUrl}`);
 
-      if (isCreatorPage && !isOnLoginPage) {
-        // [Optimized] Wait for UI
-        try {
-            await page.waitForSelector(Selectors.Common.Login.LoggedInIndicators.Creator, { timeout: 5000 }).catch(() => {});
-        } catch(e) {}
+      const isLoggedIn = await detectCreatorLogin(page);
+      if (isLoggedIn) {
+        Logger.info('Auth', 'Creator Center Login verified!');
+        const storageState = await context.storageState();
 
-        const isLoggedIn = await page.evaluate(function(selectors: any) {
-            return !!document.querySelector(selectors.Common.Login.LoggedInIndicators.Creator);
-        }, Selectors);
-
-        if (isLoggedIn) {
-            console.log('Creator Center Login verified!');
-            const storageState = await context.storageState();
-            const storageStr = JSON.stringify(storageState);
-            const encryptedCookies = EncryptionService.encrypt(storageStr);
-            
-            let nickname = `账号-${Date.now().toString().slice(-4)}`;
-            let avatar = '';
-
-            try {
-               const info = await page.evaluate(function(selectors: any) {
-                   const clean = function(str: string) { return str ? str.trim() : ''; };
-                   
-                   // Strategy 1: Specific selectors
-                   let name = document.querySelector(selectors.Common.UserInfo.Name)?.textContent;
-                   let imgSrc = document.querySelector(selectors.Common.UserInfo.Avatar)?.getAttribute('src');
-
-                   return { name: clean(name || ''), avatar: imgSrc || '' };
-               }, Selectors);
-
-               if (info.name) nickname = info.name;
-               if (info.avatar) avatar = info.avatar;
-               
-               console.log(`[Auth] Captured user info: ${nickname}, avatar: ${avatar ? 'Found' : 'Missing'}`);
-
-            } catch (e) {
-                console.error('[Auth] Failed to scrape user info:', e);
-            }
-
-            if (accountId) {
-                db.prepare('UPDATE accounts SET creator_cookies = ?, nickname = ?, avatar = ?, last_used_at = CURRENT_TIMESTAMP WHERE id = ?')
-                  .run(encryptedCookies, nickname, avatar, accountId);
-            } else {
-                db.prepare('UPDATE accounts SET is_active = 0').run();
-                db.prepare(`
-                    INSERT INTO accounts (nickname, avatar, creator_cookies, is_active, last_used_at)
-                    VALUES (?, ?, ?, 1, CURRENT_TIMESTAMP)
-                `).run(nickname, avatar, encryptedCookies);
-            }
-
-            loginState = { status: 'SUCCESS', message: 'Creator Login successful', type: 'CREATOR' };
-            await page.waitForTimeout(2000); 
-            await browser.close();
-            return;
+        if (!hasValidSessionCookies(storageState)) {
+          Logger.warn('Auth', 'Creator login detected but no valid cookies found in storageState');
+          await resetLoginState('FAILED', '登录验证失败：未能获取有效会话');
+          return;
         }
+
+        const storageStr = JSON.stringify(storageState);
+        const encryptedCookies = EncryptionService.encrypt(storageStr);
+
+        let nickname = `账号-${Date.now().toString().slice(-4)}`;
+        let avatar = '';
+
+        try {
+          const info = await page.evaluate((selectors: any) => {
+            const clean = function(str: string | null) { return str ? str.trim() : ''; };
+            const name = document.querySelector(selectors.Common.UserInfo.Name)?.textContent;
+            const imgSrc = document.querySelector(selectors.Common.UserInfo.Avatar)?.getAttribute('src');
+            return { name: clean(name || ''), avatar: imgSrc || '' };
+          }, Selectors) as { name: string; avatar: string };
+
+          if (info.name) nickname = info.name;
+          if (info.avatar) avatar = info.avatar;
+          Logger.info('Auth', `Captured user info: ${nickname}, avatar: ${avatar ? 'Found' : 'Missing'}`);
+        } catch (e: any) {
+          Logger.warn('Auth', `Failed to scrape user info: ${e.message}`);
+        }
+
+        if (accountId) {
+          db.prepare('UPDATE accounts SET creator_cookies = ?, nickname = ?, avatar = ?, status = ?, last_used_at = CURRENT_TIMESTAMP WHERE id = ?')
+            .run(encryptedCookies, nickname, avatar, 'ACTIVE', accountId);
+        } else {
+          db.prepare('UPDATE accounts SET is_active = 0').run();
+          db.prepare(`
+            INSERT INTO accounts (nickname, avatar, creator_cookies, is_active, status, last_used_at)
+            VALUES (?, ?, ?, 1, ?, CURRENT_TIMESTAMP)
+          `).run(nickname, avatar, encryptedCookies, 'ACTIVE');
+        }
+
+        await resetLoginState('SUCCESS', 'Creator Login successful');
+        return;
       }
       await page.waitForTimeout(2000);
     }
-    
-    loginState = { status: 'FAILED', message: 'Login timeout', type: 'CREATOR' };
-    await browser.close();
+
+    Logger.warn('Auth', 'Creator login timeout');
+    await resetLoginState('FAILED', '登录超时，请重新尝试');
 
   } catch (error: any) {
-    console.error('Creator Login failed:', error);
-    loginState = { status: 'FAILED', message: error.message, type: 'CREATOR' };
-    if (browser) await browser.close();
+    Logger.error('Auth', `Creator Login failed: ${error.message}`, error);
+    await resetLoginState('FAILED', error.message);
   }
+}
+
+/**
+ * 功能描述：保存主站登录成功后的 Cookie 并更新账号状态
+ *
+ * 参数说明：
+ * - context: any Playwright 浏览器上下文
+ * - accountId: number 账号 ID
+ * - browser: Browser | null 浏览器实例，用于登录结束后关闭
+ */
+async function finishMainSiteLogin(context: any, accountId: number, _browser: Browser | null): Promise<void> {
+    const storageState = await context.storageState();
+
+    // 1. 必须存在任意 Cookie
+    if (!hasValidSessionCookies(storageState)) {
+        Logger.warn('Auth', 'Main site login detected but no valid cookies found in storageState');
+        await resetLoginState('FAILED', '登录验证失败：未能获取有效会话');
+        return;
+    }
+
+    // 2. 必须包含主站认证 Cookie（web_session / websectoken），防止空会话或游客 Cookie 被保存
+    if (!hasMainSiteAuthCookies(storageState.cookies)) {
+        Logger.warn('Auth', 'Main site login detected but missing auth cookies (web_session / websectoken)');
+        await resetLoginState('FAILED', '登录验证失败：未能获取主站认证 Cookie');
+        return;
+    }
+
+    const storageStr = JSON.stringify(storageState);
+    const encryptedCookies = EncryptionService.encrypt(storageStr);
+
+    db.prepare('UPDATE accounts SET main_site_cookies = ?, status = ?, last_used_at = CURRENT_TIMESTAMP WHERE id = ?')
+        .run(encryptedCookies, 'ACTIVE', accountId);
+
+    await resetLoginState('SUCCESS', 'Main Site Login successful');
 }
 
 // --- MAIN SITE LOGIN (For Viewing) ---
 export async function startMainSiteLogin(accountId: number): Promise<void> {
   if (loginState.status === 'WAITING_FOR_SCAN') return;
+  if (!accountId) {
+    loginState = { status: 'FAILED', message: '缺少账号 ID', type: 'MAIN_SITE' };
+    return;
+  }
 
   loginState = { status: 'WAITING_FOR_SCAN', type: 'MAIN_SITE' };
-  
+
   let browser: Browser | null = null;
   try {
-    // 自动检测无图形环境，Docker / Linux 服务器使用 headless 模式
     const isHeadless = process.env.HEADLESS === 'true' || (process.platform === 'linux' && !process.env.DISPLAY);
+    Logger.info('Auth', `Starting main site login (headless=${isHeadless}, accountId=${accountId})`);
+
     browser = await launchBrowser(isHeadless);
     const context = await createBrowserContext(browser);
     const page = await context.newPage();
-    
-    console.log('Navigating to Xiaohongshu Main Site login...');
-    await page.goto('https://www.xiaohongshu.com', { waitUntil: 'domcontentloaded' });
 
-    // 无图形环境下截图二维码，供前端展示
-    if (isHeadless) {
-      try {
-        const qrDir = path.join(process.cwd(), 'public', 'qr-codes');
-        if (!fs.existsSync(qrDir)) fs.mkdirSync(qrDir, { recursive: true });
-        const qrPath = path.join(qrDir, `main-site-login-${Date.now()}.png`);
-        await page.waitForTimeout(2000);
-        await page.screenshot({ path: qrPath, fullPage: true });
-        loginState.qrCodeUrl = `/qr-codes/${path.basename(qrPath)}`;
-        console.log(`[Main Site Login] Headless mode QR screenshot saved: ${loginState.qrCodeUrl}`);
-      } catch (e) {
-        console.error('[Main Site Login] Failed to capture QR screenshot:', e);
-      }
+    // 将页面引用存入全局状态，支持二维码刷新和后续清理
+    loginState.page = page;
+    loginState.context = context;
+    loginState.browser = browser;
+
+    // 1. 仅注入该账号已有的【主站 Cookie】进行预检。
+    //    创作服务平台 Cookie 与主站虽然可能共享 session，但二者权限独立：
+    //    用户点击"绑定浏览"必须显式完成主站登录/授权，不能把创作者权限直接当成可预览权限。
+    const mainSiteCookiesOnly = getMainSiteCookiesOnly(accountId);
+    if (mainSiteCookiesOnly && mainSiteCookiesOnly.length > 0) {
+        try {
+            await context.addCookies(mainSiteCookiesOnly);
+            Logger.info('Auth', `Injected ${mainSiteCookiesOnly.length} existing main-site cookies for account ${accountId}`);
+        } catch (e: any) {
+            Logger.warn('Auth', `Failed to inject existing main-site cookies: ${e.message}`);
+        }
+    } else {
+        Logger.info('Auth', `No existing main-site cookies for account ${accountId}, will show QR code`);
     }
-    
+
+    Logger.info('Auth', 'Navigating to Xiaohongshu Main Site login...');
+    await page.goto('https://www.xiaohongshu.com', { waitUntil: 'domcontentloaded' });
+    // 等待页面稳定，避免 DOM 尚未渲染完成导致误判
+    await page.waitForTimeout(3000);
+
+    // 优先判断主站是否已登录：只有同时满足 DOM 登录指示 + 存在主站认证 Cookie 才跳过扫码
+    const domLoggedIn = await detectMainSiteLogin(page);
+    const cookieLoggedIn = hasMainSiteAuthCookies(await context.cookies());
+    Logger.info('Auth', `Main site pre-check: domLoggedIn=${domLoggedIn}, cookieLoggedIn=${cookieLoggedIn}`);
+    if (domLoggedIn && cookieLoggedIn) {
+        Logger.info('Auth', 'Existing main-site session is valid, skipping QR scan');
+        await finishMainSiteLogin(context, accountId, browser);
+        return;
+    }
+
+    // 预检失败：清理上下文中的旧 Cookie，避免残留/过期 Cookie 导致后续轮询误判。
+    // 用户必须重新扫码授权，不能把旧 Cookie 当成有效登录态。
+    if (!domLoggedIn || !cookieLoggedIn) {
+        Logger.info('Auth', 'Main site pre-check failed, clearing stale cookies before QR scan');
+        await context.clearCookies();
+        // 清理后刷新页面，确保页面回到未登录状态
+        await page.reload({ waitUntil: 'domcontentloaded' });
+        await page.waitForTimeout(2000);
+    }
+
+    // 无论是否 headless 都尝试截图二维码
+    loginState.qrCodeUrl = await captureQrCode(page, 'main-site-login');
+
     for (let i = 0; i < 150; i++) {
       if (loginState.status === 'FAILED') break;
 
-      const isLoggedIn = await page.evaluate(function(selectors: any) {
-          // Negative Check
-          const loggedOut = document.querySelector(selectors.Common.Login.LoggedOutIndicators.MainSite);
-          if (loggedOut) return false;
+      const antiBot = await detectAntiBot(page);
+      if (antiBot.blocked) {
+        Logger.warn('Auth', `Main site login blocked: ${antiBot.reason}`);
+        await resetLoginState('FAILED', `登录被拦截：${antiBot.reason}`);
+        return;
+      }
 
-          // Positive Check
-          return !!document.querySelector(selectors.Common.Login.LoggedInIndicators.MainSite);
-      }, Selectors);
+      const currentUrl = page.url();
+      if (i % 5 === 0) Logger.info('Auth', `[Main Site Login] URL: ${currentUrl}`);
 
-      if (isLoggedIn) {
-          console.log('Main Site Login verified!');
-          const storageState = await context.storageState();
-          const storageStr = JSON.stringify(storageState);
-          
-          db.prepare('UPDATE accounts SET main_site_cookies = ?, last_used_at = CURRENT_TIMESTAMP WHERE id = ?')
-            .run(storageStr, accountId);
-
-          loginState = { status: 'SUCCESS', message: 'Main Site Login successful', type: 'MAIN_SITE' };
-          await page.waitForTimeout(2000); 
-          await browser.close();
-          return;
+      // 必须同时满足 DOM 登录指示 + 存在主站认证 Cookie 才算登录成功，
+      // 避免仅因残留 Cookie 或 DOM 误判就提前结束扫码流程。
+      const domLogin = await detectMainSiteLogin(page);
+      const cookieLogin = hasMainSiteAuthCookies(await context.cookies());
+      if (domLogin && cookieLogin) {
+        Logger.info('Auth', 'Main Site Login verified!');
+        await finishMainSiteLogin(context, accountId, browser);
+        return;
       }
       await page.waitForTimeout(2000);
     }
-    
-    loginState = { status: 'FAILED', message: 'Login timeout', type: 'MAIN_SITE' };
-    await browser.close();
+
+    Logger.warn('Auth', 'Main site login timeout');
+    await resetLoginState('FAILED', '登录超时，请重新尝试');
   } catch (error: any) {
-    console.error('Main Site Login failed:', error);
-    loginState = { status: 'FAILED', message: error.message, type: 'MAIN_SITE' };
-    if (browser) await browser.close();
+    Logger.error('Auth', `Main Site Login failed: ${error.message}`, error);
+    await resetLoginState('FAILED', error.message);
   }
+}
+
+/**
+ * 功能描述：仅获取账号的主站 Cookie（不回落到创作中心 Cookie）
+ *
+ * 设计思路：
+ * 主站浏览权限和创作发布权限虽然可能共享 session，但在产品层面是独立的绑定入口。
+ * 绑定浏览时必须使用主站自己的 cookie 判断，避免把创作者权限直接当成可预览权限。
+ */
+function getMainSiteCookiesOnly(accountId: number): any[] | null {
+    const account = db.prepare('SELECT main_site_cookies FROM accounts WHERE id = ?').get(accountId) as { main_site_cookies?: string } | undefined;
+    if (!account || !account.main_site_cookies) return null;
+
+    try {
+        const decrypted = EncryptionService.decrypt(account.main_site_cookies);
+        const parsed = JSON.parse(decrypted);
+        if (parsed.cookies && Array.isArray(parsed.cookies)) return parsed.cookies;
+        if (Array.isArray(parsed)) return parsed;
+    } catch (_e) {
+        // 如果解密失败，尝试直接解析（可能未加密）
+        try {
+            const parsed = JSON.parse(account.main_site_cookies);
+            if (parsed.cookies && Array.isArray(parsed.cookies)) return parsed.cookies;
+            if (Array.isArray(parsed)) return parsed;
+        } catch (_e2) {
+            return null;
+        }
+    }
+    return null;
 }
 
 export function getCookies(type: 'CREATOR' | 'MAIN_SITE', accountId?: number) {
@@ -337,22 +931,23 @@ export function getCookies(type: 'CREATOR' | 'MAIN_SITE', accountId?: number) {
             return null;
         }
     } else {
-        // For MAIN_SITE, prefer main_site_cookies but fallback to creator_cookies
-        // because XHS creator platform and main site share login session
-        const cookieStr = account.main_site_cookies || account.creator_cookies || account.cookies;
+        // For MAIN_SITE, only use main_site_cookies. Do NOT fallback to creator_cookies
+        // because creator platform permission and main-site browsing permission are
+        // product-level independent. Falling back caused false-positive "preview" status.
+        const cookieStr = account.main_site_cookies;
         if (cookieStr) {
             try {
                 const decrypted = EncryptionService.decrypt(cookieStr);
                 const parsed = JSON.parse(decrypted);
                 if (parsed.cookies && Array.isArray(parsed.cookies)) return parsed.cookies;
                 if (Array.isArray(parsed)) return parsed;
-            } catch (e) {
+            } catch (_e) {
                 // If decryption fails, try parsing directly (may be unencrypted)
                 try {
                     const parsed = JSON.parse(cookieStr);
                     if (parsed.cookies && Array.isArray(parsed.cookies)) return parsed.cookies;
                     if (Array.isArray(parsed)) return parsed;
-                } catch (e2) {
+                } catch (_e2) {
                     return null;
                 }
             }
@@ -365,6 +960,59 @@ export function getCookies(type: 'CREATOR' | 'MAIN_SITE', accountId?: number) {
  * Lightweight verification of session validity using a simple HTTP request.
  * This avoids the overhead of launching a full browser.
  */
+/**
+ * 功能描述：定时刷新活跃账号的小红书 Cookie，延缓“很快过期”
+ *
+ * 设计思路：
+ * 小红书 Cookie 通常有“闲置过期”机制：如果长时间没有浏览器请求，
+ * 即使 token 未到期也会被置为无效。每隔 6 小时主动访问一次创作者中心
+ * 和主站首页，让 PlaywrightDriver 完成登录态校验并把最新 Cookie 回写
+ * 数据库，可显著延长可用时间。
+ *
+ * 参数说明：
+ * - accountId: [number | undefined] 账号 ID，未指定时使用当前活跃账号
+ */
+export async function refreshActiveAccountCookies(accountId?: number): Promise<void> {
+    let account: { id: number; nickname?: string; creator_cookies?: string; main_site_cookies?: string } | undefined;
+    if (accountId) {
+        account = db.prepare('SELECT id, nickname, creator_cookies, main_site_cookies FROM accounts WHERE id = ?').get(accountId) as any;
+    } else {
+        account = db.prepare('SELECT id, nickname, creator_cookies, main_site_cookies FROM accounts WHERE is_active = 1 LIMIT 1').get() as any;
+    }
+    if (!account) {
+        Logger.info('Auth', 'No active account to refresh cookies');
+        return;
+    }
+
+    Logger.info('Auth', `Proactive cookie refresh for ${account.nickname || account.id}`);
+
+    // 刷新主站 Cookie（浏览场景）
+    if (account.main_site_cookies) {
+        try {
+            const session = await BrowserService.getInstance().getAuthenticatedPage('MAIN_SITE', true, account.id);
+            if (session?.page) {
+                await session.page.close();
+            }
+            Logger.info('Auth', `Main site cookies refreshed for ${account.nickname || account.id}`);
+        } catch (e: any) {
+            Logger.warn('Auth', `Failed to refresh main site cookies for ${account.nickname || account.id}: ${e.message}`);
+        }
+    }
+
+    // 刷新创作者中心 Cookie（发布/数据场景）
+    if (account.creator_cookies) {
+        try {
+            const session = await BrowserService.getInstance().getAuthenticatedPage('CREATOR', true, account.id);
+            if (session?.page) {
+                await session.page.close();
+            }
+            Logger.info('Auth', `Creator cookies refreshed for ${account.nickname || account.id}`);
+        } catch (e: any) {
+            Logger.warn('Auth', `Failed to refresh creator cookies for ${account.nickname || account.id}: ${e.message}`);
+        }
+    }
+}
+
 export async function verifySessionWithRequest(accountId?: number): Promise<boolean> {
     try {
         const cookies = getCookies('CREATOR', accountId);

@@ -19,6 +19,17 @@ export interface ApiError {
  * Unknown errors (e.g. unhandled exceptions) get a generic "Internal Server Error" response.
  */
 function toApiError(err: any): ApiError {
+    // 参数校验错误：使用中间件提供的 details，帮助前端定位具体字段
+    if (err.code === 'VALIDATION_ERROR' || err.name === 'ValidationError' || err.name === 'ZodError') {
+        return {
+            statusCode: err.statusCode || 400,
+            code: 'VALIDATION_ERROR',
+            title: '参数校验失败',
+            message: err.message || '请求参数不符合要求',
+            suggestion: '请检查输入参数'
+        };
+    }
+
     // Known application errors (thrown intentionally)
     if (err.code === 'TASK_NOT_FOUND') {
         return { statusCode: 404, code: 'TASK_NOT_FOUND', title: '任务不存在', message: '该任务可能已被删除或已完成', suggestion: '请刷新页面查看最新任务列表' };
@@ -38,9 +49,6 @@ function toApiError(err: any): ApiError {
     if (err.message?.includes('No token provided')) {
         return { statusCode: 401, code: 'NO_TOKEN', title: '未登录', message: '请先登录后再访问', suggestion: '请前往登录页面' };
     }
-    if (err.message?.includes('Validation Error')) {
-        return { statusCode: 400, code: 'VALIDATION_ERROR', title: '参数校验失败', message: err.message, suggestion: '请检查输入参数' };
-    }
     if (err.message?.includes('not found') || err.message?.includes('不存在')) {
         return { statusCode: 404, code: 'NOT_FOUND', title: '资源不存在', message: err.message, suggestion: '请检查请求的资源是否存在' };
     }
@@ -55,12 +63,12 @@ function toApiError(err: any): ApiError {
         return { statusCode: 429, code: 'RATE_LIMITED', title: '请求过于频繁', message: '请稍后再试', suggestion: '等待一分钟后重试' };
     }
 
-    // Fallback: never expose internal details
+    // Fallback: never expose internal details to the client
     return {
         statusCode: err.statusCode || err.status || 500,
         code: 'INTERNAL_ERROR',
         title: '服务器内部错误',
-        message: process.env.NODE_ENV === 'production' ? '请稍后再试' : err.message || '未知错误',
+        message: process.env.NODE_ENV === 'production' ? '请稍后再试' : (err.message || '未知错误'),
         suggestion: '如果问题持续,请联系管理员'
     };
 }
@@ -79,13 +87,20 @@ export function errorHandler(err: any, req: Request, res: Response, _next: NextF
     });
 
     const apiError = toApiError(err);
-    res.status(apiError.statusCode).json({
+    const response: Record<string, any> = {
         success: false,
         error: apiError.message,
         code: apiError.code,
         title: apiError.title,
         suggestion: apiError.suggestion,
-    });
+    };
+
+    // 校验错误额外返回 details，方便前端做字段级提示
+    if (apiError.code === 'VALIDATION_ERROR' && Array.isArray(err.details)) {
+        response.details = err.details;
+    }
+
+    res.status(apiError.statusCode).json(response);
 }
 
 /**

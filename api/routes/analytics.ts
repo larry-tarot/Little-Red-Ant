@@ -2,11 +2,17 @@ import { Router } from 'express';
 import * as XLSX from 'xlsx';
 import { enqueueTask } from '../services/queue.js';
 import { AnalyticsService } from '../services/core/AnalyticsService.js';
+import { validateQuery } from '../middleware/validation.js';
+import { PaginationQuerySchema } from '../schemas/index.js';
 
 const router = Router();
 
+function errorResponse(res: any, status: number, message: string) {
+    return res.status(status).json({ success: false, error: message });
+}
+
 // Get Summary Stats
-router.get('/summary', async (req, res) => {
+router.get('/summary', async (_req, res) => {
     try {
         const { DemoService } = await import('../services/DemoService.js');
         if (await DemoService.isDemoMode()) {
@@ -20,19 +26,19 @@ router.get('/summary', async (req, res) => {
 });
 
 // Get Note List with Pagination
-router.get('/notes', (req, res) => {
+router.get('/notes', validateQuery(PaginationQuerySchema), (req, res) => {
     try {
-        const page = parseInt(req.query.page as string) || 1;
-        const pageSize = parseInt(req.query.pageSize as string) || 10;
+        const { page, pageSize } = req.query as any;
         const result = AnalyticsService.getNotes(page, pageSize);
         res.json(result);
     } catch (error: any) {
-        res.status(500).json({ error: error.message });
+        console.error('Analytics notes fetch failed:', error);
+        errorResponse(res, 500, error.message || 'Internal server error');
     }
 });
 
 // Trigger Refresh (Async Scrape Task)
-router.post('/refresh', async (req, res) => {
+router.post('/refresh', async (_req, res) => {
     try {
         const taskId = enqueueTask('SCRAPE_STATS', {});
         res.json({ success: true, taskId, message: 'Scrape task queued' });
@@ -43,7 +49,7 @@ router.post('/refresh', async (req, res) => {
 });
 
 // Get History Trend
-router.get('/history', async (req, res) => {
+router.get('/history', async (_req, res) => {
     try {
         const { DemoService } = await import('../services/DemoService.js');
         if (await DemoService.isDemoMode()) {
@@ -58,7 +64,7 @@ router.get('/history', async (req, res) => {
 });
 
 // Get Engagement Analysis (Comments & Intents)
-router.get('/engagement', (req, res) => {
+router.get('/engagement', (_req, res) => {
     try {
         const engagement = AnalyticsService.getEngagement();
         res.json(engagement);
@@ -68,7 +74,7 @@ router.get('/engagement', (req, res) => {
 });
 
 // Export Data to Excel
-router.get('/export', (req, res) => {
+router.get('/export', (_req, res) => {
     try {
         const exportData = AnalyticsService.getExportData();
 

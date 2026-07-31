@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import db from '../db.js';
 import { ContentService } from '../services/ai/ContentService.js';
 import { enqueueTask } from '../services/queue.js';
 import { AIFactory } from '../services/ai/AIFactory.js';

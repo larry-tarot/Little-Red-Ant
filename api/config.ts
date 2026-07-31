@@ -10,7 +10,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const PROJECT_ROOT = path.resolve(__dirname, '..');
 const USER_DATA_DIR = process.env.XIAOHONGYI_USER_DATA
-  || PROJECT_ROOT;
+  || process.cwd();
 
 // 优先用 userData/.env(桌面版),其次项目根 .env(开发)
 const userEnvPath = path.join(USER_DATA_DIR, '.env');
@@ -48,7 +48,7 @@ const SCREENSHOTS_DIR = path.join(LOGS_DIR, 'screenshots');
 
 export const config = {
     env: process.env.NODE_ENV || 'development',
-    port: parseInt(process.env.PORT || '3000', 10),
+    port: parseInt(process.env.PORT || '14753', 10),
 
     paths: {
         root: PROJECT_ROOT,
@@ -77,7 +77,9 @@ export const config = {
             console.warn('[Security] Using default JWT secret. This is unsafe for production.');
             return 'little-red-ant-secret-key-2026-dev-only';
         })(),
-        jwtExpiresIn: '7d',
+        // 默认 30 天并支持环境变量覆盖：解决用户反馈“登录态很快过期”的问题。
+        // 仍保留密码版本校验，改密后旧 token 会立即失效。
+        jwtExpiresIn: process.env.JWT_EXPIRES_IN || '30d',
     },
 
     ai: {

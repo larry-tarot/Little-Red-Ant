@@ -15,11 +15,18 @@
  *     (Sprint 4 完成时,此 driver 在 driverName 之外不暴露 UI 选项)
  */
 
-import type { BrowserContext, Page } from 'playwright';
+import type { Browser, BrowserContext, Page } from 'playwright';
 
 export type BrowserPurpose = 'CREATOR' | 'MAIN_SITE' | 'ANONYMOUS';
 
 export interface AuthenticatedPage {
+    /**
+     * Underlying browser instance.
+     * For ANONYMOUS ephemeral contexts this is the owning browser process
+     * and must be closed to avoid leaking Chrome instances.
+     * For persistent profiles the browser is managed by the driver.
+     */
+    browser?: Browser;
     /** Persistent context — caller should NOT close unless intentional. */
     context: BrowserContext;
     page: Page;

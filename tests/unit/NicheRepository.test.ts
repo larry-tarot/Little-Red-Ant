@@ -134,7 +134,7 @@ describe('NicheRepository (Drizzle migration POC)', () => {
     it('searchNotes topic filter does JSON LIKE substring match', async () => {
         seedTrendingNote({ noteId: 'a1', searchKeyword: 'k', topicTags: '["美妆","教程"]' });
         seedTrendingNote({ noteId: 'a2', searchKeyword: 'k', topicTags: '["穿搭"]' });
-        seedTrendingNote({ noteId: 'a3', searchKeyword: 'k', topicTags: null });
+        seedTrendingNote({ noteId: 'a3', searchKeyword: 'k' });
 
         const { NicheRepository } = await import('../../api/db/repositories.js');
         const result = await NicheRepository.searchNotes({

@@ -1,4 +1,4 @@
-import { Page, ElementHandle, Locator, BrowserContext } from 'playwright';
+import { Page } from 'playwright';
 import { Logger } from '../../LoggerService.js';
 import { createCursor, GhostCursor } from 'ghost-cursor';
 
@@ -123,7 +123,7 @@ export class RPAUtils {
             try {
                 // If selector is simple string
                 await cursor.click(selector);
-            } catch (cursorError) {
+            } catch (_cursorError) {
                 // Fallback to manual move + click
                  const box = await locator.boundingBox();
                 if (box) {

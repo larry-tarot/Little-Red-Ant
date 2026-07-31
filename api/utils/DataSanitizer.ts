@@ -26,7 +26,7 @@ export class DataSanitizer {
             }
             // Remove commas and non-numeric chars (except dots)
             return parseInt(str.replace(/[^\d]/g, ''), 10) || 0;
-        } catch (e) {
+        } catch (_e) {
             Logger.warn('DataSanitizer', `Failed to parse count: ${str}`);
             return 0;
         }
@@ -48,7 +48,7 @@ export class DataSanitizer {
         if (!jsonStr) return defaultValue;
         try {
             return JSON.parse(jsonStr);
-        } catch (e) {
+        } catch (_e) {
             return defaultValue;
         }
     }

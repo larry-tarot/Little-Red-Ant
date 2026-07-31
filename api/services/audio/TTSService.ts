@@ -41,7 +41,7 @@ export class TTSService {
         };
     }
     
-    private async mockGenerate(text: string): Promise<{ url: string, duration: number }> {
+    private async mockGenerate(_text: string): Promise<{ url: string, duration: number }> {
         const fileName = `${randomUUID()}.mp3`;
         const filePath = path.join(this.outputDir, fileName);
         
@@ -58,13 +58,13 @@ export class TTSService {
                     .duration(3)
                     .save(filePath)
                     .on('end', () => resolve())
-                    .on('error', (e) => reject(e));
+                    .on('error', (e: Error) => reject(e));
             });
             return {
                 url: `/audio/${fileName}`,
                 duration: 3
             };
-        } catch (e) {
+        } catch (_e) {
             // Fallback if ffmpeg fails: write empty file
             fs.writeFileSync(filePath, 'mock mp3 content');
             return {
@@ -80,7 +80,7 @@ export class TTSService {
         if (ffmpegPath) ffmpeg.setFfmpegPath(ffmpegPath);
 
         return new Promise((resolve, reject) => {
-            ffmpeg.ffprobe(filePath, (err, metadata) => {
+            ffmpeg.ffprobe(filePath, (err: Error, metadata: any) => {
                 if (err) return reject(err);
                 resolve(metadata.format.duration || 0);
             });

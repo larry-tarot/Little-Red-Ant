@@ -11,7 +11,7 @@
  */
 
 import { getOrmDb } from './client.js';
-import { and, desc, eq, sql, like, isNotNull, asc, lte, gte } from 'drizzle-orm';
+import { and, desc, eq, sql, like, isNotNull, asc } from 'drizzle-orm';
 import * as schema from './schema.js';
 
 // ──────────────────────────────────────────────

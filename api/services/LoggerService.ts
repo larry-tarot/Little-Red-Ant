@@ -43,8 +43,6 @@ const logger = winston.createLogger({
     ]
 });
 
-type LogLevel = 'INFO' | 'WARN' | 'ERROR' | 'DEBUG';
-
 export class Logger {
     static info(module: string, message: string, meta?: any) {
         logger.info(message, { module, meta });

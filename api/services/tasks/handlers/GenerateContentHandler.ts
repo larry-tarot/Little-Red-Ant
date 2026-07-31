@@ -4,7 +4,10 @@ import { ContentService } from '../../ai/ContentService.js';
 import { TaskHandler, TaskProgressEvent } from '../TaskHandler.js';
 
 export class GenerateContentHandler implements TaskHandler {
-    async handle(task: any, onProgress?: (e: TaskProgressEvent) => void): Promise<any> {
+    async handle(task: any, onProgress?: (e: TaskProgressEvent) => void, signal?: AbortSignal): Promise<any> {
+        if (signal?.aborted) {
+            throw new Error('TASK_CANCELLED');
+        }
         const report = (progress: number, stage: string) =>
             onProgress?.({ taskId: task.id, progress, stage });
 
@@ -23,8 +26,8 @@ export class GenerateContentHandler implements TaskHandler {
                 niche: account.niche || '通用',
                 identity_tags: [],
                 style: task.payload.style || account.tone || '亲切自然',
-                topic: task.payload.topic,
-                keywords: task.payload.keywords,
+                _topic: task.payload.topic,
+                _keywords: task.payload.keywords,
                 remix_structure: task.payload.remix_structure,
                 contentType: task.payload.contentType,
                 persona_desc: account.persona_desc,
@@ -52,11 +55,11 @@ export class GenerateContentHandler implements TaskHandler {
 
             const result = await ContentService.generateNote({
                 ...userProfile,
-                topic: task.payload.topic,
-                keywords: task.payload.keywords,
+                _topic: task.payload.topic,
+                _keywords: task.payload.keywords,
                 remix_structure: task.payload.remix_structure,
                 contentType: task.payload.contentType,
-                custom_instructions: task.payload.custom_instructions
+                _custom_instructions: task.payload.custom_instructions
             });
             report(90, '解析生成结果');
             return result;

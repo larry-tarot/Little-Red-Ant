@@ -8,9 +8,12 @@ import { ComplianceService } from '../../core/ComplianceService.js';
 import { Logger } from '../../LoggerService.js';
 
 export class PublishHandler implements TaskHandler {
-    async handle(task: any, onProgress?: (e: TaskProgressEvent) => void): Promise<any> {
+    async handle(task: any, onProgress?: (e: TaskProgressEvent) => void, signal?: AbortSignal): Promise<any> {
+        if (signal?.aborted) {
+            throw new Error('TASK_CANCELLED');
+        }
         // payload: { title, content, tags, imageData, autoPublish, accountId }
-        let publishPayload = task.payload;
+        const publishPayload = task.payload;
         const report = (progress: number, stage: string) =>
             onProgress?.({ taskId: task.id, progress, stage });
 
@@ -132,7 +135,7 @@ export class PublishHandler implements TaskHandler {
                 // Also update note_id in video_projects if column exists (it should now)
                 try {
                     db.prepare('UPDATE video_projects SET note_id = ? WHERE id = ?').run(result.noteId, publishPayload.projectId);
-                } catch (e) {}
+                } catch (_e) { /* ignore */ }
             }
         }
 

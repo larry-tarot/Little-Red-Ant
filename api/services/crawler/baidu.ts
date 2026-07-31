@@ -49,7 +49,7 @@ export async function fetchBaiduHotSearch(): Promise<TrendItem[]> {
     const titles = $('.c-single-text-ellipsis');
     
     if (titles.length > 0) {
-        titles.each((i, el) => {
+        titles.each((_i, el) => {
             const title = $(el).text().trim();
             // Parent or grandparent usually contains the row
             const row = $(el).closest('div[class*="category-wrap"]');

@@ -9,7 +9,8 @@ const DefaultSelectors = {
             QrCode: '.qrcode-img, canvas',
             LoggedInIndicators: {
                 Creator: '.menu-container, #side-bar, .avatar-container, .publish-btn',
-                MainSite: '.user-container, .avatar-wrapper, #user-avatar, .user-avatar, .red-header-avatar, a[href*="/user/profile"], .side-bar, .channel-list'
+                // IMPORTANT: 只使用右上角个人中心/头像区域作为登录指示器，避免频道列表/侧边栏等未登录页面也存在的元素误判。
+                MainSite: '.user-container, .avatar-wrapper, #user-avatar, .user-avatar, .red-header-avatar'
             },
             LoggedOutIndicators: {
                 MainSite: '.login-btn, .login-container'
@@ -109,7 +110,7 @@ export function updateSelectorsFromDB() {
         // Safe check if table exists (in case migration hasn't run yet in dev)
         try {
             db.prepare('SELECT 1 FROM rpa_selectors LIMIT 1').get();
-        } catch (e) {
+        } catch (_e) {
             Logger.warn('Selectors', 'rpa_selectors table does not exist, skipping DB load.');
             return;
         }
@@ -121,7 +122,7 @@ export function updateSelectorsFromDB() {
              // row.category = "Common.Login", row.key = "Container"
              const parts = row.category.split('.');
              let current: any = Selectors;
-             let valid = true;
+             const valid = true;
              
              // Traverse the path
              for (const part of parts) {

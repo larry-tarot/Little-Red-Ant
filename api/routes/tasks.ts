@@ -1,7 +1,10 @@
 import { Router } from 'express';
-import { getTask, enqueueTask, cancelTask, taskProgressEvents } from '../services/queue.js';
+import { randomUUID } from 'crypto';
+import { getTask, cancelTask, taskProgressEvents } from '../services/queue.js';
 import { TaskService } from '../services/core/TaskService.js';
 import { wrapError } from '../utils/ErrorMessages.js';
+import { validateParams, validateQuery, validateBody } from '../middleware/validation.js';
+import { IdParamSchema, ListTasksQuerySchema, UpdateTaskStatusSchema } from '../schemas/index.js';
 import type { TaskProgressEvent } from '../services/tasks/TaskHandler.js';
 
 const router = Router();
@@ -11,7 +14,8 @@ const SSE_HEARTBEAT_MS = 25_000;
 // Hard cap on a single SSE stream — protects against zombie subscribers.
 const SSE_MAX_DURATION_MS = 30 * 60 * 1000; // 30 minutes
 // SSE connection limit — prevents resource exhaustion.
-let activeSSEConnections = 0;
+// 使用 Set 记录活跃连接 ID，避免 close/error/hardStop 多重回调导致计数器变成负数。
+const activeSSEConnections = new Set<string>();
 const MAX_SSE_CONNECTIONS = 200;
 
 // Get Active Tasks (For Real-time Monitoring)
@@ -21,10 +25,11 @@ const MAX_SSE_CONNECTIONS = 200;
 router.get('/active', (req, res) => {
     // SSE mode: stream active task progress in real-time
     if (req.headers.accept === 'text/event-stream') {
-        if (activeSSEConnections >= MAX_SSE_CONNECTIONS) {
+        if (activeSSEConnections.size >= MAX_SSE_CONNECTIONS) {
             return res.status(503).json({ error: 'Too many SSE connections. Please retry later.' });
         }
-        activeSSEConnections++;
+        const connectionId = randomUUID();
+        activeSSEConnections.add(connectionId);
 
         res.setHeader('Content-Type', 'text/event-stream');
         res.setHeader('Cache-Control', 'no-cache, no-transform');
@@ -40,8 +45,11 @@ router.get('/active', (req, res) => {
         };
         taskProgressEvents.on('progress', onProgress);
 
+        let cleaned = false;
         const cleanup = () => {
-            activeSSEConnections--;
+            if (cleaned) return;
+            cleaned = true;
+            activeSSEConnections.delete(connectionId);
             clearInterval(heartbeat);
             clearTimeout(hardStop);
             taskProgressEvents.off('progress', onProgress);
@@ -63,7 +71,7 @@ router.get('/active', (req, res) => {
 });
 
 // Get Task Stats
-router.get('/stats', (req, res) => {
+router.get('/stats', (_req, res) => {
     try {
         const stats = TaskService.getTaskStats();
         res.json(stats);
@@ -73,18 +81,15 @@ router.get('/stats', (req, res) => {
 });
 
 // List Tasks (Recent or Range)
-router.get('/', async (req, res) => {
+router.get('/', validateQuery(ListTasksQuerySchema), async (req, res) => {
     try {
         const { DemoService } = await import('../services/DemoService.js');
         if (await DemoService.isDemoMode()) {
             return res.json(DemoService.getMockTasks());
         }
-        const page = parseInt(req.query.page as string) || 1;
-        const pageSize = parseInt(req.query.pageSize as string) || 20;
-        const startDate = req.query.start_date as string;
-        const endDate = req.query.end_date as string;
+        const { page, pageSize, start_date, end_date } = req.query as any;
 
-        const result = TaskService.listTasks(page, pageSize, startDate, endDate);
+        const result = TaskService.listTasks(page, pageSize, start_date, end_date);
         res.json(result);
     } catch (error: any) {
         res.status(500).json({ error: error.message });
@@ -92,7 +97,7 @@ router.get('/', async (req, res) => {
 });
 
 // Get Single Task
-router.get('/:id', (req, res) => {
+router.get('/:id', validateParams(IdParamSchema), (req, res) => {
     try {
         const task = getTask(req.params.id);
         if (!task) {
@@ -124,14 +129,16 @@ router.get('/:id', (req, res) => {
 router.get('/:id/events', (req, res) => {
     const taskId = req.params.id;
 
-    if (activeSSEConnections >= MAX_SSE_CONNECTIONS) {
+    if (activeSSEConnections.size >= MAX_SSE_CONNECTIONS) {
         return res.status(503).json({ error: 'Too many SSE connections. Please retry later.' });
     }
-    activeSSEConnections++;
+    const connectionId = randomUUID();
+    activeSSEConnections.add(connectionId);
 
     // Verify the task exists before opening a long-lived stream.
     const initial = getTask(taskId);
     if (!initial) {
+        activeSSEConnections.delete(connectionId);
         return res.status(404).json({ error: 'Task not found' });
     }
 
@@ -185,8 +192,11 @@ router.get('/:id/events', (req, res) => {
         cleanup();
     }, SSE_MAX_DURATION_MS);
 
+    let cleaned = false;
     const cleanup = () => {
-        activeSSEConnections--;
+        if (cleaned) return;
+        cleaned = true;
+        activeSSEConnections.delete(connectionId);
         clearInterval(statusInterval);
         clearInterval(heartbeat);
         clearTimeout(hardStop);
@@ -199,7 +209,7 @@ router.get('/:id/events', (req, res) => {
 });
 
 // Cancel Task
-router.post('/:id/cancel', (req, res) => {
+router.post('/:id/cancel', validateParams(IdParamSchema), (req, res) => {
     try {
         const success = cancelTask(req.params.id);
         if (success) {
@@ -213,7 +223,7 @@ router.post('/:id/cancel', (req, res) => {
 });
 
 // Update Task Status
-router.put('/:id/status', (req, res) => {
+router.put('/:id/status', validateParams(IdParamSchema), validateBody(UpdateTaskStatusSchema), (req, res) => {
     try {
         const { status, result, error } = req.body;
         TaskService.updateTaskStatus(req.params.id, status, result, error);

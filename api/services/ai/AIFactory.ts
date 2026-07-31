@@ -3,8 +3,6 @@ import { AudioProvider } from './interfaces/AudioProvider.js';
 import { DeepSeekProvider } from './providers/DeepSeekProvider.js';
 import { AliyunProvider } from './providers/AliyunProvider.js';
 import { CompositeProvider } from './providers/CompositeProvider.js';
-import { OpenAIAudioProvider } from './providers/OpenAIAudioProvider.js';
-import { CompositeAudioProvider } from './providers/CompositeAudioProvider.js';
 
 export class AIFactory {
     private static textProvider: AIProvider;

@@ -38,7 +38,7 @@ export class VideoStitcher {
      */
     private getDuration(filePath: string): Promise<number> {
         return new Promise((resolve, reject) => {
-            ffmpeg.ffprobe(filePath, (err, metadata) => {
+            ffmpeg.ffprobe(filePath, (err: Error, metadata: any) => {
                 if (err) return reject(err);
                 const duration = metadata.format.duration;
                 resolve(duration || 0);
@@ -88,7 +88,7 @@ export class VideoStitcher {
                 } catch (e) {
                     // Clean up partial downloads if this scene fails
                     cleanupForScene.forEach(f => {
-                         if (fs.existsSync(f)) try { fs.unlinkSync(f); } catch(ignore) {}
+                         if (fs.existsSync(f)) try { fs.unlinkSync(f); } catch(_ignore) { /* ignore */ }
                     });
                     throw e;
                 }
@@ -137,7 +137,7 @@ export class VideoStitcher {
             // Cleanup
             cleanupFiles.forEach(f => {
                 if (fs.existsSync(f)) {
-                    try { fs.unlinkSync(f); } catch(e) {}
+                    try { fs.unlinkSync(f); } catch(_e) { /* ignore */ }
                 }
             });
         }
@@ -163,7 +163,7 @@ export class VideoStitcher {
             // V01 + V2 -> V012 (offset = D0 + D1 - 2T)
             // ...
             
-            let filterComplex: string[] = [];
+            const filterComplex: string[] = [];
             let currentOffset = 0;
             let lastV = '0:v';
             let lastA = '0:a';
@@ -195,7 +195,7 @@ export class VideoStitcher {
                 ])
                 .save(outputPath)
                 .on('end', () => resolve())
-                .on('error', (err) => {
+                .on('error', (err: Error) => {
                     console.error('Transition Error:', err);
                     reject(err);
                 });
@@ -238,7 +238,7 @@ export class VideoStitcher {
             ])
             .save(outputPath)
             .on('end', () => resolve())
-            .on('error', (err) => reject(err));
+            .on('error', (err: Error) => reject(err));
         });
     }
 
@@ -261,7 +261,7 @@ export class VideoStitcher {
                 ])
                 .save(outputPath)
                 .on('end', () => resolve())
-                .on('error', (err) => reject(err));
+                .on('error', (err: Error) => reject(err));
         });
     }
 
@@ -280,7 +280,7 @@ export class VideoStitcher {
                 ])
                 .save(outputPath)
                 .on('end', () => resolve())
-                .on('error', (err) => reject(err));
+                .on('error', (err: Error) => reject(err));
         });
     }
 }

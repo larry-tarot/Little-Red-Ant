@@ -1,5 +1,4 @@
 
-import { fileURLToPath } from 'url';
 import { Page } from 'playwright';
 import path from 'path';
 import fs from 'fs';
@@ -10,6 +9,7 @@ import { Logger } from '../LoggerService.js';
 import { Selectors } from './config/selectors.js';
 import { RPAUtils } from './utils/RPAUtils.js';
 import { config } from '../../config.js';
+import { requireActiveAccount, requireAccountCookie } from './auth.js';
 
 const SCREENSHOT_DIR = path.join(config.paths.public, 'screenshots');
 
@@ -34,9 +34,18 @@ async function takeProgressScreenshot(page: Page, taskId: string) {
 export async function openPublishPageWithContent(note: {
     title: string, content: string, tags: string[], imageData?: string[], videoPath?: string, autoPublish?: boolean, accountId?: number, contentType?: string
 }, taskId?: string, onStage?: (stage: string) => void) {
+  // 0. 账号/Cookie 前置检查：发布必须登录创作者平台
+  if (note.accountId) {
+      requireAccountCookie(note.accountId, 'CREATOR');
+  } else {
+      const activeAccount = requireActiveAccount('CREATOR');
+      note.accountId = activeAccount.id;
+  }
+
   // Use BrowserService for unified session management
   const session = await BrowserService.getInstance().getAuthenticatedPage('CREATOR', true, note.accountId); // Headless = true
-  let { browser, page } = session; // Changed to let to allow reassignment
+  const { _browser } = session;
+  let { page } = session; // Changed to let to allow reassignment
   onStage?.('打开创作中心');
   
   // Inject polyfills for environment compatibility
@@ -67,7 +76,7 @@ export async function openPublishPageWithContent(note: {
                   }
               }
           }
-      } catch (e) {
+      } catch (_e) {
           // Ignore json parse errors or others
       }
   };
@@ -77,14 +86,14 @@ export async function openPublishPageWithContent(note: {
   await takeProgressScreenshot(page, taskId!);
 
   // Prepare Media
-  let filePaths: string[] = [];
+  const filePaths: string[] = [];
   let isVideo = false;
   let isArticle = note.contentType === 'article';
 
   if (note.videoPath) {
       isVideo = true;
       isArticle = false; // Video takes precedence or override
-      let vPath = note.videoPath;
+      const vPath = note.videoPath;
       if (vPath.startsWith('http')) {
           // Future: Download logic
       }
@@ -137,14 +146,14 @@ export async function openPublishPageWithContent(note: {
     if (isArticle) {
         try {
             // New logic: Check if we are on the landing page based on URL parameters
-            const currentUrl = page.url();
+            const _currentUrl = page.url();
             
             // If URL contains target=article, we might need to click "New Creation" or it auto-redirects
             // But if we are on the page shown in the screenshot, we need to click "新的创作" (New Creation)
             // The screenshot shows a red button "新的创作" (New Creation)
             
             const newCreationBtn = page.locator('button:has-text("新的创作")').first();
-            const writeLongArticleTab = page.locator('div:has-text("写长文")').first(); // The tab might be clickable too
+            const _writeLongArticleTab = page.locator('div:has-text("写长文")').first(); // The tab might be clickable too
             
             // Wait for potential elements
             await Promise.race([
@@ -180,8 +189,8 @@ export async function openPublishPageWithContent(note: {
                     // Same tab navigation
                     // Wait for the URL to change to ensure navigation started
                     try {
-                        await page.waitForURL((url) => url.toString().includes('target=article') === false || url.toString().includes('publish'), { timeout: 5000 });
-                    } catch(e) {
+                        await page.waitForURL((url: URL) => url.toString().includes('target=article') === false || url.toString().includes('publish'), { timeout: 5000 });
+                    } catch(_e) {
                          // URL might not change if it's pure SPA or already matched, just continue
                     }
                 }
@@ -205,7 +214,7 @@ export async function openPublishPageWithContent(note: {
                     // We don't wait for selector here, we let safeType handle it with frame searching
                     page.waitForSelector(Selectors.Publish.Form.TitleInput, { timeout: 10000 }).catch(() => {})
                 ]);
-            } catch(e) {}
+            } catch(_e) { /* ignore */ }
             
             // Wait for editor to load (Title Input)
             // Note: safeType now handles frame searching, so we can rely on it,
@@ -231,11 +240,11 @@ export async function openPublishPageWithContent(note: {
                      // After clicking, the placeholder might disappear or the input might become active.
                      // We don't wait here, we let safeType do the typing.
                 }
-            } catch(e) {
+            } catch(_e) {
                 // If "输入标题" text is not found, maybe it's already focused or user typed something?
             }
 
-        } catch (e) {
+        } catch (_e) {
             // It's possible we are already in the editor (e.g. cookie saved state), so just proceed
             Logger.info('RPA:Publish', 'Article start button not found or timeout, assuming editor is active or trying to proceed.');
         }
@@ -265,10 +274,10 @@ export async function openPublishPageWithContent(note: {
                         }),
                         page.waitForSelector(Selectors.Publish.Form.TitleInput, { timeout: 15000 })
                     ]);
-                } catch (e) {}
+                } catch (_e) { /* ignore */ }
             }
             await takeProgressScreenshot(page, taskId!);
-        } catch (uploadError) {
+        } catch (_uploadError) {
              Logger.warn('RPA:Publish', 'Upload selector not found immediately, trying fallback...');
              // Fallback for different page versions
              await page.setInputFiles('input[type="file"]', filePaths);
@@ -343,7 +352,7 @@ export async function openPublishPageWithContent(note: {
         // Extra wait for Image mode
         try {
             await page.waitForSelector(titleSelector, { state: 'visible', timeout: 10000 });
-        } catch(e) {
+        } catch(_e) {
             Logger.warn('RPA:Publish', 'Title input not visible yet. Upload might be slow or failed.');
         }
 
@@ -450,8 +459,10 @@ export async function openPublishPageWithContent(note: {
                              const href = await viewBtn.getAttribute('href');
                              if (href) {
                                  noteUrl = href.startsWith('http') ? href : `https://www.xiaohongshu.com${href}`;
-                                 const match = noteUrl.match(/\/explore\/([a-zA-Z0-9]+)/);
-                                 if (match) noteId = match[1];
+                                if (noteUrl) {
+                                    const match = noteUrl.match(/\/explore\/([a-zA-Z0-9]+)/);
+                                    if (match) noteId = match[1];
+                                }
                              }
                          }
                      }
@@ -464,7 +475,7 @@ export async function openPublishPageWithContent(note: {
 
              // Do not close the entire browser context as it might be shared with other tasks
              // Just close the page to clean up this specific task
-             // setTimeout(() => { try { page.close(); } catch(e) {} }, 3000); // Removed unsafe timeout
+             // setTimeout(() => { try { page.close(); } catch(e) { /* ignore */ } }, 3000); // Removed unsafe timeout
              await takeProgressScreenshot(page, taskId!);
              
              return { success: true, noteId, noteUrl };
@@ -474,7 +485,7 @@ export async function openPublishPageWithContent(note: {
                  return { success: true, warning: 'Browser closed early' };
              }
              Logger.warn('RPA:Publish', 'Publish confirmation not detected. Browser kept open.');
-             try { await Logger.saveScreenshot(page, 'publish-no-confirmation'); } catch(e) {}
+             try { await Logger.saveScreenshot(page, 'publish-no-confirmation'); } catch(_e) { /* ignore */ }
              await takeProgressScreenshot(page, taskId!);
              return { success: true, warning: 'Published but confirmation not detected' };
         }
@@ -494,7 +505,7 @@ export async function openPublishPageWithContent(note: {
   } finally {
       if (page) {
           page.off('response', responseHandler);
-          try { await page.close(); } catch(e) {}
+          try { await page.close(); } catch(_e) { /* ignore */ }
       }
   }
 }

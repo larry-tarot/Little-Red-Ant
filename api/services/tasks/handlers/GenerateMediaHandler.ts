@@ -7,7 +7,10 @@ import { VideoProjectService } from '../../video/VideoProjectService.js';
 import { enqueueTask } from '../../queue.js';
 
 export class GenerateMediaHandler implements TaskHandler {
-    async handle(task: any, onProgress?: (e: TaskProgressEvent) => void): Promise<any> {
+    async handle(task: any, onProgress?: (e: TaskProgressEvent) => void, signal?: AbortSignal): Promise<any> {
+        if (signal?.aborted) {
+            throw new Error('TASK_CANCELLED');
+        }
         const report = (progress: number, stage: string) =>
             onProgress?.({ taskId: task.id, progress, stage });
         if (task.type === 'GENERATE_IMAGE') {

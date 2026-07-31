@@ -1,7 +1,4 @@
 import db from '../../db.js';
-import fs from 'fs';
-import path from 'path';
-import { EncryptionService } from './EncryptionService.js';
 
 /**
  * 文件功能：账号管理 Service 层，封装所有账号相关的数据库操作

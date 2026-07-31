@@ -10,7 +10,10 @@ export class VideoStitchHandler implements TaskHandler {
         this.stitcher = new VideoStitcher();
     }
 
-    async handle(task: any, onProgress?: (e: TaskProgressEvent) => void): Promise<any> {
+    async handle(task: any, onProgress?: (e: TaskProgressEvent) => void, signal?: AbortSignal): Promise<any> {
+        if (signal?.aborted) {
+            throw new Error('TASK_CANCELLED');
+        }
         const { projectId, scenes, bgmUrl } = task.payload;
         const report = (progress: number, stage: string) =>
             onProgress?.({ taskId: task.id, progress, stage });

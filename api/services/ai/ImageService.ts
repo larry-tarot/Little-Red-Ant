@@ -1,6 +1,5 @@
 import { AIFactory } from '../ai/AIFactory.js';
 import { Logger } from '../LoggerService.js';
-import { ComplianceService } from '../core/ComplianceService.js';
 
 export class ImageService {
     static async generateImage(prompt: string, refImg?: string): Promise<string> {

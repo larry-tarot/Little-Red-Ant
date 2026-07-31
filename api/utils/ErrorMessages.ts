@@ -42,11 +42,18 @@ const RPAErrors: Record<string, FriendlyError> = {
         suggestion: '可能原因：1) 页面结构变更 2) 网络问题 3) 对方账号设置了隐私。请稍后重试或换一个链接',
         severity: 'error'
     },
+    'NO_ACTIVE_ACCOUNT': {
+        code: 'NO_ACTIVE_ACCOUNT',
+        title: '未绑定小红书账号',
+        message: '竞品监控需要登录小红书账号后才能访问博主主页',
+        suggestion: '请前往"账号矩阵"页面，扫码登录并激活一个小红书账号',
+        severity: 'warning'
+    },
     'COOKIE_EXPIRED': {
         code: 'COOKIE_EXPIRED',
         title: '登录状态已过期',
-        message: '您的登录信息已失效，需要重新授权',
-        suggestion: '请前往"账号矩阵"页面，重新绑定对应的权限',
+        message: '您的小红书登录信息已失效，系统无法访问博主主页',
+        suggestion: '请前往"账号矩阵"页面，重新扫码登录并激活账号',
         severity: 'warning'
     },
     'PAGE_NOT_FOUND': {
@@ -69,6 +76,13 @@ const RPAErrors: Record<string, FriendlyError> = {
         message: '自动化浏览器无法正常启动',
         suggestion: '请检查系统资源是否充足，或重启应用后重试',
         severity: 'error'
+    },
+    'INVALID_SCRAPE_DATA': {
+        code: 'INVALID_SCRAPE_DATA',
+        title: '抓取数据异常',
+        message: '未能从页面中提取到有效的博主信息',
+        suggestion: '可能原因：1) 页面结构变更 2) 登录状态失效。请检查账号状态后重试',
+        severity: 'warning'
     }
 };
 
@@ -170,11 +184,20 @@ export function getFriendlyError(errorMessage: string): FriendlyError {
     }
     
     // 尝试匹配常见错误模式
-    if (errorMessage.includes('Cookie') || errorMessage.includes('cookie')) {
+    if (errorMessage.includes('NO_ACTIVE_ACCOUNT')) {
+        return RPAErrors['NO_ACTIVE_ACCOUNT'];
+    }
+    if (errorMessage.includes('Cookie') || errorMessage.includes('cookie') || errorMessage.includes('LOGIN_REQUIRED') || errorMessage.includes('COOKIE_EXPIRED')) {
         return RPAErrors['COOKIE_EXPIRED'];
     }
-    if (errorMessage.includes('All scraping strategies failed')) {
+    if (errorMessage.includes('INVALID_SCRAPE_DATA')) {
+        return RPAErrors['INVALID_SCRAPE_DATA'];
+    }
+    if (errorMessage.includes('All scraping strategies failed') || errorMessage.includes('BROWSER_ERROR')) {
         return RPAErrors['ALL_STRATEGIES_FAILED'];
+    }
+    if (errorMessage.includes('browserType.launch') || errorMessage.includes('browser has been closed')) {
+        return RPAErrors['BROWSER_ERROR'];
     }
     if (errorMessage.includes('timeout') || errorMessage.includes('Timeout')) {
         return TaskErrors['TASK_TIMEOUT'];

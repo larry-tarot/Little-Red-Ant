@@ -36,34 +36,34 @@ export class EncryptionService {
 
     static decrypt(text: string): string {
         if (!text) return text;
-        
-        // Lazy Migration: If it doesn't look like encrypted (no colon or wrong length), return original
-        // This supports legacy plain-text cookies until they are re-saved
+
+        // Lazy Migration: If it doesn't look like encrypted (no colon), return original.
+        // This supports legacy plain-text cookies until they are re-saved.
         if (!text.includes(':')) {
             return text;
         }
 
-        try {
-            const textParts = text.split(':');
-            const ivHex = textParts.shift();
-            if (!ivHex || ivHex.length !== IV_LENGTH * 2) {
-                // Not a valid IV, assume plain text or corrupted
-                return text; 
-            }
+        const textParts = text.split(':');
+        const ivHex = textParts.shift();
+        if (!ivHex || ivHex.length !== IV_LENGTH * 2) {
+            // 包含冒号但长度不对，说明不是合法密文，直接报错而非静默返回原始值，
+            // 避免把错误密文当成有效数据继续传播。
+            throw new Error('Decryption failed: invalid ciphertext format');
+        }
 
+        try {
             const iv = Buffer.from(ivHex, 'hex');
             const encryptedText = Buffer.from(textParts.join(':'), 'hex');
             const decipher = crypto.createDecipheriv(ALGORITHM, this.getKey(), iv);
             let decrypted = decipher.update(encryptedText);
             decrypted = Buffer.concat([decrypted, decipher.final()]);
-            
+
             return decrypted.toString();
         } catch (error) {
-            // If decryption fails, it might be plain text that accidentally contained a colon
-            // Or corrupted data. Return original to be safe (or empty string?)
-            // Returning original allows "graceful failure" for legacy data
-            // console.warn('[Encryption] Decrypt failed, returning original:', error);
-            return text;
+            // 解密失败说明数据已损坏或密钥错误，不能再静默返回原始密文，
+            // 否则上层会误以为解密成功并继续使用敏感数据。
+            console.error('[Encryption] Decrypt failed:', error);
+            throw new Error('Decryption failed');
         }
     }
 }

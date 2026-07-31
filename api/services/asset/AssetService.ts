@@ -21,10 +21,10 @@ if (!fs.existsSync(UPLOAD_DIR)) {
 
 // Multer Config
 const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
+    destination: (_req, _file, cb) => {
         cb(null, UPLOAD_DIR);
     },
-    filename: (req, file, cb) => {
+    filename: (_req, file, cb) => {
         const uniqueSuffix = randomUUID();
         const ext = path.extname(file.originalname);
         cb(null, `${uniqueSuffix}${ext}`);

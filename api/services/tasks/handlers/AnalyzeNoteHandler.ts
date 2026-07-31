@@ -7,7 +7,10 @@ import { TrendService } from '../../core/TrendService.js';
 import { Logger } from '../../LoggerService.js';
 
 export class AnalyzeNoteHandler implements TaskHandler {
-    async handle(task: any, onProgress?: (e: TaskProgressEvent) => void): Promise<any> {
+    async handle(task: any, onProgress?: (e: TaskProgressEvent) => void, signal?: AbortSignal): Promise<any> {
+        if (signal?.aborted) {
+            throw new Error('TASK_CANCELLED');
+        }
         const noteId = task.payload.noteId;
         const report = (p: number, s: string) => onProgress?.({ taskId: task.id, progress: p, stage: s });
         Logger.info('Worker', `Analyzing note ${noteId}...`);

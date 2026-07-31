@@ -47,12 +47,13 @@ export class TrendService {
         `);
 
         // Transaction for batch insert
-        const transaction = db.transaction((notesToInsert) => {
+        const transaction = db.transaction((notesToInsert: any[]) => {
             for (const note of notesToInsert) {
                 let noteId = note.url;
-                const noteIdMatch = note.url.match(/\/(explore|discovery\/item)\/([a-zA-Z0-9]+)/);
-                if (noteIdMatch && noteIdMatch[2]) {
-                    noteId = noteIdMatch[2];
+                // 优先从 URL 中提取 24 位十六进制小红书笔记 ID，避免把查询参数或短链当成 ID
+                const noteIdMatch = note.url.match(/\/(?:explore|discovery\/item)\/([0-9a-f]{24})/i);
+                if (noteIdMatch && noteIdMatch[1]) {
+                    noteId = noteIdMatch[1];
                 }
 
                 try {
@@ -94,27 +95,29 @@ export class TrendService {
      */
     static updateNoteDetails(noteId: string, details: any, videoFrames: string[] = []) {
         db.prepare(`
-            UPDATE trending_notes 
-            SET content = ?, tags = ?, created_at = ?,
-                likes_count = COALESCE(?, likes_count),
-                comments_count = COALESCE(?, comments_count),
-                collects_count = COALESCE(?, collects_count),
-                type = ?,
-                transcript = ?,
-                video_meta = ?,
-                images = ?
+            UPDATE trending_notes
+            SET content = COALESCE(NULLIF(?, ''), content),
+                tags = COALESCE(NULLIF(?, ''), tags),
+                created_at = COALESCE(?, created_at),
+                likes_count = COALESCE(NULLIF(?, 0), likes_count),
+                comments_count = COALESCE(NULLIF(?, 0), comments_count),
+                collects_count = COALESCE(NULLIF(?, 0), collects_count),
+                type = COALESCE(?, type),
+                transcript = COALESCE(?, transcript),
+                video_meta = COALESCE(NULLIF(?, ''), video_meta),
+                images = COALESCE(NULLIF(?, '[]'), images)
             WHERE note_id = ?
         `).run(
-            details.content, 
-            JSON.stringify(details.tags), 
+            details.content || '',
+            JSON.stringify(details.tags || []),
             details.date || new Date().toISOString(),
-            details.likes_count,
-            details.comments_count,
-            details.collects_count,
+            details.likes_count || 0,
+            details.comments_count || 0,
+            details.collects_count || 0,
             details.is_video ? 'video' : 'image',
             details.transcript || null,
-            details.video_meta ? JSON.stringify(details.video_meta) : null,
-            details.images ? JSON.stringify(details.images) : null,
+            details.video_meta ? JSON.stringify(details.video_meta) : '',
+            details.images ? JSON.stringify(details.images) : '[]',
             noteId
         );
         
@@ -479,7 +482,7 @@ export class TrendService {
             try {
                 const p = JSON.parse(t.payload);
                 return p.source === source;
-            } catch (e) {
+            } catch (_e) {
                 return false;
             }
         });

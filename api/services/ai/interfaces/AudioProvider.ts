@@ -1,6 +1,4 @@
 
-import fs from 'fs';
-
 export interface AudioProvider {
     /**
      * Transcribe audio file to text

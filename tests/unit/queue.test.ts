@@ -88,7 +88,7 @@ describe('queue.ts', () => {
     });
 
     it('failTask schedules retry with exponential backoff on first 2 attempts', async () => {
-        const db = getTestDbSync();
+        const _db = getTestDbSync();
         const { enqueueTask, failTask, getTask } = await import('../../api/services/queue.js');
 
         const id = enqueueTask('TEST_TYPE', {});
@@ -113,7 +113,7 @@ describe('queue.ts', () => {
     });
 
     it('failTask exhausts retries and marks FAILED on 4th attempt', async () => {
-        const db = getTestDbSync();
+        const _db = getTestDbSync();
         const { enqueueTask, failTask, getTask } = await import('../../api/services/queue.js');
 
         const id = enqueueTask('TEST_TYPE', {});

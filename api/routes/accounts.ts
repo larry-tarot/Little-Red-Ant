@@ -1,17 +1,21 @@
 import { Router } from 'express';
 import { AccountService } from '../services/core/AccountService.js';
-import { startCreatorLogin, startMainSiteLogin, getLoginState, openNoteInBrowser } from '../services/rpa/xiaohongshu.js';
-import { checkAllAccountsHealth as checkHealth } from '../services/rpa/auth.js';
+import { startCreatorLogin, startMainSiteLogin, getLoginState, openNoteInBrowser, refreshQrCode } from '../services/rpa/xiaohongshu.js';
 import { enqueueTask } from '../services/queue.js';
+import { validateBody, validateParams } from '../middleware/validation.js';
+import {
+    OpenNoteSchema,
+    UpdateAliasSchema,
+    UpdatePersonaSchema,
+    AccountLoginSchema,
+    IdParamSchema
+} from '../schemas/index.js';
 import fs from 'fs';
-import path from 'path';
-
 const router = Router();
 
 // Open Note in RPA Browser
-router.post('/open-note', async (req, res) => {
+router.post('/open-note', validateBody(OpenNoteSchema), async (req, res) => {
   const { noteId } = req.body;
-  if (!noteId) return res.status(400).json({ error: 'noteId is required' });
   
   try {
     await openNoteInBrowser(noteId);
@@ -22,7 +26,7 @@ router.post('/open-note', async (req, res) => {
 });
 
 // Get all accounts
-router.get('/', (req, res) => {
+router.get('/', (_req, res) => {
   try {
     const result = AccountService.getAllAccounts();
     res.json(result);
@@ -33,7 +37,7 @@ router.get('/', (req, res) => {
 });
 
 // Update Account Alias
-router.put('/:id/alias', (req, res) => {
+router.put('/:id/alias', validateParams(IdParamSchema), validateBody(UpdateAliasSchema), (req, res) => {
     try {
         const { alias } = req.body;
         AccountService.updateAlias(req.params.id, alias);
@@ -44,7 +48,7 @@ router.put('/:id/alias', (req, res) => {
 });
 
 // Update Account Persona
-router.put('/:id/persona', (req, res) => {
+router.put('/:id/persona', validateParams(IdParamSchema), validateBody(UpdatePersonaSchema), (req, res) => {
     try {
         const { niche, persona_desc, tone, writing_sample } = req.body;
         AccountService.updatePersona(req.params.id, { niche, persona_desc, tone, writing_sample });
@@ -55,7 +59,7 @@ router.put('/:id/persona', (req, res) => {
 });
 
 // Trigger Manual Health Check
-router.post('/check-health', async (req, res) => {
+router.post('/check-health', async (_req, res) => {
     try {
         const taskId = enqueueTask('CHECK_HEALTH', {});
         res.json({ success: true, taskId, message: 'Health check queued' });
@@ -65,10 +69,14 @@ router.post('/check-health', async (req, res) => {
 });
 
 // Start Creator Login Process (Publishing/Stats)
-router.post('/login', async (req, res) => {
+router.post('/login', validateBody(AccountLoginSchema), async (req, res) => {
   try {
     const { accountId } = req.body;
-    await startCreatorLogin(accountId);
+    // 登录过程耗时较长（扫码 + 浏览器轮询），改为后台执行并立即返回，
+    // 前端通过 /status 轮询获取二维码和登录状态。
+    startCreatorLogin(accountId).catch((error: any) => {
+      console.error('Creator login background error:', error);
+    });
     res.json({ success: true });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -76,19 +84,37 @@ router.post('/login', async (req, res) => {
 });
 
 // Start Main Site Login Process (Browsing)
-router.post('/login-main', async (req, res) => {
+router.post('/login-main', validateBody(AccountLoginSchema), async (req, res) => {
   try {
     const { accountId } = req.body;
     if (!accountId) return res.status(400).json({ error: 'Account ID is required for binding browsing permission' });
-    await startMainSiteLogin(accountId);
+    // 登录过程耗时较长（扫码 + 浏览器轮询），改为后台执行并立即返回，
+    // 前端通过 /status 轮询获取二维码和登录状态。
+    startMainSiteLogin(accountId).catch((error: any) => {
+      console.error('Main site login background error:', error);
+    });
     res.json({ success: true });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
 });
 
+// Refresh QR Code during login
+router.post('/refresh-qr', async (_req, res) => {
+  try {
+    const result = await refreshQrCode();
+    if (result.success) {
+      res.json({ success: true, qrCodeUrl: result.qrCodeUrl });
+    } else {
+      res.status(400).json({ success: false, message: result.message, qrCodeUrl: result.qrCodeUrl });
+    }
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // Check Login Status (Polling)
-router.get('/status', (req, res) => {
+router.get('/status', (_req, res) => {
   const state = getLoginState();
   const { activeAccount } = AccountService.getLoginStatus();
   
@@ -102,7 +128,7 @@ router.get('/status', (req, res) => {
 });
 
 // Get Primary Account Status for Badge
-router.get('/primary-status', (req, res) => {
+router.get('/primary-status', (_req, res) => {
     try {
         const account = AccountService.getPrimaryStatus();
         if (!account) return res.status(404).json({ error: 'No active account' });
@@ -113,17 +139,17 @@ router.get('/primary-status', (req, res) => {
 });
 
 // Switch Active Account
-router.post('/:id/active', (req, res) => {
+router.post('/:id/active', validateParams(IdParamSchema), (req, res) => {
   try {
     AccountService.switchActiveAccount(req.params.id);
     res.json({ success: true });
-  } catch (error) {
+  } catch (_error) {
     res.status(500).json({ error: 'Failed to switch account' });
   }
 });
 
 // Delete Account
-router.delete('/:id', (req, res) => {
+router.delete('/:id', validateParams(IdParamSchema), (req, res) => {
   try {
     const accountId = req.params.id;
     

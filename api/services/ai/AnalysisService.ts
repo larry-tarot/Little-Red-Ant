@@ -1,6 +1,5 @@
 import { AIFactory } from '../ai/AIFactory.js';
 import { Logger } from '../LoggerService.js';
-import { SettingsService } from '../SettingsService.js';
 
 export class AnalysisService {
     static async analyzeCompetitor(profile: { nickname: string, desc: string, notes: any[] }): Promise<string> {

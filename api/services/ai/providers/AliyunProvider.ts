@@ -174,7 +174,7 @@ export class AliyunProvider implements AIProvider, AudioProvider {
         const clean = raw.replace(/```json/g, '').replace(/```/g, '').trim();
         try {
             return JSON.parse(clean) as T;
-        } catch (e) {
+        } catch (_e) {
             Logger.error('AliyunProvider', 'JSON Parse Error', clean);
             throw new Error('Failed to parse AI response as JSON');
         }
@@ -364,7 +364,7 @@ export class AliyunProvider implements AIProvider, AudioProvider {
             
             await client.put(objectName, filePath);
             // Use signatureUrl for secure access (default 3600s expiration)
-            let url = client.signatureUrl(objectName, { expires: 3600 });
+            const url = client.signatureUrl(objectName, { expires: 3600 });
             return url.replace('http://', 'https://');
         } catch (e: any) {
              Logger.warn('AliyunProvider', 'OSS Upload failed, trying DashScope upload...', e.message);
@@ -409,7 +409,7 @@ export class AliyunProvider implements AIProvider, AudioProvider {
             // Generate a unique object name
             const objectName = `audio/${Date.now()}_${Math.random().toString(36).substring(7)}.mp3`;
             
-            const result = await client.put(objectName, audioPath);
+            const _result = await client.put(objectName, audioPath);
             
             // OSS usually returns result.url which might be http. Force https if needed.
             // audioUrl = result.url.replace('http://', 'https://');

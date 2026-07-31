@@ -1,13 +1,12 @@
 import { Router } from 'express';
 import { startCreatorLogin, getLoginState } from '../services/rpa/xiaohongshu.js';
-import { verifySessionWithRequest } from '../services/rpa/auth.js';
 import { enqueueTask } from '../services/queue.js';
 import { VideoProjectService } from '../services/video/VideoProjectService.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { validateBody } from '../middleware/validation.js';
-import { PublishSchema, LoginSchema } from '../schemas/index.js';
+import { PublishSchema } from '../schemas/index.js';
 
 const router = Router();
 const __filename = fileURLToPath(import.meta.url);
@@ -15,7 +14,7 @@ const __dirname = path.dirname(__filename);
 const COOKIE_PATH = path.join(__dirname, '../../data/xhs_cookies.json');
 
 // Check Login Status (File check + Memory state check)
-router.get('/status', (req, res) => {
+router.get('/status', (_req, res) => {
   const isLoggedIn = fs.existsSync(COOKIE_PATH);
   const state = getLoginState();
   res.json({ 
@@ -26,7 +25,7 @@ router.get('/status', (req, res) => {
 });
 
 // Start Login Process (Async) - Default to Creator Login
-router.post('/login', async (req, res) => {
+router.post('/login', async (_req, res) => {
   try {
     // Start background process for new account binding
     startCreatorLogin().catch(err => console.error('[Publish] Background login failed:', err)); 

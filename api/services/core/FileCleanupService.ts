@@ -21,7 +21,7 @@ export class FileCleanupService {
                     try {
                         const url = new URL(filePath);
                         relativePath = url.pathname; // /uploads/xxx.jpg
-                    } catch (e) {
+                    } catch (_e) {
                         // Not a valid URL, treat as path
                     }
                 }

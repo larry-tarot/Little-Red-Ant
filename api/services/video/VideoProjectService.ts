@@ -85,7 +85,7 @@ export class VideoProjectService {
         if (project.tags) {
             try {
                 project.tags = JSON.parse(project.tags);
-            } catch (e) {
+            } catch (_e) {
                 project.tags = [];
             }
         }

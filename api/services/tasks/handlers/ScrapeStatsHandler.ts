@@ -5,7 +5,10 @@ import { FeedbackLoopService } from '../../ai/FeedbackLoopService.js';
 import { Logger } from '../../LoggerService.js';
 
 export class ScrapeStatsHandler implements TaskHandler {
-    async handle(task: any): Promise<any> {
+    async handle(task: any, _onProgress?: (e: any) => void, signal?: AbortSignal): Promise<any> {
+        if (signal?.aborted) {
+            throw new Error('TASK_CANCELLED');
+        }
         const result = await scrapeNoteStats(task.id);
         
         // Auto-trigger Feedback Loop after stats update

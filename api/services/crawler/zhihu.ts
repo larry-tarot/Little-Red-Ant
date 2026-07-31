@@ -80,7 +80,7 @@ export async function fetchZhihuHotSearch(): Promise<TrendItem[]> {
                      });
                      return list;
                 }
-            } catch (e) {}
+            } catch (_e) { /* ignore */ }
         }
         
         // 2. Fallback to DOM scraping

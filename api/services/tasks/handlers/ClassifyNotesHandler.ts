@@ -13,7 +13,10 @@ import { Logger } from '../../LoggerService.js';
  *   - batchSize: number (optional) - AI batch size, default 10
  */
 export class ClassifyNotesHandler implements TaskHandler {
-    async handle(task: any, onProgress?: (e: TaskProgressEvent) => void): Promise<any> {
+    async handle(task: any, onProgress?: (e: TaskProgressEvent) => void, signal?: AbortSignal): Promise<any> {
+        if (signal?.aborted) {
+            throw new Error('TASK_CANCELLED');
+        }
         const keyword = task.payload.keyword;
         const noteIds = task.payload.noteIds;
         const categories = task.payload.categories;

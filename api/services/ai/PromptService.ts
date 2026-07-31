@@ -6,11 +6,11 @@ export interface PromptContext {
     niche: string;
     identity_tags: string[];
     style: string;
-    topic: string;
-    keywords?: string[];
+    _topic: string;
+    _keywords?: string[];
     persona_desc?: string;
     remix_structure?: any;
-    custom_instructions?: string;
+    _custom_instructions?: string;
     writing_samples?: string[];
 }
 
@@ -31,7 +31,7 @@ export class PromptService {
                 try {
                     db.prepare('INSERT INTO prompt_templates (name, description, template, is_default) VALUES (?, ?, ?, 1)')
                       .run(name, description || '', defaultTemplate);
-                } catch (e) {
+                } catch (_e) {
                     // Ignore unique constraint violation if race condition
                 }
             }
@@ -114,7 +114,7 @@ ${remix_structure.structure_breakdown?.map((s: string) => `   - ${s}`).join('\n'
      * Builds the System Prompt for Video Script Generation
      */
     static buildVideoScriptSystemPrompt(ctx: PromptContext): { systemPrompt: string, styleInstruction: string } {
-        const { niche, identity_tags, style, topic, persona_desc, remix_structure } = ctx;
+        const { niche, identity_tags, style, _topic, persona_desc, remix_structure } = ctx;
 
         const personaBlock = persona_desc 
             ? `- 完整人设：${persona_desc}`
@@ -140,7 +140,7 @@ ${structureText}
 4. **互动策略 (CTA)**：${remix_structure.cta_strategy || '无'}
 
 【结构迁移指南】
-你的任务是将上述结构**迁移**到新主题 "${topic}" 上。
+你的任务是将上述结构**迁移**到新主题 "${_topic}" 上。
 - 保留**骨架**（节奏、情绪曲线、运镜逻辑）。
 - 替换**血肉**（具体内容、道具、场景）。
 例如：如果原结构是“美妆前后对比（视觉冲击）”，新主题是“数码测评”，则应迁移为“新旧设备性能对比（视觉冲击）”。
@@ -200,7 +200,7 @@ ${structureText}
      * Builds the System Prompt for Note Generation (Text)
      */
     static buildNoteSystemPrompt(ctx: PromptContext): { systemPrompt: string, styleInstruction: string } {
-        const { niche, identity_tags, style, topic, keywords, persona_desc, custom_instructions, writing_samples, remix_structure } = ctx;
+        const { niche, identity_tags, style, _topic, _keywords, persona_desc, _custom_instructions, writing_samples, remix_structure } = ctx;
 
         let styleInstruction = '';
         
@@ -357,9 +357,9 @@ ${complianceRules.map(r => `- ${r.keyword}`).join('、')}
      * Build User Prompt
      */
     static buildUserPrompt(ctx: PromptContext): string {
-        return `本次选题：${ctx.topic}
-${ctx.keywords && ctx.keywords.length > 0 ? `关键词要求：${ctx.keywords.join(', ')}` : ''}
-${ctx.custom_instructions ? `\n【额外指令】\n${ctx.custom_instructions}` : ''}
+        return `本次选题：${ctx._topic}
+${ctx._keywords && ctx._keywords.length > 0 ? `关键词要求：${ctx._keywords.join(', ')}` : ''}
+${ctx._custom_instructions ? `\n【额外指令】\n${ctx._custom_instructions}` : ''}
 
 请开始创作。`;
     }

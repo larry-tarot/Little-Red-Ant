@@ -94,7 +94,7 @@ async function fetchWithRetry(url: string): Promise<string> {
         Logger.info('ComplianceService', `Trying direct access: ${url}`);
         const res = await axios.get(url, { timeout: 3000 });
         return res.data;
-    } catch (e) { /* ignore */ }
+    } catch (_e) { /* ignore */ }
 
     // 2. Try Proxies
     for (const proxy of PROXIES) {
@@ -113,7 +113,7 @@ async function fetchWithRetry(url: string): Promise<string> {
             Logger.info('ComplianceService', `Trying proxy: ${targetUrl}`);
             const res = await axios.get(targetUrl, { timeout: 5000 });
             return res.data;
-        } catch (e) { /* ignore */ }
+        } catch (_e) { /* ignore */ }
     }
     
     throw new Error('All connection methods failed');

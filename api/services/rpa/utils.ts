@@ -1,5 +1,5 @@
 
-import { chromium, BrowserContext, Page, Browser } from 'playwright';
+import { chromium, Browser } from 'playwright';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';

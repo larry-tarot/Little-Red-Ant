@@ -3,9 +3,7 @@
  */
 
 import express, {
-  type Request,
-  type Response,
-  type NextFunction,
+  Request, Response, NextFunction,
 } from 'express'
 import cors from 'cors'
 import cookieParser from 'cookie-parser'
@@ -64,10 +62,14 @@ try {
 const app: express.Application = express()
 
 // CORS Configuration - Whitelist
+// 桌面版双源架构:前端从 tauri://localhost/ 加载,API 请求到 http://127.0.0.1:14753
+// 这是跨域请求,需要允许 tauri://localhost 来源
 const allowedOrigins = [
     'http://localhost:5173',
-    'http://localhost:3000',
-    'http://localhost:3001', // 桌面版 Electron 加载地址
+    'http://localhost:4173',
+    'http://127.0.0.1:14753',
+    'http://127.0.0.1:4173',
+    'tauri://localhost',
     process.env.FRONTEND_URL
 ].filter(Boolean) as string[];
 
@@ -99,6 +101,8 @@ app.use(cookieParser())
 // (~67 req/min) gives headroom for normal usage while still preventing abuse.
 // Can be overridden via RATE_LIMIT_MAX env var.
 const RATE_LIMIT_MAX = parseInt(process.env.RATE_LIMIT_MAX || '1000', 10);
+const isDevOrTest = process.env.NODE_ENV !== 'production';
+
 const generalLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: RATE_LIMIT_MAX,
@@ -106,6 +110,9 @@ const generalLimiter = rateLimit({
     legacyHeaders: false, // Disable the `X-RateLimit-*` headers
     message: { success: false, error: 'Too many requests, please try again later.' },
     skip: (req) => {
+        // 开发/测试环境关闭限流，避免快速刷新或自动化测试触发 429，影响调试体验
+        if (isDevOrTest) return true;
+
         // Skip health check
         if (req.path === '/api/health') return true;
         // Skip polling endpoints that the frontend calls frequently
@@ -128,7 +135,9 @@ const authLimiter = rateLimit({
     max: parseInt(process.env.AUTH_RATE_LIMIT_MAX || '20', 10),
     standardHeaders: true,
     legacyHeaders: false,
-    message: { success: false, error: 'Too many authentication attempts, please try again later.' }
+    message: { success: false, error: 'Too many authentication attempts, please try again later.' },
+    // 开发/测试环境关闭认证限流，方便反复登录调试；生产环境保留防护
+    skip: () => isDevOrTest
 });
 
 // Apply general rate limit to all API routes
@@ -155,7 +164,7 @@ if (process.env.NODE_ENV === 'production') {
  */
 // Public Routes
 app.use('/api/auth', authLimiter, authRoutes)
-app.use('/api/health', (req: Request, res: Response) => {
+app.use('/api/health', (_req: Request, res: Response) => {
     res.status(200).json({ success: true, message: 'ok' })
 })
 
@@ -216,7 +225,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 /**
  * 404 handler
  */
-app.use((req: Request, res: Response) => {
+app.use((_req: Request, res: Response) => {
   res.status(404).json({
     success: false,
     error: 'API not found',

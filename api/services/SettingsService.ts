@@ -1,5 +1,6 @@
 import db from '../db.js';
 import { EncryptionService } from './core/EncryptionService.js';
+import { Logger } from './LoggerService.js';
 
 /**
  * Sprint 8: Sensitive keys (API keys, secrets) are encrypted at rest using
@@ -21,9 +22,17 @@ export class SettingsService {
             this.cache = {};
             rows.forEach(row => {
                 // Decrypt sensitive values on load into cache
-                this.cache![row.key] = isSensitiveKey(row.key)
-                    ? EncryptionService.decrypt(row.value)
-                    : row.value;
+                if (isSensitiveKey(row.key)) {
+                    try {
+                        this.cache![row.key] = EncryptionService.decrypt(row.value);
+                    } catch (error) {
+                        // 解密失败时回退到空字符串并记录，避免一次损坏的配置值导致整个服务起不来
+                        Logger.error('Settings', `Failed to decrypt key "${row.key}", using empty value`, error);
+                        this.cache![row.key] = '';
+                    }
+                } else {
+                    this.cache![row.key] = row.value;
+                }
             });
         }
     }

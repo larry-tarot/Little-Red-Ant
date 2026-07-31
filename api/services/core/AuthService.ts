@@ -8,6 +8,7 @@
 
 import db from '../../db.js';
 import bcrypt from 'bcryptjs';
+import { LoginAttemptService } from './LoginAttemptService.js';
 
 export class AuthService {
     /**
@@ -62,5 +63,102 @@ export class AuthService {
             .run(username, hashedPassword, 'admin');
 
         return { success: true, userId: info.lastInsertRowid };
+    }
+
+    /**
+     * 功能描述：用户登录校验
+     *
+     * 参数说明：
+     * - username: [string] 用户名
+     * - password: [string] 明文密码
+     *
+     * 返回说明：
+     * - { success: true, user } 登录成功
+     * - { success: false, error } 失败原因：
+     *   - 'USER_NOT_FOUND' 用户不存在
+     *   - 'ACCOUNT_DISABLED' 账号已停用
+     *   - 'INVALID_PASSWORD' 密码错误
+     *
+     * NOTE: 与原 login 逻辑相比，额外检查 is_active 字段。
+     */
+    static async login(username: string, password: string): Promise<{
+        success: boolean;
+        user?: { id: number; username: string; alias: string | null; role: string; permissions: string[]; password_version: number };
+        error?: string;
+        lockRemainingSeconds?: number;
+    }> {
+        // 1. 检查账号是否被锁定
+        const lockStatus = LoginAttemptService.isLocked(username);
+        if (lockStatus.isLocked) {
+            return { success: false, error: 'ACCOUNT_LOCKED', lockRemainingSeconds: lockStatus.remainingSeconds };
+        }
+
+        const row = db.prepare(
+            'SELECT id, username, password_hash, role, alias, permissions, is_active, password_version FROM admin_users WHERE username = ?'
+        ).get(username) as any;
+
+        if (!row) {
+            return { success: false, error: 'USER_NOT_FOUND' };
+        }
+        if (row.is_active === 0) {
+            return { success: false, error: 'ACCOUNT_DISABLED' };
+        }
+
+        const ok = await bcrypt.compare(password, row.password_hash);
+        if (!ok) {
+            return { success: false, error: 'INVALID_PASSWORD' };
+        }
+
+        let perms: string[] = [];
+        try {
+            perms = row.permissions ? JSON.parse(row.permissions) : [];
+        } catch {
+            perms = [];
+        }
+
+        return {
+            success: true,
+            user: {
+                id: row.id,
+                username: row.username,
+                alias: row.alias ?? null,
+                role: row.role,
+                permissions: perms,
+                password_version: row.password_version ?? 1
+            }
+        };
+    }
+
+    /**
+     * 功能描述：用户修改自己的密码
+     *
+     * 参数说明：
+     * - userId: [number] 当前用户 id
+     * - oldPassword: [string] 原密码（用于二次校验）
+     * - newPassword: [string] 新密码
+     *
+     * 返回说明：
+     * - { success: true } 修改成功
+     * - { success: false, error } 错误信息
+     */
+    static async changeOwnPassword(userId: number, oldPassword: string, newPassword: string): Promise<{ success: boolean; error?: string }> {
+        const row = db.prepare('SELECT password_hash FROM admin_users WHERE id = ?').get(userId) as { password_hash: string } | undefined;
+        if (!row) {
+            return { success: false, error: 'USER_NOT_FOUND' };
+        }
+
+        const ok = await bcrypt.compare(oldPassword, row.password_hash);
+        if (!ok) {
+            return { success: false, error: 'INVALID_OLD_PASSWORD' };
+        }
+
+        const salt = await bcrypt.genSalt(10);
+        const newHash = await bcrypt.hash(newPassword, salt);
+
+        db.prepare(
+            "UPDATE admin_users SET password_hash = ?, password_changed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP, password_version = password_version + 1 WHERE id = ?"
+        ).run(newHash, userId);
+
+        return { success: true };
     }
 }

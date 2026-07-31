@@ -1,6 +1,7 @@
 
 import { BrowserService } from './BrowserService.js';
 import { Logger } from '../LoggerService.js';
+import db from '../../db.js';
 
     // Define channel mapping
     const CHANNEL_MAP: Record<string, string> = {
@@ -30,15 +31,36 @@ import { Logger } from '../LoggerService.js';
         'acg': 'homefeed.anime_v3',
         'sports': 'homefeed.sports_v3',
         'news': 'homefeed.news_v3'
-    };
+};
 
 export async function scrapeTrending(category: string = 'recommend') {
+    // 0. 前置检查：必须有已激活且至少有一种有效 cookie 的账号
+    const activeAccount = db.prepare(
+        'SELECT id, creator_cookies, main_site_cookies, cookies FROM accounts WHERE is_active = 1 LIMIT 1'
+    ).get() as { id: number; creator_cookies?: string; main_site_cookies?: string; cookies?: string } | undefined;
+
+    if (!activeAccount) {
+        Logger.warn('RPA:Trends', 'No active account found, cannot scrape trends');
+        throw new Error('NO_ACTIVE_ACCOUNT: Please bind a Xiaohongshu account in Account Matrix first');
+    }
+
+    const hasAnyCookie = !!(activeAccount.creator_cookies || activeAccount.main_site_cookies || activeAccount.cookies);
+    if (!hasAnyCookie) {
+        Logger.warn('RPA:Trends', `Active account ${activeAccount.id} has no cookies`);
+        throw new Error('COOKIE_EXPIRED: Account cookies missing, please re-authorize in Account Matrix');
+    }
+
     let session;
     try {
         session = await BrowserService.getInstance().getAuthenticatedPage('MAIN_SITE', true); // Force Headless
-    } catch (e) {
-        Logger.warn('RPA:Trends', 'Session issue, trying fallback...');
-        // throw new Error('Need active session to scrape trends efficiently.');
+    } catch (_e) {
+        Logger.warn('RPA:Trends', 'Failed to get MAIN_SITE session, trying CREATOR fallback...');
+        try {
+            session = await BrowserService.getInstance().getAuthenticatedPage('CREATOR', true);
+        } catch (_fallbackError: any) {
+            Logger.error('RPA:Trends', `Failed to create browser session: ${_fallbackError.message}`);
+            throw new Error('COOKIE_EXPIRED: Unable to create browser session, please re-authorize in Account Matrix');
+        }
     }
 
     if (!session) {
@@ -49,15 +71,15 @@ export async function scrapeTrending(category: string = 'recommend') {
     const collectedNotes = new Map(); // Use Map to deduplicate by ID
 
     // Verify category in request URL to prevent data pollution
-    const expectedChannelId = CHANNEL_MAP[category] || 'homefeed_recommend';
+    const _expectedChannelId = CHANNEL_MAP[category] || 'homefeed_recommend';
 
     // Setup listener for Feed API
     const responseHandler = async (response: any) => {
         try {
             const url = response.url();
             const request = response.request();
-            const requestUrl = request.url(); 
-            const postData = request.postData(); // Get POST body if any
+            const _requestUrl = request.url(); 
+            const _postData = request.postData(); // Get POST body if any
             
             // Match feed APIs
             // Note: Sometimes XHS uses /api/sns/web/v1/homefeed, sometimes just /feed
@@ -70,8 +92,13 @@ export async function scrapeTrending(category: string = 'recommend') {
                 
                 if (json.data && Array.isArray(json.data.items)) {
                     json.data.items.forEach((item: any) => {
-                        // Ensure it's a note (model_type might be 'note', 'video', etc. or just check ID)
-                        if (item.id && (item.model_type === 'note' || !item.model_type)) {
+                        // 接受普通笔记与视频笔记；过滤掉广告/占位等非内容项
+                        const isValidContentType =
+                            item.model_type === 'note' ||
+                            item.model_type === 'video' ||
+                            item.model_type === 'video_note' ||
+                            !item.model_type;
+                        if (item.id && isValidContentType) {
                             // Construct valid URL with xsec_token
                             // Fallback token if missing (though usually present in API)
                             // Try to find token in item or item.note_card
@@ -94,7 +121,7 @@ export async function scrapeTrending(category: string = 'recommend') {
                             if (cover && cover.startsWith('http://')) cover = cover.replace('http://', 'https://');
 
                             // Parse heat (likes count)
-                            let rawHeat = item.interact_info?.liked_count || item.note_card?.interact_info?.liked_count || '0';
+                            const rawHeat = item.interact_info?.liked_count || item.note_card?.interact_info?.liked_count || '0';
                             let heat = 0;
                             if (typeof rawHeat === 'number') {
                                 heat = rawHeat;
@@ -110,7 +137,7 @@ export async function scrapeTrending(category: string = 'recommend') {
 
                             // Parse comments count (Feed usually doesn't have it, so return -1 to indicate unknown)
                             // If it exists (unlikely in feed), parse it. If not, -1.
-                            let rawComments = item.interact_info?.comment_count || item.note_card?.interact_info?.comment_count;
+                            const rawComments = item.interact_info?.comment_count || item.note_card?.interact_info?.comment_count;
                             let comments = -1; 
                             if (rawComments !== undefined && rawComments !== null) {
                                 if (typeof rawComments === 'number') {
@@ -127,7 +154,7 @@ export async function scrapeTrending(category: string = 'recommend') {
                             }
 
                             // Parse collects count (Feed usually doesn't have it, so return -1)
-                            let rawCollects = item.interact_info?.collected_count || item.note_card?.interact_info?.collected_count;
+                            const rawCollects = item.interact_info?.collected_count || item.note_card?.interact_info?.collected_count;
                             let collects = -1;
                             if (rawCollects !== undefined && rawCollects !== null) {
                                 if (typeof rawCollects === 'number') {
@@ -162,7 +189,7 @@ export async function scrapeTrending(category: string = 'recommend') {
                     });
                 }
             }
-        } catch (e) {
+        } catch (_e) {
             // Ignore JSON parse errors or other issues
         }
     };
@@ -198,7 +225,7 @@ export async function scrapeTrending(category: string = 'recommend') {
     } finally {
         if (page) {
             page.off('response', responseHandler);
-            try { await page.close(); } catch(e) {}
+            try { await page.close(); } catch(_e) { /* ignore */ }
         }
     }
 }

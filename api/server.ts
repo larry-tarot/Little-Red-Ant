@@ -7,7 +7,6 @@ import { initCronJobs } from './services/cron.js';
 import { initCron as initSystemCron } from './cron.js';
 import { startWorker } from './worker.js';
 import { BrowserService } from './services/rpa/BrowserService.js';
-import { ComplianceService } from './services/core/ComplianceService.js';
 import db from './db.js';
 
 // Global Error Boundary
@@ -23,7 +22,7 @@ process.on('unhandledRejection', (reason, promise) => {
 /**
  * start server with port
  */
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 14753;
 
 // Initialize Cron Jobs
 initCronJobs();

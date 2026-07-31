@@ -108,7 +108,7 @@ export class VideoProcessor {
                         completed++;
                         if (completed === timestamps.length) resolve(frames);
                     })
-                    .on('error', (err) => {
+                    .on('error', (err: Error) => {
                          console.warn(`[VideoProcessor] Failed to extract frame at ${ts}:`, err);
                          completed++;
                          if (completed === timestamps.length) resolve(frames);
@@ -120,11 +120,11 @@ export class VideoProcessor {
     cleanup(videoPath: string, audioPath?: string, frames?: string[]) {
          this.downloader.cleanup(videoPath);
          if (audioPath && fs.existsSync(audioPath)) {
-             try { fs.unlinkSync(audioPath); } catch (e) {}
+             try { fs.unlinkSync(audioPath); } catch (_e) { /* ignore */ }
          }
          if (frames) {
              frames.forEach(f => {
-                 if (fs.existsSync(f)) try { fs.unlinkSync(f); } catch (e) {}
+                 if (fs.existsSync(f)) try { fs.unlinkSync(f); } catch (_e) { /* ignore */ }
              });
          }
     }

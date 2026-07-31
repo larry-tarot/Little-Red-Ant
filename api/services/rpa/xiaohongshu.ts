@@ -22,7 +22,7 @@ export async function scrapeNoteDetail(noteId: string, accountId?: number, force
             session = await BrowserService.getInstance().getAuthenticatedPage('ANONYMOUS', true);
             isAnonymous = true;
         } else {
-            session = await BrowserService.getInstance().getAuthenticatedPage(accountId ? accountId.toString() as any : 'MAIN_SITE', true);
+            session = await BrowserService.getInstance().getAuthenticatedPage('MAIN_SITE', true, accountId);
         }
     } catch (e) {
         if (!forceAnonymous) {
@@ -30,7 +30,7 @@ export async function scrapeNoteDetail(noteId: string, accountId?: number, force
             try {
                 session = await BrowserService.getInstance().getAuthenticatedPage('ANONYMOUS', true);
                 isAnonymous = true;
-            } catch (anonError) {
+            } catch (_anonError) {
                 throw new Error('Need active session to scrape note details.');
             }
         } else {
@@ -42,7 +42,7 @@ export async function scrapeNoteDetail(noteId: string, accountId?: number, force
 
     try {
         // --- Navigation ---
-        let targetUrl = noteId.startsWith('http') ? noteId : `https://www.xiaohongshu.com/explore/${noteId}`;
+        const targetUrl = noteId.startsWith('http') ? noteId : `https://www.xiaohongshu.com/explore/${noteId}`;
         
         Logger.info('RPA:NoteDetail', `Navigating to ${targetUrl} (${isAnonymous ? 'Anonymous' : 'Authenticated'})...`);
         
@@ -55,7 +55,7 @@ export async function scrapeNoteDetail(noteId: string, accountId?: number, force
         
         // --- Wait for Content or Block ---
         try {
-            await page.waitForFunction((selectors) => {
+            await page.waitForFunction((selectors: any) => {
                 const s = selectors as any;
                 return document.querySelector(s.NoteDetail.Title) || 
                        document.querySelector(s.NoteDetail.Media.Video) || 
@@ -63,7 +63,7 @@ export async function scrapeNoteDetail(noteId: string, accountId?: number, force
                        document.querySelector(s.Common.AntiBot.AccessLimit) ||
                        document.title.includes('404');
             }, Selectors, { timeout: 15000 });
-        } catch(e) {
+        } catch(_e) {
             Logger.warn('RPA:NoteDetail', 'Content selector timeout, proceeding to check...');
         }
 
@@ -199,8 +199,13 @@ export async function scrapeNoteDetail(noteId: string, accountId?: number, force
         Logger.error('RPA:NoteDetail', `Scrape failed: ${error.message}`, error);
         throw error;
     } finally {
-        if (session && session.browser) {
-             try { await page.close(); } catch(e) {}
+        if (session) {
+            try { await page.close(); } catch(_e) { /* ignore */ }
+            // 匿名模式需要关闭整个 context/browser，否则 Chrome 进程会泄漏；
+            // 已登录 persistent context 只关 page，由 BrowserService 复用。
+            if (isAnonymous && session.context) {
+                try { await session.context.close(); } catch(_e) { /* ignore */ }
+            }
         }
     }
 }

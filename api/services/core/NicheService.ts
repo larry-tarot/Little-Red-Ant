@@ -152,7 +152,7 @@ export class NicheService {
                         tagCount[tag] = (tagCount[tag] || 0) + 1;
                     }
                 }
-            } catch (e) {
+            } catch (_e) {
                 // 跳过无效 JSON
             }
         }
