@@ -1,6 +1,13 @@
 import { Router } from 'express';
 import { enqueueTask } from '../services/queue.js';
 import { NicheService } from '../services/core/NicheService.js';
+import { validateBody, validateQuery } from '../middleware/validation.js';
+import {
+    NicheSearchSchema,
+    NicheNotesQuerySchema,
+    NicheClassifySchema,
+    NicheExportQuerySchema,
+} from '../schemas/index.js';
 
 const router = Router();
 
@@ -14,7 +21,7 @@ const router = Router();
  *   - limit: number (optional, default 20, max 50)
  *   - autoAnalyze: boolean (optional, default true)
  */
-router.post('/search', (req, res) => {
+router.post('/search', validateBody(NicheSearchSchema), (req, res) => {
     try {
         const { keyword, sort = 'general', limit = 20, autoAnalyze = true } = req.body;
 
@@ -52,14 +59,9 @@ router.post('/search', (req, res) => {
  * GET /api/niche/notes
  * Query search results with filtering and pagination
  */
-router.get('/notes', (req, res) => {
+router.get('/notes', validateQuery(NicheNotesQuerySchema), (req, res) => {
     try {
-        const keyword = req.query.keyword as string | undefined;
-        const sort = (req.query.sort as string) || 'likes';
-        const page = Math.max(parseInt(req.query.page as string, 10) || 1, 1);
-        const pageSize = Math.min(Math.max(parseInt(req.query.pageSize as string, 10) || 20, 1), 50);
-        const hasAnalysis = req.query.hasAnalysis === 'true';
-        const topic = req.query.topic as string | undefined;
+        const { keyword, sort = 'likes', page = 1, pageSize = 20, hasAnalysis = false, topic } = req.query as any;
 
         const result = NicheService.searchNotes({
             keyword,
@@ -81,7 +83,7 @@ router.get('/notes', (req, res) => {
  * GET /api/niche/keywords
  * Get all distinct search keywords with result counts
  */
-router.get('/keywords', (req, res) => {
+router.get('/keywords', (_req, res) => {
     try {
         const data = NicheService.getKeywords();
         res.json({ data });
@@ -95,7 +97,7 @@ router.get('/keywords', (req, res) => {
  * POST /api/niche/classify
  * Trigger AI classification for notes
  */
-router.post('/classify', (req, res) => {
+router.post('/classify', validateBody(NicheClassifySchema), (req, res) => {
     try {
         const { keyword, noteIds, categories } = req.body;
 
@@ -136,11 +138,9 @@ router.get('/topics', (req, res) => {
  * GET /api/niche/export
  * Export search results as Markdown or Excel
  */
-router.get('/export', (req, res) => {
+router.get('/export', validateQuery(NicheExportQuerySchema), (req, res) => {
     try {
-        const keyword = req.query.keyword as string | undefined;
-        const topic = req.query.topic as string | undefined;
-        const format = (req.query.format as string) || 'markdown';
+        const { keyword, topic, format = 'markdown' } = req.query as any;
 
         // 从 Service 获取原始数据（格式化逻辑留在路由层）
         const notes = NicheService.getExportNotes(keyword, topic);
@@ -183,7 +183,7 @@ router.get('/export', (req, res) => {
                         if (Array.isArray(tags) && tags.length > 0) {
                             md += `- **子主题**: ${tags.join(', ')}\n`;
                         }
-                    } catch (e) {}
+                    } catch (_e) { /* ignore */ }
                 }
 
                 if (n.content) {
@@ -203,7 +203,7 @@ router.get('/export', (req, res) => {
                             });
                         }
                         if (analysis.keywords) md += `- 关键词: ${analysis.keywords}\n`;
-                    } catch (e) {}
+                    } catch (_e) { /* ignore */ }
                 }
 
                 md += `\n---\n\n`;

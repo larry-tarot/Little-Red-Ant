@@ -2,6 +2,12 @@ import { Router } from 'express';
 import { AssetService } from '../services/asset/AssetService.js';
 import { DraftService } from '../services/core/DraftService.js';
 import { FileCleanupService } from '../services/core/FileCleanupService.js';
+import { validateBody, validateParams } from '../middleware/validation.js';
+import {
+    CreateDraftSchema,
+    IdParamSchema,
+    UpdateDraftSchema,
+} from '../schemas/index.js';
 
 const router = Router();
 
@@ -23,7 +29,7 @@ const localizeImages = async (images: any[]) => {
     const localized = await Promise.all(images.map(async (img) => {
         // 兼容 string 和 {url, prompt} 两种格式
         const url = typeof img === 'string' ? img : img.url;
-        const prompt = typeof img === 'string' ? '' : img.prompt;
+        const _prompt = typeof img === 'string' ? '' : img.prompt;
 
         if (!url) return img;
 
@@ -41,7 +47,7 @@ const localizeImages = async (images: any[]) => {
 };
 
 // Get all drafts
-router.get('/', (req, res) => {
+router.get('/', (_req, res) => {
     try {
         const drafts = DraftService.getAllDrafts();
         res.json(drafts);
@@ -51,7 +57,7 @@ router.get('/', (req, res) => {
 });
 
 // Create draft
-router.post('/', async (req, res) => {
+router.post('/', validateBody(CreateDraftSchema), async (req, res) => {
     const { title, content, tags, images, contentType, meta_data } = req.body;
     try {
         // 保存前先本地化图片
@@ -73,7 +79,7 @@ router.post('/', async (req, res) => {
 });
 
 // Update draft
-router.put('/:id', async (req, res) => {
+router.put('/:id', validateParams(IdParamSchema), validateBody(UpdateDraftSchema), async (req, res) => {
     const { title, content, tags, images, contentType, meta_data } = req.body;
     try {
         // 更新前先本地化图片
@@ -95,7 +101,7 @@ router.put('/:id', async (req, res) => {
 });
 
 // Delete draft
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', validateParams(IdParamSchema), async (req, res) => {
     try {
         const draftId = req.params.id;
 

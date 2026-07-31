@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { enqueueTask } from '../services/queue.js';
 import { TrendService } from '../services/core/TrendService.js';
+import { validateQuery } from '../middleware/validation.js';
+import { TrendsQuerySchema } from '../schemas/index.js';
 
 const router = Router();
 
@@ -13,10 +15,9 @@ const MOCK_TRENDS = [
     { id: 12, title: '小红书涨粉技巧', hot_value: 40000 },
 ];
 
-router.get('/', async (req, res) => {
+router.get('/', validateQuery(TrendsQuerySchema), async (req, res) => {
     try {
-        const source = (req.query.source as string) || 'weibo';
-        const forceRefresh = req.query.refresh === 'true';
+        const { source = 'weibo', refresh: forceRefresh = false } = req.query as any;
         const now = Date.now();
 
         // 抖音来源暂时下线(Web 端反爬极严,Sprint 1 决定:返回空数据,避免空 tab 体验)

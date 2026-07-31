@@ -1,5 +1,11 @@
 import express from 'express';
 import { upload, AssetService } from '../services/asset/AssetService.js';
+import { validateParams, validateQuery } from '../middleware/validation.js';
+import {
+    AssetUploadParamsSchema,
+    AssetProxyQuerySchema,
+    AssetListQuerySchema,
+} from '../schemas/index.js';
 
 const router = express.Router();
 
@@ -26,13 +32,13 @@ function isInternalUrl(urlStr: string): boolean {
         }
         
         return false;
-    } catch (e) {
+    } catch (_e) {
         return true; // 如果 URL 解析失败，视为不安全
     }
 }
 
 // Generic Upload Handler
-router.post('/upload/:type', upload.single('file'), (req, res) => {
+router.post('/upload/:type', validateParams(AssetUploadParamsSchema), upload.single('file'), (req, res) => {
     try {
         const { type } = req.params;
         if (!['audio', 'image', 'video'].includes(type)) {
@@ -52,7 +58,7 @@ router.post('/upload/:type', upload.single('file'), (req, res) => {
 });
 
 // Proxy Endpoint for Image Loading
-router.get('/proxy', async (req, res) => {
+router.get('/proxy', validateQuery(AssetProxyQuerySchema), async (req, res) => {
     const { url } = req.query;
     if (!url || typeof url !== 'string') {
         return res.status(400).send('URL is required');
@@ -96,9 +102,9 @@ router.get('/proxy', async (req, res) => {
 });
 
 // List Assets
-router.get('/', (req, res) => {
+router.get('/', validateQuery(AssetListQuerySchema), (req, res) => {
     try {
-        const { type } = req.query;
+        const { type } = req.query as any;
         const assets = AssetService.listAssets(type as string);
         res.json({ success: true, data: assets });
     } catch (error: any) {

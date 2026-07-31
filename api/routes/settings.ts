@@ -2,11 +2,13 @@ import { Router } from 'express';
 import { SettingsService } from '../services/SettingsService.js';
 import { startSyncJob } from '../services/cron.js';
 import { requireAdmin } from '../middleware/roles.js';
+import { validateBody } from '../middleware/validation.js';
+import { SettingsUpdateSchema, SettingsTestConnectionSchema } from '../schemas/index.js';
 
 const router = Router();
 
 // Get all settings
-router.get('/', async (req, res) => {
+router.get('/', async (_req, res) => {
     try {
         const settings = await SettingsService.getAll();
         res.json(settings);
@@ -16,7 +18,7 @@ router.get('/', async (req, res) => {
 });
 
 // Update settings (Bulk or Single)
-router.post('/', requireAdmin, async (req, res) => {
+router.post('/', requireAdmin, validateBody(SettingsUpdateSchema), async (req, res) => {
     try {
         const updates = req.body; // Expect { key: value, key2: value2 }
 
@@ -39,7 +41,7 @@ router.post('/', requireAdmin, async (req, res) => {
 });
 
 // Test API Key connection
-router.post('/test-connection', async (req, res) => {
+router.post('/test-connection', validateBody(SettingsTestConnectionSchema), async (req, res) => {
     try {
         const { key } = req.body;
         if (!key || !['aliyun_api_key', 'deepseek_api_key'].includes(key)) {
@@ -77,7 +79,8 @@ router.post('/test-connection', async (req, res) => {
             }
         } else if (key === 'deepseek_api_key') {
             const fetch = (await import('node-fetch')).default;
-            const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+            const baseUrl = (await SettingsService.get('deepseek_base_url')) || 'https://api.deepseek.com';
+            const response = await fetch(`${baseUrl.replace(/\/$/, '')}/v1/chat/completions`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -106,7 +109,7 @@ router.post('/test-connection', async (req, res) => {
 });
 
 // Check if demo mode (no API keys configured)
-router.get('/demo-mode', async (req, res) => {
+router.get('/demo-mode', async (_req, res) => {
     const { DemoService } = await import('../services/DemoService.js');
     const isDemo = await DemoService.isDemoMode();
     res.json({ demoMode: isDemo });

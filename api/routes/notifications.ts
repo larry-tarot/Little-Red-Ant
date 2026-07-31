@@ -1,13 +1,14 @@
 import express from 'express';
 import { NotificationService } from '../services/NotificationService.js';
+import { validateQuery, validateParams } from '../middleware/validation.js';
+import { NotificationListQuerySchema, NotificationIdParamSchema } from '../schemas/index.js';
 
 const router = express.Router();
 
 // Get list
-router.get('/', (req, res) => {
+router.get('/', validateQuery(NotificationListQuerySchema), (req, res) => {
     try {
-        const limit = parseInt(req.query.limit as string) || 20;
-        const offset = parseInt(req.query.offset as string) || 0;
+        const { limit = 20, offset = 0 } = req.query as any;
         const notifications = NotificationService.getNotifications(limit, offset);
         res.json(notifications);
     } catch (error: any) {
@@ -16,7 +17,7 @@ router.get('/', (req, res) => {
 });
 
 // Get unread count
-router.get('/unread-count', (req, res) => {
+router.get('/unread-count', (_req, res) => {
     try {
         const count = NotificationService.getUnreadCount();
         res.json({ count });
@@ -26,7 +27,7 @@ router.get('/unread-count', (req, res) => {
 });
 
 // Mark as read
-router.put('/:id/read', (req, res) => {
+router.put('/:id/read', validateParams(NotificationIdParamSchema), (req, res) => {
     try {
         NotificationService.markAsRead(parseInt(req.params.id));
         res.json({ success: true });
@@ -36,7 +37,7 @@ router.put('/:id/read', (req, res) => {
 });
 
 // Mark all as read
-router.put('/read-all', (req, res) => {
+router.put('/read-all', (_req, res) => {
     try {
         NotificationService.markAllAsRead();
         res.json({ success: true });

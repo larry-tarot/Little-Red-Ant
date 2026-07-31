@@ -1,11 +1,19 @@
 
 import { Router } from 'express';
 import { ComplianceService } from '../services/core/ComplianceService.js';
+import { validateBody, validateParams } from '../middleware/validation.js';
+import {
+    ComplianceAddRuleSchema,
+    ComplianceRuleIdParamSchema,
+    ComplianceToggleSchema,
+    ComplianceCheckSchema,
+    ComplianceFixSchema,
+} from '../schemas/index.js';
 
 const router = Router();
 
 // Get all rules
-router.get('/rules', (req, res) => {
+router.get('/rules', (_req, res) => {
     try {
         const rules = ComplianceService.getRules();
         res.json(rules);
@@ -15,7 +23,7 @@ router.get('/rules', (req, res) => {
 });
 
 // Add rule
-router.post('/rules', (req, res) => {
+router.post('/rules', validateBody(ComplianceAddRuleSchema), (req, res) => {
     const { category, keyword, level, suggestion } = req.body;
     if (!category || !keyword || !level) {
         return res.status(400).json({ error: 'Missing required fields' });
@@ -30,7 +38,7 @@ router.post('/rules', (req, res) => {
 });
 
 // Delete rule
-router.delete('/rules/:id', (req, res) => {
+router.delete('/rules/:id', validateParams(ComplianceRuleIdParamSchema), (req, res) => {
     try {
         ComplianceService.deleteRule(parseInt(req.params.id));
         res.json({ success: true });
@@ -40,7 +48,7 @@ router.delete('/rules/:id', (req, res) => {
 });
 
 // Toggle rule
-router.patch('/rules/:id/toggle', (req, res) => {
+router.patch('/rules/:id/toggle', validateParams(ComplianceRuleIdParamSchema), validateBody(ComplianceToggleSchema), (req, res) => {
     const { is_enabled } = req.body;
     try {
         ComplianceService.toggleRule(parseInt(req.params.id), is_enabled);
@@ -53,7 +61,7 @@ router.patch('/rules/:id/toggle', (req, res) => {
 import { ContentService } from '../services/ai/ContentService.js';
 
 // Check content
-router.post('/check', (req, res) => {
+router.post('/check', validateBody(ComplianceCheckSchema), (req, res) => {
     const { content } = req.body;
     if (!content) return res.json({ isCompliant: true, score: 100, blockedWords: [], warningWords: [], suggestions: [] });
     
@@ -66,7 +74,7 @@ router.post('/check', (req, res) => {
 });
 
 // Auto-Fix content
-router.post('/fix', async (req, res) => {
+router.post('/fix', validateBody(ComplianceFixSchema), async (req, res) => {
     const { content, blockedWords, suggestions } = req.body;
     if (!content) return res.status(400).json({ error: 'Missing content' });
     

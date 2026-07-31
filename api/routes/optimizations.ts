@@ -1,12 +1,14 @@
 import { Router } from 'express';
 import { OptimizationService } from '../services/core/OptimizationService.js';
+import { validateQuery, validateParams } from '../middleware/validation.js';
+import { OptimizationListQuerySchema, IdParamSchema } from '../schemas/index.js';
 
 const router = Router();
 
 // Get all optimizations
-router.get('/', (req, res) => {
+router.get('/', validateQuery(OptimizationListQuerySchema), (req, res) => {
     try {
-        const status = req.query.status as string;
+        const { status } = req.query as any;
         const data = OptimizationService.listOptimizations(status);
         res.json({ success: true, data });
     } catch (error: any) {
@@ -15,7 +17,7 @@ router.get('/', (req, res) => {
 });
 
 // Apply Optimization
-router.post('/:id/apply', (req, res) => {
+router.post('/:id/apply', validateParams(IdParamSchema), (req, res) => {
     try {
         const result = OptimizationService.applyOptimization(req.params.id);
         if (!result.success) {
@@ -30,7 +32,7 @@ router.post('/:id/apply', (req, res) => {
 });
 
 // Reject Optimization
-router.post('/:id/reject', (req, res) => {
+router.post('/:id/reject', validateParams(IdParamSchema), (req, res) => {
     try {
         OptimizationService.rejectOptimization(req.params.id);
         res.json({ success: true });

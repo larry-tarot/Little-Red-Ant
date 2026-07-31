@@ -1,16 +1,15 @@
 import express from 'express';
 import { NoteService } from '../services/core/NoteService.js';
 import { FileCleanupService } from '../services/core/FileCleanupService.js';
+import { validateBody, validateParams, validateQuery } from '../middleware/validation.js';
+import { DeleteNoteBodySchema, IdParamSchema, ListNotesQuerySchema } from '../schemas/index.js';
 
 const router = express.Router();
 
 // Get list of managed notes
-router.get('/', (req, res) => {
+router.get('/', validateQuery(ListNotesQuerySchema), (req, res) => {
     try {
-        const page = parseInt(req.query.page as string) || 1;
-        const pageSize = parseInt(req.query.pageSize as string) || 10;
-        const accountId = req.query.accountId as string | undefined;
-        const keyword = req.query.keyword as string | undefined;
+        const { page, pageSize, accountId, keyword } = req.query as any;
 
         console.log(`[API] Get Notes - Page: ${page}, AccountId: ${accountId}, Keyword: ${keyword}`);
 
@@ -31,7 +30,7 @@ router.get('/', (req, res) => {
 });
 
 // Delete a note (Create Task)
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', validateParams(IdParamSchema), validateBody(DeleteNoteBodySchema), async (req, res) => {
     try {
         const noteId = req.params.id;
         const { accountId } = req.body; // Need account ID to know which cookies to use

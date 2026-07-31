@@ -1,15 +1,21 @@
 import { Router } from 'express';
-import { scrapeComments, replyToComment } from '../services/rpa/comments.js';
+import { replyToComment } from '../services/rpa/comments.js';
 import { enqueueTask } from '../services/queue.js';
 import { CommentService } from '../services/core/CommentService.js';
 import { CommentAnalysisService } from '../services/ai/CommentAnalysisService.js';
+import { validateQuery, validateBody, validateParams } from '../middleware/validation.js';
+import {
+    CommentListQuerySchema,
+    CommentReplyBodySchema,
+    IdParamSchema,
+} from '../schemas/index.js';
 
 const router = Router();
 
 // Get Comments from DB
-router.get('/', (req, res) => {
+router.get('/', validateQuery(CommentListQuerySchema), (req, res) => {
     try {
-        const { status, page = 1, pageSize = 20, accountId } = req.query;
+        const { status, page = 1, pageSize = 20, accountId } = req.query as any;
 
         const result = CommentService.listComments({
             status: status as string | undefined,
@@ -30,7 +36,7 @@ router.get('/', (req, res) => {
 });
 
 // Trigger Scrape (Async)
-router.post('/scrape', async (req, res) => {
+router.post('/scrape', async (_req, res) => {
     try {
         const taskId = enqueueTask('SCRAPE_COMMENTS', {});
         res.json({ taskId, status: 'PENDING', message: 'Scrape task queued' });
@@ -40,7 +46,7 @@ router.post('/scrape', async (req, res) => {
 });
 
 // Get AI-suggested reply for a comment
-router.get('/:id/suggestion', async (req, res) => {
+router.get('/:id/suggestion', validateParams(IdParamSchema), async (req, res) => {
     try {
         const comment = CommentService.getCommentById(req.params.id);
         if (!comment) return res.status(404).json({ error: 'Comment not found' });
@@ -60,7 +66,7 @@ router.get('/:id/suggestion', async (req, res) => {
 });
 
 // Reply to Comment
-router.post('/reply', async (req, res) => {
+router.post('/reply', validateBody(CommentReplyBodySchema), async (req, res) => {
     const { commentId, content } = req.body;
     if (!commentId || !content) return res.status(400).json({ error: 'Missing params' });
 

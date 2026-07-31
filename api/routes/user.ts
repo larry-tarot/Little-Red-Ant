@@ -1,10 +1,16 @@
 import { Router } from 'express';
 import { UserService } from '../services/core/UserService.js';
+import { validateBody, validateParams } from '../middleware/validation.js';
+import {
+    PersonaCreateSchema,
+    PersonaUpdateSchema,
+    PersonaIdParamSchema,
+} from '../schemas/index.js';
 
 const router = Router();
 
 // Get Active Persona (Backward Compatibility)
-router.get('/', (req, res) => {
+router.get('/', (_req, res) => {
     try {
         const persona = UserService.getActivePersona();
         res.json(persona);
@@ -15,17 +21,17 @@ router.get('/', (req, res) => {
 });
 
 // Get All Personas
-router.get('/list', (req, res) => {
+router.get('/list', (_req, res) => {
     try {
         const personas = UserService.getAllPersonas();
         res.json(personas);
-    } catch (e) {
+    } catch (_e) {
         res.status(500).json({ error: 'Failed to list personas' });
     }
 });
 
 // Create New Persona
-router.post('/', (req, res) => {
+router.post('/', validateBody(PersonaCreateSchema), (req, res) => {
     const { name, niche, identity_tags, style, benchmark_accounts, writing_samples } = req.body;
 
     try {
@@ -45,7 +51,7 @@ router.post('/', (req, res) => {
 });
 
 // Update Persona
-router.put('/:id', (req, res) => {
+router.put('/:id', validateParams(PersonaIdParamSchema), validateBody(PersonaUpdateSchema), (req, res) => {
     const { id } = req.params;
     const { name, niche, identity_tags, style, benchmark_accounts, writing_samples } = req.body;
 
@@ -59,29 +65,29 @@ router.put('/:id', (req, res) => {
             writing_samples
         });
         res.json({ success: true });
-    } catch (e) {
+    } catch (_e) {
         res.status(500).json({ error: 'Update failed' });
     }
 });
 
 // Activate Persona
-router.post('/:id/activate', (req, res) => {
+router.post('/:id/activate', validateParams(PersonaIdParamSchema), (req, res) => {
     const { id } = req.params;
     try {
         UserService.activatePersona(parseInt(id));
         res.json({ success: true });
-    } catch (e) {
+    } catch (_e) {
         res.status(500).json({ error: 'Activation failed' });
     }
 });
 
 // Delete Persona
-router.delete('/:id', (req, res) => {
+router.delete('/:id', validateParams(PersonaIdParamSchema), (req, res) => {
     const { id } = req.params;
     try {
         UserService.deletePersona(parseInt(id));
         res.json({ success: true });
-    } catch (e) {
+    } catch (_e) {
         res.status(500).json({ error: 'Delete failed' });
     }
 });

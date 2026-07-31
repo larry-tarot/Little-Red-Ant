@@ -1,10 +1,12 @@
 import { Router } from 'express';
 import { PromptService } from '../services/core/PromptService.js';
+import { validateBody, validateParams } from '../middleware/validation.js';
+import { PromptCreateSchema, IdParamSchema } from '../schemas/index.js';
 
 const router = Router();
 
 // Get all templates
-router.get('/', (req, res) => {
+router.get('/', (_req, res) => {
     try {
         const list = PromptService.getAllTemplates();
         res.json(list);
@@ -14,7 +16,7 @@ router.get('/', (req, res) => {
 });
 
 // Create new template
-router.post('/', (req, res) => {
+router.post('/', validateBody(PromptCreateSchema), (req, res) => {
     const { name, description, template } = req.body;
     if (!name || !template) return res.status(400).json({ error: 'Name and template are required' });
 
@@ -27,7 +29,7 @@ router.post('/', (req, res) => {
 });
 
 // Delete template
-router.delete('/:id', (req, res) => {
+router.delete('/:id', validateParams(IdParamSchema), (req, res) => {
     try {
         // 保护默认模板禁止删除
         const tpl = PromptService.getTemplateDefaultFlag(req.params.id);

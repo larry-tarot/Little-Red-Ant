@@ -15,8 +15,10 @@ dist-ssr
 # Catch scoped packages that might end up outside node_modules
 @*/
 # Known unscoped packages that were mistakenly extracted to root
+/ali-oss/
 /axios/
 /bcryptjs/
+/better-sqlite3/
 /cheerio/
 /clsx/
 /cookie-parser/
@@ -46,10 +48,13 @@ dist-ssr
 /react-router-dom/
 /recharts/
 /sharp/
+/tailwind-merge/
 /uuid/
 /winston/
+/winston-daily-rotate-file/
 /xlsx/
 /zod/
+/zustand/
 
 # Environment
 .env
@@ -86,6 +91,9 @@ public/outputs/
 debug/
 public/screenshots/
 
+# MkDocs build output
+site/
+
 # Documents
 *.docx
 *.doc
@@ -112,3 +120,12 @@ api-dist/
 .pkg-cache/
 resources/
 .scratch/
+
+# 临时调试脚本（避免误提交）
+tmp_reset_admin.cjs
+tmp_reset_admin.js
+tmp_reset_admin.py
+tmp_*.cjs
+tmp_*.js
+tmp_*.py
+tmp_*.ts

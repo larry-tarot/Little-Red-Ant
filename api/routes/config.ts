@@ -2,12 +2,14 @@ import { Router } from 'express';
 import { updateSelectorsFromDB } from '../services/rpa/config/selectors.js';
 import { Logger } from '../services/LoggerService.js';
 import { ConfigService } from '../services/core/ConfigService.js';
+import { validateBody, validateParams } from '../middleware/validation.js';
+import { ConfigSelectorSchema, IdParamSchema } from '../schemas/index.js';
 
 const router = Router();
 
 // GET /api/config/selectors
 // List all dynamic selectors
-router.get('/selectors', (req, res) => {
+router.get('/selectors', (_req, res) => {
     try {
         const selectors = ConfigService.getAllSelectors();
         res.json({ success: true, selectors });
@@ -18,7 +20,7 @@ router.get('/selectors', (req, res) => {
 
 // POST /api/config/selectors
 // Create or Update a selector
-router.post('/selectors', (req, res) => {
+router.post('/selectors', validateBody(ConfigSelectorSchema), (req, res) => {
     const { platform = 'xiaohongshu', category, key, selector, description } = req.body;
 
     if (!category || !key || !selector) {
@@ -40,7 +42,7 @@ router.post('/selectors', (req, res) => {
 
 // POST /api/config/selectors/reload
 // Force reload selectors from DB (Hot Reload)
-router.post('/selectors/reload', (req, res) => {
+router.post('/selectors/reload', (_req, res) => {
     try {
         updateSelectorsFromDB();
         res.json({ success: true, message: 'Selectors reloaded from database' });
@@ -50,7 +52,7 @@ router.post('/selectors/reload', (req, res) => {
 });
 
 // DELETE /api/config/selectors/:id
-router.delete('/selectors/:id', (req, res) => {
+router.delete('/selectors/:id', validateParams(IdParamSchema), (req, res) => {
     try {
         ConfigService.deleteSelector(req.params.id);
         updateSelectorsFromDB();

@@ -4,12 +4,22 @@ import { VideoStitcher } from '../services/video/VideoStitcher.js';
 import { TTSService } from '../services/audio/TTSService.js';
 import { enqueueTask } from '../services/queue.js';
 import { AuthRequest } from '../middleware/auth.js';
+import { validateBody, validateParams } from '../middleware/validation.js';
+import {
+    VideoProjectCreateSchema,
+    IdParamSchema,
+    VideoProjectUpdateCharacterSchema,
+    VideoProjectUpdateBgmSchema,
+    VideoProjectSceneIdParamSchema,
+    VideoProjectSceneAudioSchema,
+    VideoProjectUpdateSceneSchema,
+} from '../schemas/index.js';
 
 const router = express.Router();
 
 console.log('[DEBUG] Loading Video Project Routes...');
 
-const stitcher = new VideoStitcher();
+const _stitcher = new VideoStitcher();
 const ttsService = new TTSService();
 
 /**
@@ -36,7 +46,7 @@ function requireProjectOwner(req: AuthRequest, res: express.Response, next: expr
 }
 
 // Generate Audio for Scene
-router.post('/scenes/:sceneId/audio', async (req: AuthRequest, res) => {
+router.post('/scenes/:sceneId/audio', validateParams(VideoProjectSceneIdParamSchema), validateBody(VideoProjectSceneAudioSchema), async (req: AuthRequest, res) => {
     try {
         const { text, voice } = req.body;
         const result = await ttsService.generate(text, voice);
@@ -49,7 +59,7 @@ router.post('/scenes/:sceneId/audio', async (req: AuthRequest, res) => {
 });
 
 // List all projects
-router.get('/', (req: AuthRequest, res) => {
+router.get('/', (_req: AuthRequest, res) => {
     console.log('[DEBUG] GET /api/video-projects hit!');
     try {
         const projects = VideoProjectService.listProjects();
@@ -60,7 +70,7 @@ router.get('/', (req: AuthRequest, res) => {
 });
 
 // Get project details
-router.get('/:id', requireProjectOwner, (req: AuthRequest, res) => {
+router.get('/:id', validateParams(IdParamSchema), requireProjectOwner, (req: AuthRequest, res) => {
     try {
         const project = VideoProjectService.getProject(req.params.id);
         res.json({ success: true, data: project });
@@ -70,7 +80,7 @@ router.get('/:id', requireProjectOwner, (req: AuthRequest, res) => {
 });
 
 // Delete project
-router.delete('/:id', requireProjectOwner, (req: AuthRequest, res) => {
+router.delete('/:id', validateParams(IdParamSchema), requireProjectOwner, (req: AuthRequest, res) => {
     try {
         VideoProjectService.deleteProject(req.params.id);
         res.json({ success: true });
@@ -80,7 +90,7 @@ router.delete('/:id', requireProjectOwner, (req: AuthRequest, res) => {
 });
 
 // Update Project Character Description
-router.patch('/:id/character', requireProjectOwner, (req: AuthRequest, res) => {
+router.patch('/:id/character', validateParams(IdParamSchema), requireProjectOwner, validateBody(VideoProjectUpdateCharacterSchema), (req: AuthRequest, res) => {
     try {
         const { character_desc } = req.body;
         if (character_desc === undefined) return res.status(400).json({ success: false, error: 'character_desc is required' });
@@ -92,7 +102,7 @@ router.patch('/:id/character', requireProjectOwner, (req: AuthRequest, res) => {
 });
 
 // Create project — now accepts created_by from authenticated user
-router.post('/', (req: AuthRequest, res) => {
+router.post('/', validateBody(VideoProjectCreateSchema), (req: AuthRequest, res) => {
     try {
         const { title, script, character_desc, tags, description } = req.body;
         if (!title || !script) return res.status(400).json({ success: false, error: 'Missing title or script' });
@@ -104,7 +114,7 @@ router.post('/', (req: AuthRequest, res) => {
 });
 
 // Update Scene Status (Callback or Manual)
-router.patch('/scenes/:sceneId', (req: AuthRequest, res) => {
+router.patch('/scenes/:sceneId', validateParams(VideoProjectSceneIdParamSchema), validateBody(VideoProjectUpdateSceneSchema), (req: AuthRequest, res) => {
     try {
         const { status, videoUrl, taskId } = req.body;
         VideoProjectService.updateSceneStatus(req.params.sceneId, status, videoUrl, taskId);
@@ -115,7 +125,7 @@ router.patch('/scenes/:sceneId', (req: AuthRequest, res) => {
 });
 
 // Update Project BGM
-router.patch('/:id/bgm', requireProjectOwner, (req: AuthRequest, res) => {
+router.patch('/:id/bgm', validateParams(IdParamSchema), requireProjectOwner, validateBody(VideoProjectUpdateBgmSchema), (req: AuthRequest, res) => {
     try {
         const { bgmUrl } = req.body;
         if (!bgmUrl) return res.status(400).json({ success: false, error: 'bgmUrl is required' });
@@ -127,7 +137,7 @@ router.patch('/:id/bgm', requireProjectOwner, (req: AuthRequest, res) => {
 });
 
 // Stitch Videos
-router.post('/:id/stitch', requireProjectOwner, async (req: AuthRequest, res) => {
+router.post('/:id/stitch', validateParams(IdParamSchema), requireProjectOwner, async (req: AuthRequest, res) => {
     try {
         const project = VideoProjectService.getProject(req.params.id);
         if (!project) return res.status(404).json({ success: false, error: 'Project not found' });

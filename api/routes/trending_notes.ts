@@ -2,6 +2,14 @@ import { Router } from 'express';
 import { enqueueTask } from '../services/queue.js';
 import { AssetService } from '../services/asset/AssetService.js';
 import { TrendService } from '../services/core/TrendService.js';
+import { validateQuery, validateBody, validateParams } from '../middleware/validation.js';
+import {
+    TrendingNotesListQuerySchema,
+    TrendingNoteImportSchema,
+    TrendingNoteScrapeSchema,
+    IdParamSchema,
+    TrendingNoteBatchDeleteSchema,
+} from '../schemas/index.js';
 
 const router = Router();
 
@@ -54,16 +62,18 @@ const parseNoteFields = (note: any) => {
 };
 
 // Get list of trending notes
-router.get('/', async (req, res) => {
+router.get('/', validateQuery(TrendingNotesListQuerySchema), async (req, res) => {
     try {
-        const page = parseInt(req.query.page as string) || 1;
-        const limit = parseInt(req.query.limit as string) || 20;
-        const sort = (req.query.sort as string) || 'scraped_at';
-        const category = req.query.category as string;
-        const search = req.query.search as string;
-        const date = req.query.date as string;
-        const analyzed = req.query.analyzed === 'true';
-        const type = req.query.type as string;
+        const {
+            page = 1,
+            limit = 20,
+            sort = 'scraped_at',
+            category,
+            search,
+            date,
+            analyzed = false,
+            type
+        } = req.query as any;
 
         // 调用 Service 层获取分页数据
         const result = TrendService.listTrendingNotes({
@@ -94,7 +104,7 @@ router.get('/', async (req, res) => {
 });
 
 // Import note from competitor to trending (for analysis)
-router.post('/import', (req, res) => {
+router.post('/import', validateBody(TrendingNoteImportSchema), (req, res) => {
     try {
         const { note_id, title, cover_url, author_name, likes_count, note_url, type, video_url } = req.body;
 
@@ -117,7 +127,7 @@ router.post('/import', (req, res) => {
 });
 
 // Trigger scrape for trending notes
-router.post('/scrape', async (req, res) => {
+router.post('/scrape', validateBody(TrendingNoteScrapeSchema), async (req, res) => {
     try {
         const { category } = req.body;
         const taskId = enqueueTask('SCRAPE_TRENDS', {
@@ -133,7 +143,7 @@ router.post('/scrape', async (req, res) => {
 });
 
 // Get single note details
-router.get('/:id', (req, res) => {
+router.get('/:id', validateParams(IdParamSchema), (req, res) => {
     try {
         const note = TrendService.getTrendingNoteById(req.params.id);
         if (!note) {
@@ -151,7 +161,7 @@ router.get('/:id', (req, res) => {
 });
 
 // Trigger analysis for a note
-router.post('/:id/analyze', async (req, res) => {
+router.post('/:id/analyze', validateParams(IdParamSchema), async (req, res) => {
     try {
         const noteId = req.params.id;
 
@@ -186,7 +196,7 @@ router.post('/:id/analyze', async (req, res) => {
 });
 
 // Delete note
-router.delete('/:id', (req, res) => {
+router.delete('/:id', validateParams(IdParamSchema), (req, res) => {
     try {
         TrendService.deleteTrendingNote(req.params.id);
         res.json({ success: true });
@@ -196,7 +206,7 @@ router.delete('/:id', (req, res) => {
 });
 
 // Batch delete notes
-router.post('/batch-delete', (req, res) => {
+router.post('/batch-delete', validateBody(TrendingNoteBatchDeleteSchema), (req, res) => {
     try {
         const { ids } = req.body;
         const count = TrendService.batchDeleteTrendingNotes(ids);
@@ -208,7 +218,7 @@ router.post('/batch-delete', (req, res) => {
 });
 
 // Refresh note (Force re-scrape)
-router.post('/:id/refresh', async (req, res) => {
+router.post('/:id/refresh', validateParams(IdParamSchema), async (req, res) => {
     try {
         const note = TrendService.getNoteIdByDbId(req.params.id);
         if (!note) return res.status(404).json({ error: 'Note not found' });
