@@ -31,13 +31,22 @@ const afterLogin = page.url();
 log('Login redirect', !afterLogin.includes('/login'), afterLogin);
 
 // 2. Core pages
-const pages = ['/tasks', '/accounts', '/engagement', '/gallery', '/settings', '/generate', '/analytics'];
-for (const path of pages) {
+const pages = [
+    { path: '/tasks', waitUntil: 'domcontentloaded' },
+    { path: '/accounts' },
+    { path: '/engagement' },
+    { path: '/gallery' },
+    { path: '/settings' },
+    { path: '/generate' },
+    { path: '/analytics' },
+];
+for (const p of pages) {
     pageErrors = 0;
-    await page.goto(`http://localhost:5173${path}`, { waitUntil: 'networkidle', timeout: 15000 });
+    const waitUntil = p.waitUntil || 'networkidle';
+    await page.goto(`http://localhost:5173${p.path}`, { waitUntil, timeout: 15000 });
     await page.waitForTimeout(1000);
     const notLoggedOut = !page.url().includes('/login');
-    log(path, notLoggedOut && pageErrors === 0, pageErrors > 0 ? `${pageErrors} error(s)` : '');
+    log(p.path, notLoggedOut && pageErrors === 0, pageErrors > 0 ? `${pageErrors} error(s)` : '');
 }
 
 // 3. Sidebar navigation

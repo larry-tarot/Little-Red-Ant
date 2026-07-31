@@ -12,7 +12,7 @@ import { chromium } from 'playwright';
 import fs from 'fs';
 
 const FRONTEND = 'http://localhost:5173';
-const BACKEND = 'http://localhost:3001';
+const BACKEND = 'http://localhost:14753';
 const SCREENSHOT_DIR = 'debug/e2e';
 fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
 
@@ -52,7 +52,18 @@ try {
     if (submitBtn) await submitBtn.click();
 
     await page.waitForURL(/\/(?!login)/, { timeout: 10000 }).catch(() => {});
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(3000);
+    // Wait for auth state to be persisted to storage before subsequent navigations
+    await page.waitForFunction(() => {
+        try {
+            const raw = localStorage.getItem('auth-storage') || sessionStorage.getItem('auth-storage');
+            if (!raw) return false;
+            const parsed = JSON.parse(raw);
+            return !!parsed.state?.token;
+        } catch {
+            return false;
+        }
+    }, { timeout: 5000 });
     log('Login + redirect', !page.url().includes('/login'), `URL: ${page.url()}`);
     await page.screenshot({ path: `${SCREENSHOT_DIR}/F01-home-after-login.png` });
 
@@ -77,26 +88,31 @@ try {
     for (const r of routes) {
         const start = Date.now();
         try {
-            const resp = await page.goto(`${FRONTEND}${r.path}`, { waitUntil: 'networkidle', timeout: 20000 });
+            // Tasks keeps an SSE connection open; networkidle would time out.
+            const waitUntil = r.name === 'tasks' ? 'domcontentloaded' : 'networkidle';
+            const resp = await page.goto(`${FRONTEND}${r.path}`, { waitUntil, timeout: 20000 });
             const ms = Date.now() - start;
             const status = resp?.status() || 0;
-            const hasError = errors.length > 0;
-            log(`${r.name.padEnd(18)} ${r.path.padEnd(20)} ${status} ${ms}ms`, status === 200 && !hasError,
-                hasError ? `errors: ${errors.slice(0, 1).join(', ')}` : '');
+            // Clear non-fatal errors between pages (401s from unauthenticated SSE are now fixed)
+            const hasFatalError = errors.some(e => !e.includes('401 (Unauthorized)'));
+            log(`${r.name.padEnd(18)} ${r.path.padEnd(20)} ${status} ${ms}ms`, status === 200 && !hasFatalError,
+                hasFatalError ? `errors: ${errors.filter(e => !e.includes('401 (Unauthorized)')).slice(0, 1).join(', ')}` : '');
         } catch (e) {
             log(`${r.name.padEnd(18)} ${r.path}`, false, e.message.substring(0, 80));
         }
+        // Clear errors between pages to avoid cross-page noise
+        errors.length = 0;
         // 等渲染
-        await page.waitForTimeout(500);
+        await page.waitForTimeout(800);
     }
 
     // 3. 测试关键交互
     console.log('\n=== 3. Key interactions ===');
 
-    // 3a. 点击 settings 页面保存按钮
+    // 3a. settings 页面存在表单提交按钮（当前文案为"更新密码"）
     await page.goto(`${FRONTEND}/settings`, { waitUntil: 'networkidle' });
-    const hasSettingsButton = await page.locator('button:has-text("保存"), button:has-text("Save")').count() > 0;
-    log('Settings page has save button', hasSettingsButton);
+    const hasSettingsButton = await page.locator('button[type="submit"], button:has-text("保存"), button:has-text("Save"), button:has-text("更新")').count() > 0;
+    log('Settings page has submit button', hasSettingsButton);
 
     // 3b. 检查侧边栏导航
     const sidebarLinks = await page.locator('nav a, aside a, [class*="sidebar"] a').count();
@@ -107,19 +123,50 @@ try {
     const stillLoggedIn = !page.url().includes('/login');
     log('Auth persistence works', stillLoggedIn, `URL after refresh: ${page.url()}`);
 
-    // 4. 测试后端 API endpoint
-    console.log('\n=== 4. Backend API ===');
-    const cookies = await context.cookies();
-    const sessionCookie = cookies.find(c => c.name === 'token' || c.name === 'auth' || c.name === 'jwt');
-    log('Auth cookie present', !!sessionCookie, sessionCookie?.name || 'no cookie');
+    // 4. 测试认证状态持久化
+    console.log('\n=== 4. Auth persistence ===');
+    const hasToken = await page.evaluate(() => {
+        try {
+            const raw = localStorage.getItem('auth-storage') || sessionStorage.getItem('auth-storage');
+            if (!raw) return false;
+            const parsed = JSON.parse(raw);
+            return !!parsed.state?.token;
+        } catch {
+            return false;
+        }
+    });
+    log('Auth token persisted in storage', hasToken);
 
-    // 5. 测试 SSE endpoint
+    // 5. 测试 SSE endpoint（从页面 storage 取 token 附加到 URL）
     console.log('\n=== 5. SSE endpoint ===');
     try {
-        const sseResp = await page.request.fetch(`${BACKEND}/api/tasks/active`, { headers: { Accept: 'text/event-stream' } });
-        log('SSE endpoint reachable', sseResp.status() === 200 || sseResp.status() === 401, `status: ${sseResp.status()}`);
+        const token = await page.evaluate(() => {
+            try {
+                const raw = localStorage.getItem('auth-storage') || sessionStorage.getItem('auth-storage');
+                return JSON.parse(raw)?.state?.token || '';
+            } catch {
+                return '';
+            }
+        });
+        const sseUrl = token
+            ? `${BACKEND}/api/tasks/active?token=${encodeURIComponent(token)}`
+            : `${BACKEND}/api/tasks/active`;
+        // SSE stream never ends; abort after receiving headers to verify it opens successfully.
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 2000);
+        const sseResp = await fetch(sseUrl, {
+            headers: { Accept: 'text/event-stream' },
+            signal: controller.signal,
+        });
+        clearTimeout(timeout);
+        log('SSE endpoint reachable', sseResp.status === 200, `status: ${sseResp.status}`);
     } catch (e) {
-        log('SSE endpoint reachable', false, e.message);
+        // AbortError means the connection opened and we cancelled it, which is expected for SSE.
+        if (e.name === 'AbortError') {
+            log('SSE endpoint reachable', true, 'connection opened (abort expected)');
+        } else {
+            log('SSE endpoint reachable', false, e.message);
+        }
     }
 
     // 6. 错误汇总

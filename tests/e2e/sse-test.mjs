@@ -25,7 +25,7 @@ await page.waitForTimeout(2000);
 console.log('After login:', page.url());
 
 // 触发一个 SSE 任务
-const triggerResp = await page.request.post('http://localhost:3001/api/accounts/check-health', {
+const triggerResp = await page.request.post('http://localhost:14753/api/accounts/check-health', {
     headers: { 'Content-Type': 'application/json' },
     data: { accountId: 1 }
 });

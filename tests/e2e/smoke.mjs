@@ -5,20 +5,23 @@
  * React render errors) before manual testing.
  *
  * Usage: node tests/e2e/smoke.mjs
- * Assumes: backend on :3001 and frontend on :5173 already running.
+ * Assumes: backend on :14753 and frontend on :5173 already running.
  */
 import { chromium } from 'playwright';
 import fs from 'fs';
 import path from 'path';
 
 const FRONTEND = 'http://localhost:5173';
-const BACKEND = 'http://localhost:3001';
+const BACKEND = 'http://localhost:14753';
 const SCREENSHOT_DIR = 'debug/e2e';
+
+const PAGE_NAVIGATION_DELAY_MS = parseInt(process.env.SMOKE_PAGE_DELAY || '2500', 10);
 
 const PAGES = [
     { name: 'login', path: '/login', requiresAuth: false },
     { name: 'home', path: '/', requiresAuth: true },
-    { name: 'tasks', path: '/tasks', requiresAuth: true },
+    // Tasks opens a persistent SSE stream; networkidle would wait forever.
+    { name: 'tasks', path: '/tasks', requiresAuth: true, waitUntil: 'domcontentloaded' },
     { name: 'analytics', path: '/analytics', requiresAuth: true },
     { name: 'accounts', path: '/accounts', requiresAuth: true },
     { name: 'drafts', path: '/drafts', requiresAuth: true },
@@ -105,7 +108,7 @@ async function main() {
     }
 
     await usernameInput.fill('admin');
-    await passwordInput.fill('admin');
+    await passwordInput.fill(';Ab@123456');
     await page.click('button[type="submit"]');
     await page.waitForTimeout(3000);
     console.log('✅ Login submitted');
@@ -115,9 +118,15 @@ async function main() {
     console.log('\n=== Page visits ===');
     for (const p of PAGES) {
         if (p.name === 'login') continue; // already done
+
+        // 页面间增加间隔，避免前端快速切换页面触发后端限流（429）
+        if (PAGE_NAVIGATION_DELAY_MS > 0) {
+            await page.waitForTimeout(PAGE_NAVIGATION_DELAY_MS);
+        }
+
         const startErrors = consoleErrors.length + pageErrors.length;
         try {
-            await page.goto(`${FRONTEND}${p.path}`, { waitUntil: 'networkidle', timeout: 30000 });
+            await page.goto(`${FRONTEND}${p.path}`, { waitUntil: p.waitUntil || 'networkidle', timeout: 30000 });
             await page.waitForTimeout(1500); // let lazy chunks + data load
             const newErrors = consoleErrors.length + pageErrors.length - startErrors;
             const screenshot = `${SCREENSHOT_DIR}/${p.name}.png`;
