@@ -110,8 +110,8 @@ function createFakeProvider(overrides: Partial<FakeProvider> = {}): FakeProvider
  */
 function mockDbQueries(queries: Array<{
     pattern: string | RegExp;
-    get?: any;
-    all?: any;
+    get?: unknown;
+    all?: unknown;
 }>) {
     mockHandles.dbPrepare.mockImplementation((sql: string) => {
         const normalized = sql.replace(/\s+/g, ' ').trim();

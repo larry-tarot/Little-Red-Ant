@@ -49,13 +49,34 @@ export interface CompetitorNoteAnalysis {
  * console.log(`标题技巧: ${analysis.title_technique}`);
  * ```
  */
+/**
+ * 竞品笔记数据输入类型
+ * 包含分析所需的笔记元信息、数据表现和内容
+ */
+export interface CompetitorNoteData {
+    /** 笔记标题 */
+    title?: string;
+    /** 笔记正文内容 */
+    content?: string;
+    /** 封面图片描述 */
+    cover_description?: string;
+    /** 点赞数 */
+    likes?: number;
+    /** 收藏数 */
+    collects?: number;
+    /** 评论数 */
+    comments?: number;
+    /** 阅读/曝光数 */
+    views?: number;
+}
+
 export class CompetitorNoteAnalyzer {
 
     /**
      * 对竞品笔记数据进行多维度 AI 分析拆解
      *
      * 参数说明：
-     * - noteData: [object] 笔记数据，含 title、content、cover_description、likes、collects、comments
+     * - noteData: [CompetitorNoteData] 笔记数据，含 title、content、cover_description、likes、collects、comments
      *
      * 返回说明：
      * - CompetitorNoteAnalysis 包含 title_technique、cover_analysis、structure_analysis、
@@ -69,7 +90,7 @@ export class CompetitorNoteAnalyzer {
      * >>> const result = await CompetitorNoteAnalyzer.analyzeNote({ title: '...', content: '...' });
      * >>> console.log(result.hook_technique);
      */
-    static async analyzeNote(noteData: any): Promise<CompetitorNoteAnalysis> {
+    static async analyzeNote(noteData: CompetitorNoteData): Promise<CompetitorNoteAnalysis> {
         // Demo 模式：无 API Key 时返回模拟数据
         const isDemo = await DemoService.isDemoMode();
         if (isDemo) {
@@ -128,7 +149,7 @@ ${metricsInfo || '暂无数据'}
 ${noteData.cover_description || '未提供封面描述，请根据标题和数据表现推测封面风格'}
 
 【笔记正文/内容】
-${hasContent ? noteData.content.substring(0, 2000) : '未提供正文内容，请根据标题推测内容结构'}`;
+${hasContent ? noteData.content!.substring(0, 2000) : '未提供正文内容，请根据标题推测内容结构'}`;
 
         try {
             const result = await provider.generateJSON<CompetitorNoteAnalysis>([
@@ -160,7 +181,7 @@ ${hasContent ? noteData.content.substring(0, 2000) : '未提供正文内容，�
      * 返回说明：
      * - CompetitorNoteAnalysis 包含预设的分析结果
      */
-    private static getMockAnalysis(noteData: any): CompetitorNoteAnalysis {
+    private static getMockAnalysis(noteData: CompetitorNoteData): CompetitorNoteAnalysis {
         const title = noteData.title || '未知标题';
         return {
             title_technique: `标题"${title}"采用了"场景代入+结果暗示"的组合技巧。通过具体场景引发读者共鸣，再暗示观看后的收益，形成"痛点-方案"的吸引力闭环。标题长度适中（约15-20字），便于在信息流中完整展示`,

@@ -201,9 +201,9 @@ export function useListData<T, F extends Record<string, unknown>>(
                 setPagination(prev => ({ ...prev, total }));
                 setError(null);
             }
-        } catch (err: any) {
+        } catch (err: unknown) {
             if (isMounted.current && !controller.signal.aborted) {
-                const message = err?.message || errorMessage;
+                const message = (err as Error)?.message || errorMessage;
                 setError(message);
                 toast.error(message);
             }

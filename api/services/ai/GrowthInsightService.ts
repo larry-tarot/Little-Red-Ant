@@ -57,6 +57,21 @@ export interface GrowthInsight {
     skill_progress: SkillProgress[];
 }
 
+/**
+ * 成长分析所用的笔记数据行类型
+ * 对应 note_stats 表的 SELECT 查询结果
+ */
+interface GrowthNote {
+    title: string;
+    views: number;
+    likes: number;
+    comments: number;
+    collects: number;
+    publish_date: string;
+    draft_tags: string;
+    draft_content_type: string;
+}
+
 export class GrowthInsightService {
 
     static async analyzeGrowth(): Promise<GrowthInsight> {
@@ -79,7 +94,7 @@ export class GrowthInsightService {
             FROM note_stats
             WHERE publish_date >= ?
             ORDER BY publish_date ASC
-        `).all(dateThreshold) as any[];
+        `).all(dateThreshold) as GrowthNote[];
 
         // 2. 按月份计算指标
         const monthlyMetrics = this.calculateMonthlyMetrics(notes);
@@ -151,8 +166,14 @@ ${topNotes.map((n, i) => `${i + 1}. "${n.title}" 阅读${n.views} 赞${n.likes} 
         }
     }
 
-    private static calculateMonthlyMetrics(notes: any[]): any[] {
-        const monthMap = new Map<string, any>();
+    private static calculateMonthlyMetrics(notes: GrowthNote[]): Array<{
+        month: string; note_count: number; total_views: number;
+        total_likes: number; total_comments: number; total_collects: number; total_interactions: number;
+    }> {
+        const monthMap = new Map<string, {
+            month: string; note_count: number; total_views: number;
+            total_likes: number; total_comments: number; total_collects: number; total_interactions: number;
+        }>();
 
         for (const note of notes) {
             if (!note.publish_date) continue;
@@ -173,7 +194,7 @@ ${topNotes.map((n, i) => `${i + 1}. "${n.title}" 阅读${n.views} 赞${n.likes} 
         return Array.from(monthMap.values()).sort((a, b) => a.month.localeCompare(b.month));
     }
 
-    private static analyzeTagPerformance(notes: any[]): any[] {
+    private static analyzeTagPerformance(notes: GrowthNote[]): Array<{ tag: string; note_count: number; avg_interaction: number }> {
         const tagMap = new Map<string, { note_count: number; total_interactions: number }>();
 
         for (const note of notes) {

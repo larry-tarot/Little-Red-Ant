@@ -208,7 +208,7 @@ ${dataContext.worst_note ? `${dataContext.worst_note.title} - 阅读:${dataConte
      * 返回说明：
      * - 笔记记录 | undefined
      */
-    private static getTopNote(): any {
+    private static getTopNote(): { title: string; views: number; likes: number; comments: number; collects: number } | undefined {
         try {
             const row = db.prepare(`
                 SELECT title, views, likes, comments, collects
@@ -229,7 +229,7 @@ ${dataContext.worst_note ? `${dataContext.worst_note.title} - 阅读:${dataConte
      * 返回说明：
      * - 笔记记录 | undefined
      */
-    private static getWorstNote(): any {
+    private static getWorstNote(): { title: string; views: number; likes: number; comments: number; collects: number } | undefined {
         try {
             const row = db.prepare(`
                 SELECT title, views, likes, comments, collects
