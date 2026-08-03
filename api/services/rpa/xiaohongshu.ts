@@ -52,6 +52,14 @@ export async function scrapeNoteDetail(noteId: string, accountId?: number, force
         });
 
         await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+
+        // --- 300031 安全重定向识别 ---
+        // 笔记 URL 缺 xsec_token 时 XHS 强制跳 /404/sec_（真实用户无 token 也一样被拦，
+        // 不是自动化特征）。与真 404（NOTE_UNAVAILABLE）区分开，避免排障混淆。
+        const landedUrl = page.url();
+        if (landedUrl.includes('/404/sec_') || landedUrl.includes('error_code=300031')) {
+            throw new Error(`SEC_REDIRECT: Note URL requires valid xsec_token, redirected to security page (Note: ${noteId})`);
+        }
         
         // --- Wait for Content or Block ---
         try {

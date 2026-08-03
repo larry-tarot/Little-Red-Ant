@@ -323,6 +323,8 @@ export class ApiInterceptStrategy implements ScrapingStrategy {
 
                 // 兼容新版结构：interact_info 可能嵌套在 n.interact 或 n.counts 中
                 const interact = n.interact_info || n.interaction_info || n.interact || n.counts || {};
+                // 拼上 xsec_token：无 token 直连笔记页会被 300031 安全重定向
+                const xsecToken = n.xsec_token || n.note_card?.xsec_token || '';
 
                 this.collectedNotes.set(noteId, {
                     note_id: noteId,
@@ -366,7 +368,7 @@ export class ApiInterceptStrategy implements ScrapingStrategy {
                     cover: DataSanitizer.normalizeUrl(
                         n.cover?.url_default || n.cover?.url_pre || n.cover?.url || n.cover?.urlDefault || n.cover_url || ''
                     ),
-                    url: `https://www.xiaohongshu.com/explore/${noteId}`,
+                    url: `https://www.xiaohongshu.com/explore/${noteId}${xsecToken ? `?xsec_token=${xsecToken}&xsec_source=pc_feed` : ''}`,
                     publish_date: this.parseDate(n.last_update_time || n.time || n.create_time || n.publish_time)
                 });
             }
