@@ -14,7 +14,9 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import PageLoading from '../components/PageLoading';
 import EmptyState from '../components/EmptyState';
 import NoteAnalysisModal from '../components/NoteAnalysisModal';
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
+
+const CompetitorNoteAnalysisModal = lazy(() => import('../components/CompetitorNoteAnalysisModal'));
 
 interface CompetitorDetailData {
     id: number;
@@ -51,6 +53,12 @@ export default function CompetitorDetail() {
     const [currentAnalysis, setCurrentAnalysis] = useState<any>(null);
     const [currentNote, setCurrentNote] = useState<any>(null);
 
+    // Competitor Note AI Analysis State (竞品笔记 AI 拆解)
+    const [analyzingCompetitorId, setAnalyzingCompetitorId] = useState<string | null>(null);
+    const [showCompetitorAnalysisModal, setShowCompetitorAnalysisModal] = useState(false);
+    const [competitorNoteAnalysis, setCompetitorNoteAnalysis] = useState<any>(null);
+    const [competitorAnalysisNote, setCompetitorAnalysisNote] = useState<any>(null);
+
     const handleAnalyzeNote = async (note: any) => {
         if (note.analysis_result) {
             setCurrentNote(note);
@@ -77,6 +85,34 @@ export default function CompetitorDetail() {
             toast.error('分析请求失败');
         } finally {
             setAnalyzingId(null);
+        }
+    };
+
+    /**
+     * AI 拆解竞品笔记
+     * 调用 /api/competitors/notes/:noteId/analyze 获取竞品笔记的多维度分析
+     */
+    const handleAnalyzeCompetitorNote = async (note: any, e: React.MouseEvent) => {
+        e.stopPropagation(); // 阻止触发卡片点击事件
+
+        setAnalyzingCompetitorId(note.note_id);
+        try {
+            const toastId = toast.loading('正在进行 AI 拆解分析...');
+            const res = await axios.post(`/api/competitors/notes/${note.note_id}/analyze`);
+            const { data: resData } = res.data;
+
+            if (resData && resData.analysis) {
+                setCompetitorAnalysisNote({ ...note, ...resData.note });
+                setCompetitorNoteAnalysis(resData.analysis);
+                setShowCompetitorAnalysisModal(true);
+                toast.success('AI 拆解完成！', { id: toastId });
+            } else {
+                toast.error('分析结果异常', { id: toastId });
+            }
+        } catch (_e) {
+            toast.error('AI 拆解请求失败');
+        } finally {
+            setAnalyzingCompetitorId(null);
         }
     };
 
@@ -406,6 +442,14 @@ export default function CompetitorDetail() {
                                         </div>
                                     )}
 
+                                    {/* Competitor AI Analyzing Overlay */}
+                                    {analyzingCompetitorId === note.note_id && (
+                                        <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center text-primary-text z-20">
+                                            <Loader2 size={24} className="animate-spin mb-2" />
+                                            <span className="text-xs font-medium">AI 拆解中...</span>
+                                        </div>
+                                    )}
+
                                     {/* Hover Overlay for Analysis Hint */}
                                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors z-10 flex items-center justify-center opacity-0 group-hover:opacity-100">
                                         <div className="bg-white/90 text-primary px-3 py-1 rounded-full text-xs font-bold shadow-sm flex items-center transform translate-y-4 group-hover:translate-y-0 transition-all">
@@ -433,16 +477,27 @@ export default function CompetitorDetail() {
                                                 <span className="italic opacity-70">未知时间</span>
                                             )}
                                         </div>
-                                        <a 
-                                            href={note.url} 
-                                            target="_blank" 
-                                            rel="noreferrer"
-                                            onClick={(e) => e.stopPropagation()} 
-                                            className="text-text-tertiary hover:text-primary p-1"
-                                            title="查看原文"
-                                        >
-                                            <ExternalLink size={12} />
-                                        </a>
+                                        <div className="flex items-center space-x-1">
+                                            <button
+                                                onClick={(e) => handleAnalyzeCompetitorNote(note, e)}
+                                                disabled={analyzingCompetitorId === note.note_id}
+                                                className="text-[10px] text-primary hover:bg-primary-subtle px-1.5 py-0.5 rounded transition-colors flex items-center"
+                                                title="AI 拆解分析"
+                                            >
+                                                <Wand2 size={10} className="mr-0.5" />
+                                                AI 拆解
+                                            </button>
+                                            <a 
+                                                href={note.url} 
+                                                target="_blank" 
+                                                rel="noreferrer"
+                                                onClick={(e) => e.stopPropagation()} 
+                                                className="text-text-tertiary hover:text-primary p-1"
+                                                title="查看原文"
+                                            >
+                                                <ExternalLink size={12} />
+                                            </a>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -470,6 +525,17 @@ export default function CompetitorDetail() {
                         toast.success(`已引用结构：${note.title}`);
                     }}
                 />
+            )}
+
+            {/* Competitor AI Analysis Modal (竞品笔记 AI 拆解弹窗) */}
+            {showCompetitorAnalysisModal && competitorNoteAnalysis && competitorAnalysisNote && (
+                <Suspense fallback={<PageLoading message="加载分析组件中..." />}>
+                    <CompetitorNoteAnalysisModal
+                        note={competitorAnalysisNote}
+                        analysis={competitorNoteAnalysis}
+                        onClose={() => setShowCompetitorAnalysisModal(false)}
+                    />
+                </Suspense>
             )}
         </div>
     );

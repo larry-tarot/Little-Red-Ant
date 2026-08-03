@@ -12,7 +12,20 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        manualChunks: { 'vendor-recharts': ['recharts'] },
+        manualChunks(id) {
+          // 将第三方依赖按包名拆分为独立 chunk，降低首页主包体积
+          if (id.includes('node_modules')) {
+            if (id.includes('recharts')) return 'vendor-recharts';
+            if (id.includes('xlsx')) return 'vendor-xlsx';
+            if (id.includes('lucide-react')) return 'vendor-lucide';
+
+            // 其余 node_modules 按包名前缀分组
+            const match = id.match(/node_modules\/(@[^/]+\/[^/]+|[^/]+)/);
+            if (match) {
+              return `vendor-${match[1].replace('@', '').replace('/', '-')}`;
+            }
+          }
+        },
       },
     },
   },

@@ -29,7 +29,7 @@
     "icons": "node scripts/generate-icons.mjs",
     "build:api": "node scripts/build-api.mjs",
     "build:sidecar": "node scripts/build-sidecar.mjs",
-    "tauri:dev": "npm run build:api && node scripts/sync-tauri-resources.mjs && cargo tauri dev --dev-url http://localhost:5173",
+    "tauri:dev": "npm run build:api && node scripts/sync-tauri-resources.mjs && concurrently -k -n api,desktop -c green,blue \"npm run server:dev\" \"wait-on tcp:14753 && cargo tauri dev --dev-url http://localhost:5173\"",
     "tauri:dev:frontend": "cargo tauri dev --dev-url http://localhost:5173",
     "tauri:build": "npm run build:frontend && npm run build:api && node scripts/sync-tauri-resources.mjs && npm run build:sidecar && cargo tauri build",
     "tauri:build:win": "npm run build:frontend && npm run build:api && node scripts/sync-tauri-resources.mjs && npm run build:sidecar && cargo tauri build"

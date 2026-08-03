@@ -16,6 +16,7 @@ import type { IBrowserDriver } from './interfaces/IBrowserDriver.js';
 import { PlaywrightDriver } from './drivers/PlaywrightDriver.js';
 import { CamoufoxDriver } from './drivers/CamoufoxDriver.js';
 import { RPAUtils } from './utils/RPAUtils.js';
+import * as RpaPageHelpers from './RpaPageHelpers.js';
 
 export class BrowserService {
     private static instance: BrowserService;
@@ -82,5 +83,84 @@ export class BrowserService {
      */
     public getActiveDriverName(): string {
         return this.driver.driverName;
+    }
+
+    /**
+     * 功能描述：验证页面登录状态
+     *
+     * 参数说明：
+     * - page: [any] Playwright 页面实例
+     * - type: ['MAIN_SITE' | 'CREATOR'] 站点类型
+     *
+     * 返回说明：
+     * - boolean true 表示已登录
+     */
+    public static async verifyLoginState(
+        page: any,
+        type: 'MAIN_SITE' | 'CREATOR'
+    ): Promise<boolean> {
+        return RpaPageHelpers.verifyLoginState(page, type);
+    }
+
+    /**
+     * 功能描述：检测页面是否被反爬/验证码/频率限制拦截
+     *
+     * 参数说明：
+     * - page: [any] Playwright 页面实例
+     *
+     * 返回说明：
+     * - { blocked: boolean; reason?: string }
+     */
+    public static async detectAntiBot(
+        page: any
+    ): Promise<{ blocked: boolean; reason?: string }> {
+        return RpaPageHelpers.detectAntiBot(page);
+    }
+
+    /**
+     * 功能描述：等待页面稳定
+     *
+     * 参数说明：
+     * - page: [any] Playwright 页面实例
+     * - ms: [number] 等待毫秒数，默认 2000ms
+     */
+    public static async waitForPageStable(page: any, ms?: number): Promise<void> {
+        return RpaPageHelpers.waitForPageStable(page, ms);
+    }
+
+    /**
+     * 功能描述：校验页面是否符合预期条件
+     *
+     * 参数说明：
+     * - page: [any] Playwright 页面实例
+     * - options: [object] 包含 expectedUrl / requiredText / forbiddenText
+     */
+    public static async validatePage(
+        page: any,
+        options: {
+            expectedUrl?: string;
+            requiredText?: string;
+            forbiddenText?: string;
+        }
+    ): Promise<{ valid: boolean; reason?: string }> {
+        return RpaPageHelpers.validatePage(page, options);
+    }
+
+    /**
+     * 功能描述：通用异步重试包装器
+     *
+     * 参数说明：
+     * - fn: [() => Promise<T>] 需要重试的异步函数
+     * - options: [object] 重试配置
+     */
+    public static async withRetry<T>(
+        fn: () => Promise<T>,
+        options: {
+            maxAttempts?: number;
+            delayMs?: number;
+            onRetry?: (err: any, attempt: number) => void;
+        } = {}
+    ): Promise<T> {
+        return RpaPageHelpers.withRetry(fn, options);
     }
 }

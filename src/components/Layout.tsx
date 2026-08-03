@@ -294,10 +294,10 @@ export default function Layout({ children }: LayoutProps) {
           />
         )}
 
-        {/* 主内容区 */}
-        <main className={`flex-1 overflow-auto w-full transition-all duration-200 ${isTauri ? '' : (isSidebarCollapsed ? 'md:ml-20' : 'md:ml-64')}`}>
+        {/* 主内容区：侧边栏已在文档流中，无需额外 margin；内容左对齐避免与侧边栏出现大片空白 */}
+        <main className="flex-1 overflow-auto w-full transition-all duration-200">
           <DemoBanner />
-          <div className="max-w-7xl mx-auto md:p-8 p-4">
+          <div className="w-full md:p-8 p-4">
             {children}
           </div>
         </main>

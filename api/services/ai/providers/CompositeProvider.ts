@@ -4,6 +4,7 @@ import { CircuitBreaker } from './CircuitBreaker.js';
 interface ProviderWithBreaker {
     provider: AIProvider;
     breaker: CircuitBreaker;
+    lastFailure?: string;
 }
 
 export class CompositeProvider implements AIProvider {
@@ -26,25 +27,28 @@ export class CompositeProvider implements AIProvider {
         operation: (provider: AIProvider) => Promise<T>
     ): Promise<T> {
         const errors: string[] = [];
-        
-        for (const { provider, breaker } of this.providers) {
+
+        for (const item of this.providers) {
+            const { provider, breaker } = item;
             if (!breaker.canExecute()) {
                 console.warn(`[CompositeProvider] ${provider.constructor.name} is OPEN (circuit breaker), skipping...`);
                 errors.push(`${provider.constructor.name}: Circuit breaker OPEN`);
                 continue;
             }
-            
+
             try {
                 const result = await operation(provider);
                 breaker.recordSuccess();
                 return result;
             } catch (error: any) {
-                console.warn(`[CompositeProvider] ${this.name} operation failed with ${provider.constructor.name}:`, error.message);
+                const errorMessage = error.message || String(error);
+                console.warn(`[CompositeProvider] ${this.name} operation failed with ${provider.constructor.name}:`, errorMessage);
+                item.lastFailure = errorMessage;
                 breaker.recordFailure();
-                errors.push(`${provider.constructor.name}: ${error.message}`);
+                errors.push(`${provider.constructor.name}: ${errorMessage}`);
             }
         }
-        
+
         throw new Error(`All providers failed for ${this.name}: ${errors.join('; ')}`);
     }
 
@@ -77,5 +81,53 @@ export class CompositeProvider implements AIProvider {
             }
             throw new Error('Video generation not supported');
         });
+    }
+
+    /**
+     * 获取组合 Provider 中所有子 Provider 的状态
+     *
+     * 返回说明：
+     * - object 包含组合器名称、当前主用 Provider、以及每个子 Provider 的
+     *   断路器状态、失败次数、成功次数、最近失败时间、最近失败信息、是否允许执行
+     */
+    getStatus(): {
+        name: string;
+        activeProvider: string;
+        providers: {
+            name: string;
+            state: string;
+            failureCount: number;
+            successCount: number;
+            lastFailureTime: number;
+            lastFailure?: string;
+            canExecute: boolean;
+        }[];
+    } {
+        const providers = this.providers.map((item) => {
+            const stats = item.breaker.getStats() as {
+                state: string;
+                failureCount: number;
+                successCount: number;
+                lastFailureTime: number;
+            };
+
+            return {
+                name: item.provider.constructor.name,
+                state: stats.state,
+                failureCount: stats.failureCount,
+                successCount: stats.successCount,
+                lastFailureTime: stats.lastFailureTime,
+                lastFailure: item.lastFailure,
+                canExecute: item.breaker.canExecute()
+            };
+        });
+
+        const active = providers.find((p) => p.canExecute) || providers[0];
+
+        return {
+            name: this.name,
+            activeProvider: active?.name || 'none',
+            providers
+        };
     }
 }

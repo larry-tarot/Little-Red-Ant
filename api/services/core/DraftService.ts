@@ -136,6 +136,45 @@ export class DraftService {
     }
 
     /**
+     * 功能描述：获取已排期的草稿（scheduled_at 不为空），按日期分组
+     *
+     * 返回说明：
+     * - { date: string; drafts: { id: number; title: string; contentType: string; scheduledAt: string }[] }[]
+     *
+     * 使用示例：
+     * >>> const scheduled = DraftService.getScheduledDrafts();
+     * >>> console.log(scheduled.length, '个日期有待发内容');
+     */
+    static getScheduledDrafts(): {
+        date: string;
+        drafts: { id: number; title: string; contentType: string; scheduledAt: string }[];
+    }[] {
+        const rows = db.prepare(`
+            SELECT id, title, content_type, scheduled_at
+            FROM drafts
+            WHERE scheduled_at IS NOT NULL
+            ORDER BY scheduled_at ASC
+        `).all() as { id: number; title: string; content_type: string; scheduled_at: string }[];
+
+        // 按日期分组（只取日期部分 yyyy-MM-dd）
+        const grouped: Record<string, { id: number; title: string; contentType: string; scheduledAt: string }[]> = {};
+        for (const row of rows) {
+            const dateKey = row.scheduled_at.substring(0, 10);
+            if (!grouped[dateKey]) {
+                grouped[dateKey] = [];
+            }
+            grouped[dateKey].push({
+                id: row.id,
+                title: row.title,
+                contentType: row.content_type,
+                scheduledAt: row.scheduled_at,
+            });
+        }
+
+        return Object.entries(grouped).map(([date, drafts]) => ({ date, drafts }));
+    }
+
+    /**
      * 功能描述：删除草稿记录（不含文件清理，文件清理由调用方处理）
      *
      * 参数说明：

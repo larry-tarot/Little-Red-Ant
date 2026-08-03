@@ -2,16 +2,30 @@ import { Router } from 'express';
 import { startCreatorLogin, getLoginState } from '../services/rpa/xiaohongshu.js';
 import { enqueueTask } from '../services/queue.js';
 import { VideoProjectService } from '../services/video/VideoProjectService.js';
+import { AccountService } from '../services/core/AccountService.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { validateBody } from '../middleware/validation.js';
 import { PublishSchema } from '../schemas/index.js';
+import { z } from 'zod';
 
 const router = Router();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const COOKIE_PATH = path.join(__dirname, '../../data/xhs_cookies.json');
+
+/*
+ * 跨账号批量发布的校验 schema
+ */
+const BatchPublishSchema = z.object({
+    title: z.string().min(1, '标题不能为空').max(100, '标题过长'),
+    content: z.string().min(1, '内容不能为空'),
+    tags: z.array(z.string()).optional(),
+    imageData: z.array(z.string()).optional(),
+    accountIds: z.array(z.number()).min(1, '至少选择一个账号'),
+    draftId: z.number().optional(),
+});
 
 // Check Login Status (File check + Memory state check)
 router.get('/status', (_req, res) => {
@@ -99,6 +113,83 @@ router.post('/publish', validateBody(PublishSchema), async (req, res) => {
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
+});
+
+/**
+ * 功能描述：跨账号批量分发 — 将同一份内容同时发布到多个账号
+ *
+ * 请求格式：
+ * - POST /api/publish/batch
+ * - body: { title, content, tags?, imageData?, accountIds: number[], draftId?: number }
+ *
+ * 返回说明：
+ * - { success: true, tasks: { accountId: number, taskId: string }[] }
+ *
+ * 异常情况：
+ * - 400: 参数校验失败或所有账号均无效
+ * - 500: 任务入队失败
+ */
+router.post('/batch', async (req, res) => {
+    try {
+        const parsed = BatchPublishSchema.safeParse(req.body);
+        if (!parsed.success) {
+            return res.status(400).json({
+                error: '参数校验失败',
+                details: parsed.error.issues
+            });
+        }
+
+        const { title, content, tags, imageData, accountIds, draftId } = parsed.data;
+
+        // 逐个验证账号是否存在且为活跃状态
+        const accountStatuses: { accountId: number; valid: boolean; reason?: string }[] = [];
+        for (const accountId of accountIds) {
+            const account = AccountService.getAccountById(accountId);
+            if (!account) {
+                accountStatuses.push({ accountId, valid: false, reason: '账号不存在' });
+            } else if (!account.is_active) {
+                accountStatuses.push({ accountId, valid: false, reason: `账号 [${account.nickname}] 未激活` });
+            } else {
+                accountStatuses.push({ accountId, valid: true });
+            }
+        }
+
+        const validIds = accountStatuses.filter(s => s.valid).map(s => s.accountId);
+        if (validIds.length === 0) {
+            return res.status(400).json({
+                error: '没有可用的目标账号',
+                details: accountStatuses.map(s => ({ accountId: s.accountId, reason: s.reason }))
+            });
+        }
+
+        // 为每个有效账号入队一个 PUBLISH 任务
+        const tasks: { accountId: number; taskId: string }[] = [];
+        for (const accountId of validIds) {
+            const taskId = enqueueTask('PUBLISH', {
+                title,
+                content,
+                tags,
+                imageData,
+                accountId,
+                draftId
+            });
+            tasks.push({ accountId, taskId });
+        }
+
+        res.json({
+            success: true,
+            tasks,
+            skipped: accountStatuses.filter(s => !s.valid).map(s => ({
+                accountId: s.accountId,
+                reason: s.reason
+            })),
+            message: `已向 ${tasks.length} 个账号提交发布任务`
+        });
+
+    } catch (error: any) {
+        console.error('[Publish] Batch publish error:', error);
+        res.status(500).json({ error: error.message || '批量发布失败' });
+    }
 });
 
 export default router;

@@ -181,6 +181,30 @@ export class AccountService {
     }
 
     /**
+     * 功能描述：根据 ID 获取单个账号详情（不含 Cookie 字段）
+     *
+     * 返回说明：
+     * - { id, nickname, is_active, status, ... } | undefined 账号信息，不存在时返回 undefined
+     *
+     * 使用示例：
+     * >>> const account = AccountService.getAccountById(1);
+     * >>> if (!account) throw new Error('账号不存在');
+     */
+    static getAccountById(id: number): { id: number; nickname: string; is_active: boolean; status: string } | undefined {
+        const result = db.prepare(`
+            SELECT id, nickname, is_active, status
+            FROM accounts WHERE id = ?
+        `).get(id) as { id: number; nickname: string; is_active: number; status: string } | undefined;
+        if (!result) return undefined;
+        return {
+            id: result.id,
+            nickname: result.nickname,
+            is_active: Boolean(result.is_active),
+            status: result.status || 'UNKNOWN'
+        };
+    }
+
+    /**
      * 获取活跃账号 ID
      */
     static getActiveAccountId(): number | undefined {

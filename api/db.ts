@@ -109,6 +109,10 @@ export function initDB() {
           console.log('Migrating drafts table: Adding meta_data...');
           db.prepare("ALTER TABLE drafts ADD COLUMN meta_data TEXT").run(); // JSON: { topic, keywords, style, remixStructure, customInstructions }
       }
+      if (!columnNames.includes('scheduled_at')) {
+          console.log('Migrating drafts table: Adding scheduled_at...');
+          db.prepare("ALTER TABLE drafts ADD COLUMN scheduled_at DATETIME").run(); // 内容日历排期时间
+      }
   } catch (e) {
       console.error('Migration drafts failed:', e);
   }

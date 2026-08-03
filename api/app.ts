@@ -34,6 +34,8 @@ import complianceRoutes from './routes/compliance.js'
 import optimizationRoutes from './routes/optimizations.js'
 import configRoutes from './routes/config.js'
 import nicheRoutes from './routes/niche.js'
+import workbenchRoutes from './routes/workbench.js'
+import aiHealthRoutes from './routes/ai-health.js'
 import db, { initDB } from './db.js'
 import { authenticateToken } from './middleware/auth.js'
 import { errorHandler } from './middleware/errorHandler.js'
@@ -189,6 +191,8 @@ app.use('/api/compliance', authenticateToken, complianceRoutes)
 app.use('/api/optimizations', authenticateToken, optimizationRoutes)
 app.use('/api/config', authenticateToken, configRoutes)
 app.use('/api/niche', authenticateToken, nicheRoutes)
+app.use('/api/workbench', authenticateToken, workbenchRoutes)
+app.use('/api/ai-health', authenticateToken, aiHealthRoutes)
 
 // Temporarily expose these for debugging/stability (or maybe user token is missing in frontend request?)
 // Actually, let's keep auth but ensure the routes are mounted correctly.

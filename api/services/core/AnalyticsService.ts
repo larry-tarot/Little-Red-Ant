@@ -336,4 +336,96 @@ export class AnalyticsService {
             notes
         };
     }
+
+    /**
+     * 功能描述：获取所有账号的汇总数据（多账号看板）
+     *
+     * 返回说明：
+     * - { accounts: { id, nickname, total_views, total_likes, total_comments, total_collects }[] }
+     *   每个账号的阅读、点赞、评论、收藏总数
+     *
+     * 使用示例：
+     * >>> const summary = AnalyticsService.getSummaryAll();
+     * >>> summary.accounts.forEach(a => console.log(`${a.nickname}: ${a.total_views}`));
+     */
+    static getSummaryAll(): { accounts: any[] } {
+        // 获取所有账号
+        const accounts = AccountService.getAllAccounts();
+
+        // 为每个账号汇总数据
+        const accountsData = accounts.map((account) => {
+            // 笔记维度聚合：统计该账号的笔记总数和各维度总量
+            const sums = db.prepare(`
+                SELECT
+                    COUNT(*) as total_notes,
+                    COALESCE(SUM(views), 0) as total_views,
+                    COALESCE(SUM(likes), 0) as total_likes,
+                    COALESCE(SUM(collects), 0) as total_collects
+                FROM note_stats
+                WHERE account_id = ?
+            `).get(account.id) as any;
+
+            // 评论总数从 comments 表统计
+            const commentCountRow = db.prepare(`
+                SELECT COUNT(*) as count
+                FROM comments
+                WHERE account_id = ?
+            `).get(account.id) as { count: number };
+
+            return {
+                id: account.id,
+                nickname: account.nickname,
+                total_views: sums.total_views || 0,
+                total_likes: sums.total_likes || 0,
+                total_comments: commentCountRow?.count || 0,
+                total_collects: sums.total_collects || 0
+            };
+        });
+
+        return { accounts: accountsData };
+    }
+
+    /**
+     * 功能描述：获取所有账号的历史趋势数据（多账号看板）
+     *
+     * 返回说明：
+     * - any[] 按日期和账号分组的历史数据，每条含 account_id、date、views、likes 等
+     *
+     * 使用示例：
+     * >>> const history = AnalyticsService.getHistoryAll();
+     * >>> console.log(history.length);
+     */
+    static getHistoryAll(): any[] {
+        // 查询所有账号的历史数据，通过 note_stats 关联获取 account_id
+        const history = db.prepare(`
+            WITH DailyLatest AS (
+                SELECT
+                    nsh.note_id,
+                    nsh.views,
+                    nsh.likes,
+                    nsh.comments,
+                    nsh.collects,
+                    nsh.record_time,
+                    date(nsh.record_time) as record_date,
+                    ROW_NUMBER() OVER (PARTITION BY nsh.note_id, date(nsh.record_time) ORDER BY nsh.record_time DESC) as rn
+                FROM note_stats_history nsh
+                WHERE nsh.record_time > datetime('now', '-30 days')
+            )
+            SELECT
+                dl.record_date as date,
+                ns.account_id,
+                SUM(dl.views) as views,
+                SUM(dl.likes) as likes,
+                SUM(dl.comments) as comments,
+                SUM(dl.collects) as collects,
+                (SUM(dl.likes) + SUM(dl.comments) + SUM(dl.collects)) as interaction
+            FROM DailyLatest dl
+            JOIN note_stats ns ON dl.note_id = ns.note_id
+            WHERE dl.rn = 1
+            GROUP BY dl.record_date, ns.account_id
+            ORDER BY dl.record_date ASC
+        `).all();
+
+        return history;
+    }
 }

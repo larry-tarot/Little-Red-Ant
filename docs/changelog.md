@@ -1,6 +1,79 @@
 # 更新日志
 
-## 2026-07-31
+## 2026-07-31 (下午 - 工作流优化)
+
+### 今日工作台 - 从数据看板到行动指引
+
+- 新增 `api/services/core/WorkbenchService.ts`：聚合评论、数据、任务、竞品、通知等多模块数据，生成统一工作台视图
+- 新建 `api/routes/workbench.ts`：`GET /api/workbench/today` 接口，返回紧急事项（按优先级排序）、数据概要、日历预览、运营建议
+- 重写 `src/pages/Home.tsx`：从"缩略看板"升级为"今日工作台"，新增紧急任务卡片、发布日历预览、昨日数据摘要、运营建议卡片；保留原有图表与系统状态模块
+
+### 标题优化 - AI 吸引力分析
+
+- 新增 `api/services/ai/TitleOptimizer.ts`：调用 AI 对标题进行五维度吸引力分析（钩子吸引力、关键词匹配度、情绪感染力、表述清晰度、长度最优性），并生成优化变体
+- 在 `api/routes/generate.ts` 新增 `POST /title-score` 端点
+- 在 `src/pages/ContentGeneration.tsx` 的标题区域集成标题分析按钮，展示评分雷达、优化建议和可点击替换的标题变体
+
+### AI 复盘 - 数据驱动行动
+
+- 新增 `api/services/ai/AIReviewService.ts`：通过 AI 分析时段数据变化，生成亮点、问题、建议和最佳/最差笔记归因
+- 在 `api/routes/analytics.ts` 新增 `POST /review` 端点
+
+### 异常预警 - 自动检测与通知
+
+- 新增 `api/services/core/AnomalyDetector.ts`：检测每日指标异常（标准差偏离）、爆款笔记（>3倍均值）、疑似限流笔记，自动创建系统通知
+- 在 `api/routes/analytics.ts` 新增 `GET /anomalies` 端点
+
+### 笔记诊断 - 单篇笔记多维分析
+
+- 新增 `api/services/ai/NoteDiagnosisService.ts`：对单篇笔记进行标题、时机、标签、行动建议的多维度诊断
+- 在 `api/routes/notes.ts` 新增 `POST /:id/diagnose` 端点
+
+### 内容日历 - 从任务执行到内容规划
+
+- 在 `api/services/core/DraftService.ts` 新增 `getScheduledDrafts()` 方法，按日期分组返回已排期草稿
+- 在 `api/routes/drafts.ts` 新增 `GET /api/drafts/scheduled` 端点
+- 改造 `src/pages/Tasks.tsx`：新增"内容日历"视图模式，三按钮切换（执行日历/内容日历/列表视图），展示已排期草稿与本周规划统计
+
+### 爆款拆解闭环 - 从看到学到用
+
+- 新增 `api/services/ai/CompetitorNoteAnalyzer.ts`：对竞品笔记进行七维度 AI 拆解（标题技巧、封面分析、结构分析、钩子手法、学习要点、关键句子、仿写选题）
+- 在 `api/routes/competitor.ts` 新增 `POST /notes/:noteId/analyze` 端点
+- 新增 `src/components/CompetitorNoteAnalysisModal.tsx`：展示拆解结果，支持复制关键句子和以此为模板创作
+- 在 `src/pages/CompetitorDetail.tsx` 集成"AI 拆解"按钮与弹窗
+
+### 多账号汇总看板
+
+- 在 `api/services/core/AnalyticsService.ts` 新增 `getSummaryAll()` 和 `getHistoryAll()` 方法
+- 在 `api/routes/analytics.ts` 新增 `GET /all-summary` 和 `GET /all-history` 端点
+
+### 成长洞察
+
+- 新增 `api/services/ai/GrowthInsightService.ts`：分析近 90 天笔记数据，按月聚合指标和标签表现，AI 生成垂直趋势、写作改进、下一步行动、技能成长四维度洞察
+- 在 `api/routes/analytics.ts` 新增 `GET /growth-insight` 端点
+
+### 跨账号分发
+
+- 在 `api/services/core/AccountService.ts` 新增 `getAccountById()` 方法
+- 在 `api/routes/publish.ts` 新增 `POST /batch` 批量发布端点，验证每个目标账号有效性后分别入队任务
+- 在 `src/pages/ContentGeneration.tsx` 新增"多账号分发"模态框，支持勾选目标账号批量发布
+
+### 素材账号隔离
+
+- 改造 `src/pages/AssetsLibrary.tsx`：新增账号筛选下拉框，支持按账号过滤素材
+
+### 创作一站式交互
+
+- 在 `src/pages/ContentGeneration.tsx` 的标题分析面板中增强标题变体交互：点击变体可直接替换当前标题，选中状态高亮显示
+
+### 项目自评
+
+- 当前综合评分：**8.2 / 10**（从 7.9 提升）
+- 本轮新增：今日工作台（聚合工作流）、标题优化（创作链路补齐）、AI 复盘与异常预警（数据驱动行动）、内容日历规划模式、爆款拆解闭环（竞品学习）、多账号汇总、成长洞察、跨账号分发
+- 存量提升：工作流从"功能孤岛"向"运营助理"转型，创作链路覆盖选题→标题→文案→分析的完整闭环
+- 剩余技术债务：移动端缺失（核心短板）、RPA 模块化程度不足、AI 多供应商兜底需完善、业务 Hook 测试覆盖不够、首屏性能优化
+
+## 2026-07-31 (上午 - 工程化与架构收敛)
 
 ### 工程化
 

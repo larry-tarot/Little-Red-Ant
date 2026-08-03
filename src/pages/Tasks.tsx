@@ -1,5 +1,5 @@
 import axios from '@/lib/axios';
-import { Clock, Loader2, RefreshCw, CheckCircle, XCircle, PlayCircle, AlertCircle, Eye, Calendar, List, ChevronLeft, ChevronRight, RotateCw } from 'lucide-react';
+import { Clock, Loader2, RefreshCw, CheckCircle, XCircle, PlayCircle, AlertCircle, Eye, Calendar, List, ChevronLeft, ChevronRight, RotateCw, FileText } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { fetchSseToken } from '@/lib/sseToken';
@@ -33,11 +33,29 @@ interface Task {
   friendlyError?: FriendlyErrorData;
 }
 
+/**
+ * 内容日历：排期草稿单项（来自 /api/drafts/scheduled）
+ */
+interface ScheduledDraft {
+  id: number;
+  title: string;
+  contentType: string;
+  scheduledAt: string;
+}
+
+/**
+ * 内容日历：按日期分组的排期数据
+ */
+interface ScheduledGroup {
+  date: string;
+  drafts: ScheduledDraft[];
+}
+
 export default function Tasks() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
+  const [viewMode, setViewMode] = useState<'list' | 'calendar' | 'content'>('list');
   const [currentDate, setCurrentDate] = useState(new Date());
   
   // Pagination State
@@ -48,6 +66,14 @@ export default function Tasks() {
   // Calendar Day Tasks Modal State
   const [selectedDayTasks, setSelectedDayTasks] = useState<Task[] | null>(null);
   const [selectedDayDate, setSelectedDayDate] = useState<Date | null>(null);
+
+  // Content Calendar State
+  const [scheduledData, setScheduledData] = useState<ScheduledGroup[]>([]);
+  const [scheduledLoading, setScheduledLoading] = useState(false);
+
+  // Content Calendar Day Modal
+  const [contentDayGroup, setContentDayGroup] = useState<ScheduledGroup | null>(null);
+  const [contentDayDate, setContentDayDate] = useState<Date | null>(null);
   
   const navigate = useNavigate();
 
@@ -72,8 +98,77 @@ export default function Tasks() {
       setSelectedDayDate(null);
   };
 
+  /**
+   * 功能描述：获取已排期的草稿数据（内容日历用）
+   *
+   * 设计思路：
+   * 调用 /api/drafts/scheduled 获取按日期分组的排期草稿，
+   * 只在内容日历模式下触发
+   */
+  const fetchScheduledDrafts = async () => {
+      setScheduledLoading(true);
+      try {
+          const res = await axios.get('/api/drafts/scheduled');
+          setScheduledData(res.data.scheduled || []);
+      } catch (_error) {
+          toast.error('获取排期数据失败');
+          setScheduledData([]);
+      } finally {
+          setScheduledLoading(false);
+      }
+  };
+
+  /**
+   * 功能描述：打开内容日历日详情弹窗
+   *
+   * 参数说明：
+   * - group: [ScheduledGroup | undefined] 该日期的排期数据组
+   * - date: [Date] 对应的日期
+   */
+  const openContentDay = (group: ScheduledGroup | undefined, date: Date) => {
+      setContentDayGroup(group || null);
+      setContentDayDate(date);
+  };
+
+  /**
+   * 功能描述：关闭内容日历日详情弹窗
+   */
+  const closeContentDay = () => {
+      setContentDayGroup(null);
+      setContentDayDate(null);
+  };
+
+  /**
+   * 功能描述：计算本周已规划天数（周一至周日）
+   *
+   * 返回说明：
+   * - number 本周有排期的天数（0-7）
+   */
+  const getWeekScheduledCount = (): number => {
+      const now = new Date();
+      const dayOfWeek = now.getDay(); // 0=周日, 1=周一...
+      // 计算本周一的日期
+      const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+      const monday = new Date(now);
+      monday.setDate(now.getDate() + mondayOffset);
+      monday.setHours(0, 0, 0, 0);
+      // 计算本周日的日期
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+      sunday.setHours(23, 59, 59, 999);
+
+      return scheduledData.filter((group) => {
+          const groupDate = new Date(group.date);
+          return groupDate >= monday && groupDate <= sunday;
+      }).length;
+  };
+
   useEffect(() => {
-    fetchTasks();
+    if (viewMode === 'content') {
+        fetchScheduledDrafts();
+    } else {
+        fetchTasks();
+    }
 
     // Auto-refresh every 5 seconds if there are active tasks
     const interval = setInterval(() => {
@@ -451,6 +546,98 @@ export default function Tasks() {
       return cells;
   };
 
+  /**
+   * 功能描述：渲染内容日历的日期格子（展示已排期草稿）
+   *
+   * 设计思路：
+   * 与执行日历共用相同的日历网格结构，
+   * 但数据源为 scheduledData，展示草稿标题而非任务状态
+   */
+  const renderContentCalendar = () => {
+      const { days, firstDay } = getDaysInMonth(currentDate);
+      const cells = [];
+
+      // 构建日期到排期数据的快速索引
+      const scheduleMap = new Map<string, ScheduledGroup>();
+      scheduledData.forEach((group) => {
+          scheduleMap.set(group.date, group);
+      });
+
+      // 空白格子
+      for (let i = 0; i < firstDay; i++) {
+          cells.push(<div key={`content-empty-${i}`} className="min-h-[100px] bg-surface-muted/50 border border-border"></div>);
+      }
+
+      for (let d = 1; d <= days; d++) {
+          const dateObj = new Date(currentDate.getFullYear(), currentDate.getMonth(), d);
+          const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+          const isToday = new Date().toDateString() === dateObj.toDateString();
+          const group = scheduleMap.get(dateStr);
+          const dayDrafts = group?.drafts || [];
+          const visibleDrafts = dayDrafts.slice(0, 3);
+          const hasMore = dayDrafts.length > 3;
+
+          cells.push(
+              <div key={`content-${d}`} className={`
+                  min-h-[100px] border border-border p-2 cursor-pointer transition-all relative group
+                  ${isToday ? 'bg-primary-subtle/40 border-l-4 border-l-primary' : 'bg-surface hover:bg-surface-muted/50'}
+              `}
+              onClick={() => openContentDay(group, dateObj)}>
+                  {/* 日期头部 */}
+                  <div className="flex items-center justify-between mb-2">
+                      <span className={`text-sm font-medium ${isToday ? 'text-primary' : 'text-text-secondary'}`}>
+                          {d}
+                      </span>
+                      {isToday && (
+                          <span className="text-[10px] px-1.5 py-0.5 bg-primary-subtle text-primary rounded-full font-medium">
+                              今天
+                          </span>
+                      )}
+                  </div>
+
+                  {/* 排期草稿列表 */}
+                  <div className="space-y-1">
+                      {visibleDrafts.map((draft) => (
+                          <div
+                              key={draft.id}
+                              className="text-[11px] px-2 py-1.5 rounded-md border bg-success-subtle border-success-subtle text-success cursor-pointer transition-all hover:shadow-md hover:scale-[1.02]"
+                              title={`${draft.title} - ${new Date(draft.scheduledAt).toLocaleTimeString()}`}
+                          >
+                              <div className="flex items-center gap-1.5">
+                                  <FileText size={12} className="flex-shrink-0" />
+                                  <span className="truncate flex-1 font-medium">{draft.title}</span>
+                              </div>
+                              <div className="text-[10px] opacity-70 mt-0.5 pl-5">
+                                  {new Date(draft.scheduledAt).getHours()}:{String(new Date(draft.scheduledAt).getMinutes()).padStart(2, '0')}
+                              </div>
+                          </div>
+                      ))}
+
+                      {/* 更多排期提示 */}
+                      {hasMore && (
+                          <div
+                              className="w-full text-[10px] text-text-tertiary text-center py-1 hover:text-primary hover:bg-primary-subtle rounded transition-all"
+                          >
+                              +{dayDrafts.length - 3} 更多内容
+                          </div>
+                      )}
+
+                      {/* 空状态 — 点击安排内容 */}
+                      {dayDrafts.length === 0 && (
+                          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                              <span className="text-xs text-text-tertiary hover:text-primary hover:bg-primary-subtle px-3 py-1.5 rounded-full border border-dashed border-border-strong hover:border-primary-subtle transition-all">
+                                  + 安排内容
+                              </span>
+                          </div>
+                      )}
+                  </div>
+              </div>
+          );
+      }
+
+      return cells;
+  };
+
   return (
     <div className="min-h-screen bg-surface-muted p-4 sm:p-6 lg:p-8 relative">
       {retryingTask && (
@@ -542,29 +729,93 @@ export default function Tasks() {
             
             <div className="flex items-center gap-2 bg-surface p-1 rounded-lg border border-border shadow-sm">
                 <button
+                    onClick={() => setViewMode('calendar')}
+                    className={`p-2 rounded-md flex items-center text-sm font-medium transition-colors ${viewMode === 'calendar' ? 'bg-primary-subtle text-primary' : 'text-text-tertiary hover:bg-surface-muted'}`}
+                >
+                    <Calendar size={16} className="mr-2" /> 执行日历
+                </button>
+                <button
+                    onClick={() => setViewMode('content')}
+                    className={`p-2 rounded-md flex items-center text-sm font-medium transition-colors ${viewMode === 'content' ? 'bg-primary-subtle text-primary' : 'text-text-tertiary hover:bg-surface-muted'}`}
+                >
+                    <FileText size={16} className="mr-2" /> 内容日历
+                </button>
+                <button
                     onClick={() => setViewMode('list')}
                     className={`p-2 rounded-md flex items-center text-sm font-medium transition-colors ${viewMode === 'list' ? 'bg-primary-subtle text-primary' : 'text-text-tertiary hover:bg-surface-muted'}`}
                 >
                     <List size={16} className="mr-2" /> 列表视图
                 </button>
-                <button
-                    onClick={() => setViewMode('calendar')}
-                    className={`p-2 rounded-md flex items-center text-sm font-medium transition-colors ${viewMode === 'calendar' ? 'bg-primary-subtle text-primary' : 'text-text-tertiary hover:bg-surface-muted'}`}
-                >
-                    <Calendar size={16} className="mr-2" /> 内容日历
-                </button>
             </div>
 
             <button
-                onClick={() => fetchTasks()}
-                className={`p-2 rounded-full hover:bg-surface-hover transition-colors ${refreshing ? 'animate-spin' : ''}`}
+                onClick={() => viewMode === 'content' ? fetchScheduledDrafts() : fetchTasks()}
+                className={`p-2 rounded-full hover:bg-surface-hover transition-colors ${refreshing || scheduledLoading ? 'animate-spin' : ''}`}
                 title="刷新"
             >
                 <RefreshCw size={20} className="text-text-secondary" />
             </button>
         </div>
 
-        {viewMode === 'calendar' ? (
+        {viewMode === 'content' ? (
+            <div className="bg-surface shadow-sm rounded-lg border border-border overflow-hidden">
+                {/* 统计栏：本周已规划 X/7 篇 */}
+                <div className="px-4 py-3 border-b border-border bg-surface-muted/50 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <FileText size={16} className="text-primary" />
+                        <span className="text-sm font-medium text-text">内容排期日历</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                        <span className="text-xs text-text-tertiary">本周已规划</span>
+                        <span className="text-sm font-bold text-primary">{getWeekScheduledCount()}</span>
+                        <span className="text-xs text-text-tertiary">/ 7 篇</span>
+                    </div>
+                </div>
+
+                {/* Calendar Header */}
+                <div className="flex items-center justify-between p-4 border-b border-border bg-surface-muted/50">
+                    <h2 className="text-lg font-semibold text-text">
+                        {currentDate.getFullYear()}年 {currentDate.getMonth() + 1}月
+                    </h2>
+                    <div className="flex space-x-2">
+                        <button onClick={() => changeMonth(-1)} className="p-1.5 hover:bg-surface rounded-md border border-transparent hover:border-border hover:shadow-sm transition-all text-text-secondary">
+                            <ChevronLeft size={20} />
+                        </button>
+                        <button onClick={() => setCurrentDate(new Date())} className="px-3 py-1.5 text-xs font-medium bg-surface border border-border rounded-md hover:bg-surface-muted text-text-secondary">
+                            今天
+                        </button>
+                        <button onClick={() => changeMonth(1)} className="p-1.5 hover:bg-surface rounded-md border border-transparent hover:border-border hover:shadow-sm transition-all text-text-secondary">
+                            <ChevronRight size={20} />
+                        </button>
+                    </div>
+                </div>
+                
+                {/* Weekday Headers */}
+                <div className="grid grid-cols-7 border-b border-border bg-surface-muted text-xs font-medium text-text-tertiary text-center py-2">
+                    <div>周日</div>
+                    <div>周一</div>
+                    <div>周二</div>
+                    <div>周三</div>
+                    <div>周四</div>
+                    <div>周五</div>
+                    <div>周六</div>
+                </div>
+                
+                {/* Calendar Grid */}
+                <div className="grid grid-cols-7 bg-border gap-px border-b border-border">
+                    {scheduledLoading ? (
+                        <div className="col-span-7 h-96 flex items-center justify-center bg-surface">
+                             <Loader2 className="animate-spin text-primary" size={32} />
+                        </div>
+                    ) : renderContentCalendar()}
+                </div>
+                
+                <div className="p-4 bg-surface-muted text-xs text-text-tertiary flex gap-4">
+                    <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-success"></div> 已排期</div>
+                    <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-border-strong"></div> 可安排</div>
+                </div>
+            </div>
+        ) : viewMode === 'calendar' ? (
             <div className="bg-surface shadow-sm rounded-lg border border-border overflow-hidden">
                 {/* Calendar Header */}
                 <div className="flex items-center justify-between p-4 border-b border-border bg-surface-muted/50">
@@ -871,6 +1122,97 @@ export default function Tasks() {
                   <div className="px-6 py-4 border-t border-border bg-surface-muted flex justify-end">
                       <button 
                           onClick={closeDayTasks}
+                          className="px-4 py-2 text-sm font-medium text-text-secondary bg-surface border border-border-strong rounded-md hover:bg-surface-muted transition-colors"
+                      >
+                          关闭
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
+      
+      {/* Content Calendar Day Modal */}
+      {contentDayDate && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+              <div className="bg-surface rounded-xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col">
+                  {/* Modal Header */}
+                  <div className="px-6 py-4 border-b border-border flex justify-between items-center bg-surface-muted">
+                      <div>
+                          <h3 className="text-lg font-bold text-text">
+                              {contentDayDate.getMonth() + 1}月{contentDayDate.getDate()}日 内容排期
+                          </h3>
+                          <p className="text-xs text-text-tertiary mt-0.5">
+                              {contentDayGroup && contentDayGroup.drafts.length > 0
+                                  ? `共 ${contentDayGroup.drafts.length} 篇待发内容`
+                                  : '暂无排期内容'}
+                          </p>
+                      </div>
+                      <button 
+                          onClick={closeContentDay}
+                          className="text-text-tertiary hover:text-text-secondary bg-surface p-1.5 rounded-full border border-border hover:bg-surface-muted transition-colors"
+                      >
+                          <XCircle size={20}/>
+                      </button>
+                  </div>
+                  
+                  {/* Modal Body */}
+                  <div className="p-6 overflow-y-auto flex-1">
+                      {contentDayGroup && contentDayGroup.drafts.length > 0 ? (
+                          <div className="space-y-3">
+                              {contentDayGroup.drafts.map((draft) => (
+                                  <div 
+                                      key={draft.id} 
+                                      className="p-4 rounded-lg border border-border hover:border-success-subtle hover:shadow-md transition-all bg-surface"
+                                  >
+                                      <div className="flex items-start justify-between gap-4">
+                                          <div className="flex-1 min-w-0">
+                                              <div className="flex items-center gap-2 mb-2">
+                                                  <span className="text-[11px] px-2 py-0.5 bg-success-subtle text-success rounded-full font-medium">
+                                                      已排期
+                                                  </span>
+                                                  <span className="text-[11px] px-2 py-0.5 bg-surface-muted text-text-secondary rounded-full border border-border">
+                                                      {draft.contentType === 'article' ? '深度长文' : draft.contentType === 'video_script' ? '视频脚本' : '图文笔记'}
+                                                  </span>
+                                              </div>
+                                              <h4 className="font-medium text-text mb-1">{draft.title}</h4>
+                                              <div className="text-xs text-text-tertiary">
+                                                  计划时间: {new Date(draft.scheduledAt).toLocaleString()}
+                                              </div>
+                                          </div>
+                                          <button
+                                              onClick={() => navigate(`/drafts`)}
+                                              className="text-primary hover:text-primary-hover flex items-center text-xs font-medium bg-primary-subtle px-3 py-1.5 rounded whitespace-nowrap"
+                                          >
+                                              <Eye size={14} className="mr-1" /> 查看草稿
+                                          </button>
+                                      </div>
+                                  </div>
+                              ))}
+                          </div>
+                      ) : (
+                          <div className="flex flex-col items-center justify-center py-12 text-text-tertiary">
+                              <div className="w-16 h-16 bg-surface-muted rounded-full flex items-center justify-center mb-4">
+                                  <FileText size={28} className="opacity-50" />
+                              </div>
+                              <p className="font-medium text-text mb-1">当天暂无排期内容</p>
+                              <p className="text-sm mb-4">您可以为这天安排草稿发布计划</p>
+                              <button
+                                  onClick={() => {
+                                      closeContentDay();
+                                      navigate('/drafts');
+                                  }}
+                                  className="px-4 py-2 text-sm font-medium text-white bg-primary hover:bg-primary-hover rounded-md transition-colors"
+                              >
+                                  去写草稿
+                              </button>
+                          </div>
+                      )}
+                  </div>
+                  
+                  {/* Modal Footer */}
+                  <div className="px-6 py-4 border-t border-border bg-surface-muted flex justify-end">
+                      <button 
+                          onClick={closeContentDay}
                           className="px-4 py-2 text-sm font-medium text-text-secondary bg-surface border border-border-strong rounded-md hover:bg-surface-muted transition-colors"
                       >
                           关闭

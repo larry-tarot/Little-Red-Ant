@@ -39,4 +39,19 @@ export class AIFactory {
         }
         return this.audioProvider;
     }
+
+    /**
+     * 获取当前文本生成 Provider 组合的状态
+     *
+     * 返回说明：
+     * - CompositeProvider.getStatus() 的返回值，包含当前主用 Provider、
+     *   各子 Provider 的断路器状态与失败统计
+     */
+    static getProviderStatus(): ReturnType<CompositeProvider['getStatus']> | null {
+        const textProvider = this.getTextProvider();
+        if (textProvider instanceof CompositeProvider) {
+            return textProvider.getStatus();
+        }
+        return null;
+    }
 }

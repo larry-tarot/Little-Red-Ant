@@ -157,45 +157,14 @@ async function captureQrCode(page: any, prefix: string): Promise<string | undefi
  * 避免页面跳转间隙误判为未登录。
  */
 async function detectMainSiteLogin(page: any): Promise<boolean> {
-    return await page.evaluate((selectors: any) => {
-        const href = window.location.href;
-        const pageText = document.body ? document.body.innerText : '';
-
-        // 1. 如果仍在登录相关页面，认为未登录
-        if (href.includes('/login') || href.includes('/sign')) return false;
-
-        // 2. 检查明确的未登录指示器（登录按钮/登录容器）
-        const loggedOut = document.querySelector(selectors.Common.Login.LoggedOutIndicators.MainSite);
-        if (loggedOut) return false;
-
-        // 3. 检查明确的登录指示器（右上角个人中心/头像）
-        const loggedIn = document.querySelector(selectors.Common.Login.LoggedInIndicators.MainSite);
-        if (loggedIn) return true;
-
-        // 4. 兜底：页面上没有登录按钮，且存在"我的"入口
-        //    这里避免使用容易误判的 class 选择器，只依赖明确的文案和登录按钮缺失。
-        const hasMyEntry = pageText.includes('我') && (
-            !!document.querySelector('a[href*="/user/profile"]') ||
-            !!document.querySelector('a[href="/user/me"]')
-        );
-        const hasLoginButton = pageText.includes('登录') || pageText.includes('手机号登录') || pageText.includes('验证码登录');
-
-        return hasMyEntry && !hasLoginButton;
-    }, Selectors);
+    return BrowserService.verifyLoginState(page, 'MAIN_SITE');
 }
 
 /**
  * 功能描述：检测小红书创作服务平台登录状态
  */
 async function detectCreatorLogin(page: any): Promise<boolean> {
-    const currentUrl = page.url();
-    if (!currentUrl.includes('creator.xiaohongshu.com') || currentUrl.includes('/login')) {
-        return false;
-    }
-
-    return await page.evaluate((selectors: any) => {
-        return !!document.querySelector(selectors.Common.Login.LoggedInIndicators.Creator);
-    }, Selectors);
+    return BrowserService.verifyLoginState(page, 'CREATOR');
 }
 
 /**
@@ -325,24 +294,7 @@ export function requireAccountCookie(accountId: number, type: 'CREATOR' | 'MAIN_
  * 功能描述：判断页面是否被反爬拦截
  */
 async function detectAntiBot(page: any): Promise<{ blocked: boolean; reason?: string }> {
-    return await page.evaluate((selectors: any) => {
-        const href = window.location.href;
-        const pageText = document.body ? document.body.innerText : '';
-
-        if (document.querySelector(selectors.Common.AntiBot.Captcha)) {
-            return { blocked: true, reason: '需要安全验证（滑块/验证码）' };
-        }
-        if (pageText.includes('访问太频繁') || pageText.includes('操作过于频繁')) {
-            return { blocked: true, reason: '访问频率受限' };
-        }
-        if (pageText.includes('网络异常') || pageText.includes('请检查网络')) {
-            return { blocked: true, reason: '网络异常' };
-        }
-        if (href.includes('/blocked') || href.includes('/verify')) {
-            return { blocked: true, reason: '页面被拦截' };
-        }
-        return { blocked: false };
-    }, Selectors);
+    return BrowserService.detectAntiBot(page);
 }
 
 /**

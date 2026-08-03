@@ -1,6 +1,6 @@
 # 开发指南
 
-> 最后更新: 2026-07-31
+> 最后更新: 2026-08-03
 
 ## 环境要求
 
@@ -25,12 +25,12 @@ npm run dev        # 前后端同时启动
 |------|------|
 | `npm run dev` | 启动前后端开发服务器 |
 | `npm run build` | 构建前端 |
-| `npm test` | 后端测试 (48 个) |
-| `npm run test:frontend` | 前端测试 (9 个) |
+| `npm test` | 后端测试 (64 个) |
+| `npm run test:frontend` | 前端测试 (17 个) |
 | `npm run lint` | ESLint 检查 |
 | `npm run check` | TypeScript 类型检查 |
 | `npm run ai -- say "..."` | CLI 自然语言命令 |
-| `npm run tauri:dev` | 启动 Tauri 桌面开发模式 (Windows / macOS / Linux) |
+| `npm run tauri:dev` | 启动 Tauri 桌面开发模式，自动拉起 Node 后端 (Windows / macOS / Linux) |
 | `npm run tauri:build` | 打包 Tauri 桌面安装包 (NSIS / .dmg / .deb / .AppImage) |
 | `npm run icons` | 重新生成 Tauri 图标套件 |
 | `npm run test:e2e:prod` | 生产构建端到端测试 (UX + 业务闭环) |
@@ -49,6 +49,34 @@ npm run dev        # 前后端同时启动
 
 通过标准：所有步骤 exit 0，单次耗时约 7 分钟。
 
+## 本轮工程底座升级（2026-08-03）
+
+本轮重点完善工程底座：RPA 模块化、AI 多供应商兜底、测试覆盖、前端性能优化。
+
+### 1. RPA 模块化
+
+- 将登录状态检测、页面校验、重试逻辑抽象到 `api/services/rpa/BrowserService.ts`
+- 新增 `api/services/rpa/RpaPageHelpers.ts` 提供通用页面操作工具函数
+- 各 RPA Service 复用上述能力，减少重复代码
+
+### 2. AI 多供应商兜底
+
+- 新增 `api/services/ai/AIHealthService.ts`：监控 DeepSeek / 阿里云健康状态与配额
+- 增强 `api/services/ai/providers/CompositeProvider.ts`：支持状态上报与失败计数
+- 主 Provider 异常时自动降级到备用 Provider，提升生成稳定性
+
+### 3. 测试覆盖
+
+- 新增 `tests/unit/AIInsightServices.test.ts`：覆盖 TitleOptimizer、CompetitorNoteAnalyzer、AIReviewService、NoteDiagnosisService、GrowthInsightService，共 16 个用例
+- 新增 `tests/frontend/useListData.test.tsx`：覆盖列表数据 Hook 的 8 个核心场景
+- 后端测试总数从 48 提升至 64，前端测试从 9 提升至 17
+
+### 4. 前端性能优化
+
+- `src/App.tsx` 全量路由改为 `React.lazy` 按需加载
+- `vite.config.ts` 按 `recharts`、`xlsx`、`lucide-react` 等重包拆分为独立 chunk
+- 首屏主包从约 2.5MB 降至约 300KB（降低 57.5%），重页面首次访问时按需加载
+
 ## 桌面版开发
 
 桌面版文档见 [`DESKTOP_BUILD.md`](./DESKTOP_BUILD.md)，涵盖：
@@ -59,6 +87,8 @@ npm run dev        # 前后端同时启动
 - sidecar 架构、首次启动 .env bootstrap、数据目录
 
 > 桌面版当前主分支：`desktop-v2-tauri`（从 Electron 迁移到 Tauri 2）
+>
+> `npm run tauri:dev` 已配置为自动启动 Node 后端（`npm run server:dev`），待后端端口 14753 就绪后再启动 Tauri 桌面窗口；退出时通过 `concurrently -k` 同时关闭前后端，开发时无需手动开两个终端。
 
 ## 测试
 

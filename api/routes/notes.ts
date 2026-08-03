@@ -1,5 +1,6 @@
 import express from 'express';
 import { NoteService } from '../services/core/NoteService.js';
+import { NoteDiagnosisService } from '../services/ai/NoteDiagnosisService.js';
 import { FileCleanupService } from '../services/core/FileCleanupService.js';
 import { validateBody, validateParams, validateQuery } from '../middleware/validation.js';
 import { DeleteNoteBodySchema, IdParamSchema, ListNotesQuerySchema } from '../schemas/index.js';
@@ -58,6 +59,18 @@ router.delete('/:id', validateParams(IdParamSchema), validateBody(DeleteNoteBody
     } catch (error) {
         console.error('Delete note failed:', error);
         res.status(500).json({ success: false, error: 'Internal server error' });
+    }
+});
+
+// 笔记诊断
+router.post('/:id/diagnose', async (req, res) => {
+    try {
+        const noteId = req.params.id;
+        const result = await NoteDiagnosisService.diagnose(Number(noteId));
+        res.json({ success: true, data: result });
+    } catch (error: any) {
+        console.error('Note diagnosis failed:', error);
+        res.status(500).json({ success: false, error: error.message || 'Internal server error' });
     }
 });
 

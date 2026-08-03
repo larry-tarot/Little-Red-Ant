@@ -1,9 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import axios from '@/lib/axios';
-import { Sparkles, FileText, Video, Edit3, History, ChevronLeft, ChevronRight, RotateCw, Copy, Save, ExternalLink, Film, Loader2, Calendar, Wand2, X, Image as ImageIcon, AlertCircle, Eye, Mic2, Lightbulb } from 'lucide-react';
+import { Sparkles, FileText, Video, Edit3, History, ChevronLeft, ChevronRight, RotateCw, Copy, Save, ExternalLink, Film, Loader2, Calendar, Wand2, X, Image as ImageIcon, AlertCircle, Eye, Mic2, Lightbulb, BarChart3, Target, Zap, ThumbsUp } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import CardGenerator, { CardGeneratorHandle } from '../components/CardGenerator';
-import ImageEditor from '../components/ImageEditor';
+import type { CardGeneratorHandle } from '../components/CardGenerator';
+
+const CardGenerator = lazy(() => import('../components/CardGenerator'));
+const ImageEditor = lazy(() => import('../components/ImageEditor'));
 import NoteEditor from '../components/NoteEditor';
 import ArticleEditor from '../components/ArticleEditor';
 import toast from 'react-hot-toast';
@@ -76,6 +78,13 @@ export default function ContentGeneration() {
   const [autoPublish, setAutoPublish] = useState(false); 
   const [scheduledTime, setScheduledTime] = useState(''); 
 
+  // 跨账号批量发布状态
+  const [showBatchModal, setShowBatchModal] = useState(false);
+  const [allAccounts, setAllAccounts] = useState<any[]>([]);
+  const [selectedAccountIds, setSelectedAccountIds] = useState<Set<number>>(new Set());
+  const [isBatchPublishing, setIsBatchPublishing] = useState(false);
+  const [batchResult, setBatchResult] = useState<{ success: boolean; tasks?: any[]; skipped?: any[]; message?: string } | null>(null);
+
   // Image Editor State
   const [showImageEditor, setShowImageEditor] = useState(false);
   const [editingImageUrl, setEditingImageUrl] = useState('');
@@ -85,6 +94,16 @@ export default function ContentGeneration() {
   
   const [isEditingContent, setIsEditingContent] = useState(false);
   const [editedContent, setEditedContent] = useState('');
+
+  // 标题分析状态
+  const [isAnalyzingTitle, setIsAnalyzingTitle] = useState(false);
+  const [titleAnalysis, setTitleAnalysis] = useState<{
+    score: number;
+    breakdown: { hook_strength: number; keyword_relevance: number; emotional_appeal: number; clarity: number; length_optimal: boolean };
+    suggestions: string[];
+    variants: string[];
+  } | null>(null);
+  const [showTitleAnalysis, setShowTitleAnalysis] = useState(false);
   
   // Account State
   const [activeAccount, setActiveAccount] = useState<any>(null);
@@ -466,6 +485,80 @@ export default function ContentGeneration() {
     }
   };
 
+  /**
+   * 打开跨账号分发弹窗，预加载所有账号列表
+   */
+  const handleOpenBatchModal = async () => {
+      setBatchResult(null);
+      setSelectedAccountIds(new Set());
+      try {
+          const res = await axios.get('/api/accounts');
+          const accounts = res.data || [];
+          setAllAccounts(accounts);
+          setShowBatchModal(true);
+      } catch (_error) {
+          toast.error('账号列表加载失败');
+      }
+  };
+
+  /**
+   * 执行跨账号批量发布
+   */
+  const handleBatchPublish = async () => {
+      if (!result || selectedAccountIds.size === 0) {
+          toast.error('请至少选择一个目标账号');
+          return;
+      }
+      setIsBatchPublishing(true);
+      setBatchResult(null);
+      try {
+          let imagePayload: string[] = [];
+          const validAiImages = generatedImages.filter(img => img.url).map(img => img.url);
+          if (validAiImages.length > 0) {
+              imagePayload = validAiImages;
+          } else if (cardGeneratorRef.current) {
+              const cardImage = await cardGeneratorRef.current.generateImage();
+              if (cardImage) imagePayload = [cardImage];
+          }
+
+          const res = await axios.post('/api/publish/batch', {
+              title: result.title,
+              content: result.options?.[selectedOptionIndex]?.content || '',
+              tags: result.tags,
+              imageData: imagePayload,
+              accountIds: Array.from(selectedAccountIds),
+              draftId: draftId || undefined
+          });
+          setBatchResult(res.data);
+          if (res.data.success) {
+              toast.success(`已向 ${res.data.tasks?.length || 0} 个账号提交发布任务`);
+          }
+      } catch (error: any) {
+          const errMsg = error.response?.data?.error || error.message;
+          toast.error(`批量发布失败: ${errMsg}`);
+          setBatchResult({ success: false, message: errMsg });
+      } finally {
+          setIsBatchPublishing(false);
+      }
+  };
+
+  /**
+   * 将当前标题替换为选中的变体标题
+   */
+  const handleSelectTitleVariant = (variant: string) => {
+      if (!result) return;
+      setHistory(prev => {
+          if (currentIndex < 0 || currentIndex >= prev.length) return prev;
+          const newHistory = [...prev];
+          const session = { ...newHistory[currentIndex] };
+          const content = { ...session.content, title: variant };
+          session.content = content;
+          newHistory[currentIndex] = session;
+          return newHistory;
+      });
+      toast.success('标题已替换为选中变体');
+  };
+
   const [isFixingCompliance, setIsFixingCompliance] = useState(false);
 
   const handleAutoFixCompliance = async () => {
@@ -493,6 +586,30 @@ export default function ContentGeneration() {
           toast.error('修复失败，请重试');
       } finally {
           setIsFixingCompliance(false);
+      }
+  };
+
+  /**
+   * 标题分析：调用 AI 对当前生成的标题进行吸引力评分和优化建议
+   */
+  const handleTitleAnalyze = async () => {
+      if (!result?.title) return;
+      setIsAnalyzingTitle(true);
+      setTitleAnalysis(null);
+      try {
+          const res = await axios.post('/api/generate/title-score', {
+              title: result.title,
+              niche: style || undefined,
+              noteType: contentType === 'article' ? 'article' : 'note'
+          });
+          if (res.data) {
+              setTitleAnalysis(res.data);
+              setShowTitleAnalysis(true);
+          }
+      } catch (_error) {
+          toast.error('标题分析失败，请稍后重试');
+      } finally {
+          setIsAnalyzingTitle(false);
       }
   };
 
@@ -904,7 +1021,27 @@ export default function ContentGeneration() {
                     {/* Title */}
                     <div>
                         <div className="flex justify-between items-start mb-2">
-                        <span className="text-xs font-semibold text-text-tertiary uppercase tracking-wider">标题</span>
+                        <div className="flex items-center space-x-2">
+                            <span className="text-xs font-semibold text-text-tertiary uppercase tracking-wider">标题</span>
+                            {/* 标题分析按钮 */}
+                            <button
+                                onClick={handleTitleAnalyze}
+                                disabled={isAnalyzingTitle}
+                                className={`text-xs flex items-center px-2 py-0.5 rounded transition-colors ${
+                                    titleAnalysis 
+                                        ? 'bg-success-subtle text-success' 
+                                        : 'bg-primary-subtle text-primary hover:bg-primary/10'
+                                }`}
+                                title="AI 分析标题吸引力"
+                            >
+                                {isAnalyzingTitle ? (
+                                    <Loader2 size={12} className="mr-1 animate-spin" />
+                                ) : (
+                                    <BarChart3 size={12} className="mr-1" />
+                                )}
+                                {titleAnalysis ? `评分 ${titleAnalysis.score}` : '标题分析'}
+                            </button>
+                        </div>
                         <button onClick={() => copyToClipboard(result.title)} className="text-primary hover:text-primary-hover text-xs flex items-center">
                             <Copy size={12} className="mr-1" /> 复制
                         </button>
@@ -914,6 +1051,135 @@ export default function ContentGeneration() {
                             {result.title}
                         </h3>
                         </div>
+
+                        {/* 标题分析结果面板 */}
+                        {titleAnalysis && showTitleAnalysis && (
+                            <div className="mt-3 bg-surface rounded-lg border border-border p-4 space-y-3">
+                                {/* 分析Header */}
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center space-x-2">
+                                        <Target size={16} className="text-primary" />
+                                        <span className="text-sm font-semibold text-text">标题吸引力分析</span>
+                                        <span className={`text-sm font-bold px-2 py-0.5 rounded ${
+                                            titleAnalysis.score >= 70 ? 'bg-success-subtle text-success' : 
+                                            titleAnalysis.score >= 50 ? 'bg-warning-subtle text-warning' : 
+                                            'bg-danger-subtle text-danger'
+                                        }`}>
+                                            {titleAnalysis.score} 分
+                                        </span>
+                                    </div>
+                                    <button onClick={() => setShowTitleAnalysis(false)} className="text-text-tertiary hover:text-text-secondary">
+                                        <X size={16} />
+                                    </button>
+                                </div>
+
+                                {/* 五维度评分 */}
+                                <div className="grid grid-cols-2 gap-2">
+                                    {[
+                                        { label: '钩子吸引力', key: 'hook_strength', icon: Zap },
+                                        { label: '关键词匹配', key: 'keyword_relevance', icon: Target },
+                                        { label: '情绪感染力', key: 'emotional_appeal', icon: ThumbsUp },
+                                        { label: '表述清晰度', key: 'clarity', icon: Eye },
+                                    ].map(item => {
+                                        const value = (titleAnalysis.breakdown as any)[item.key] as number;
+                                        const Icon = item.icon;
+                                        return (
+                                            <div key={item.key} className="flex items-center justify-between bg-surface-muted rounded-lg px-3 py-2">
+                                                <div className="flex items-center space-x-1.5">
+                                                    <Icon size={14} className="text-text-tertiary" />
+                                                    <span className="text-xs text-text-secondary">{item.label}</span>
+                                                </div>
+                                                <div className="flex items-center space-x-1.5">
+                                                    <div className="w-16 h-1.5 bg-surface-hover rounded-full overflow-hidden">
+                                                        <div 
+                                                            className={`h-full rounded-full transition-all ${
+                                                                value >= 7 ? 'bg-success' : value >= 5 ? 'bg-warning' : 'bg-danger'
+                                                            }`}
+                                                            style={{ width: `${value * 10}%` }}
+                                                        />
+                                                    </div>
+                                                    <span className="text-xs font-medium text-text w-5 text-right">{value}</span>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+
+                                {/* 长度判断 */}
+                                <div className="flex items-center space-x-2 text-xs">
+                                    <span className="text-text-tertiary">标题长度：</span>
+                                    <span className={titleAnalysis.breakdown.length_optimal ? 'text-success' : 'text-warning'}>
+                                        {titleAnalysis.breakdown.length_optimal ? '长度适中' : '长度可优化'}
+                                    </span>
+                                    <span className="text-text-tertiary">（{result.title.length} 字）</span>
+                                </div>
+
+                                {/* 优化建议 */}
+                                {titleAnalysis.suggestions.length > 0 && (
+                                    <div className="bg-warning-subtle rounded-lg p-3">
+                                        <p className="text-xs font-semibold text-warning mb-1.5">优化建议</p>
+                                        <ul className="space-y-1">
+                                            {titleAnalysis.suggestions.map((s, i) => (
+                                                <li key={i} className="text-xs text-text-secondary flex items-start">
+                                                    <span className="text-warning mr-1.5 mt-0.5">•</span>
+                                                    {s}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
+
+                                {/* 优化变体 */}
+                                {titleAnalysis.variants.length > 0 && (
+                                    <div>
+                                        <p className="text-xs font-semibold text-text-tertiary mb-2">
+                                            推荐标题变体（点击替换当前标题）
+                                        </p>
+                                        <div className="space-y-1.5">
+                                            {titleAnalysis.variants.map((v, i) => (
+                                                <div
+                                                    key={i}
+                                                    onClick={() => handleSelectTitleVariant(v)}
+                                                    className={`flex items-center justify-between rounded-lg px-3 py-2 cursor-pointer transition-colors ${
+                                                        result?.title === v
+                                                            ? 'bg-primary-subtle border border-primary text-primary'
+                                                            : 'bg-surface-muted hover:bg-primary-subtle hover:border hover:border-primary/30 border border-transparent'
+                                                    }`}
+                                                    title="点击替换当前标题"
+                                                >
+                                                    <div className="flex items-center space-x-2">
+                                                        <span className="text-xs text-text-tertiary font-mono">
+                                                            #{i + 1}
+                                                        </span>
+                                                        <span className={`text-sm ${
+                                                            result?.title === v ? 'text-primary font-medium' : 'text-text'
+                                                        }`}>
+                                                            {v}
+                                                        </span>
+                                                        {result?.title === v && (
+                                                            <span className="text-xs text-success font-medium">
+                                                                已选用
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            navigator.clipboard.writeText(v);
+                                                            toast.success('已复制标题变体');
+                                                        }}
+                                                        className="text-text-tertiary hover:text-primary transition-opacity p-1"
+                                                        title="复制到剪贴板"
+                                                    >
+                                                        <Copy size={14} />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     {/* Compliance Report */}
@@ -1110,13 +1376,15 @@ export default function ContentGeneration() {
                     {/* Card Generator (Moved to Bottom) - Only show if no AI images are generated */}
                     {contentType === 'note' && !generatedImages.some(img => img.url) && (
                         <div className="pt-6 border-t border-border">
-                            <CardGenerator 
-                                ref={cardGeneratorRef}
-                                title={result.title}
-                                content={result.options?.[selectedOptionIndex]?.content || ''}
-                                tags={result.tags || []}
-                                backgroundImage={selectedBgImage}
-                            />
+                            <Suspense fallback={<div className="flex justify-center items-center py-8"><Loader2 className="animate-spin text-primary" size={24} /></div>}>
+                                <CardGenerator
+                                    ref={cardGeneratorRef}
+                                    title={result.title}
+                                    content={result.options?.[selectedOptionIndex]?.content || ''}
+                                    tags={result.tags || []}
+                                    backgroundImage={selectedBgImage}
+                                />
+                            </Suspense>
                         </div>
                     )}
 
@@ -1129,7 +1397,7 @@ export default function ContentGeneration() {
                             </div>
                             )}
                             
-                            <div className="flex gap-2">
+                            <div className="flex gap-2 flex-wrap">
                             <button
                                 onClick={handleSaveDraft}
                                 disabled={isSaving || isPublishing}
@@ -1143,6 +1411,22 @@ export default function ContentGeneration() {
                                 <Save className="mr-2" size={18} />
                                 )}
                                 存为草稿
+                            </button>
+
+                            {/* 跨账号分发按钮 */}
+                            <button
+                                onClick={handleOpenBatchModal}
+                                disabled={isPublishing}
+                                className="flex justify-center items-center py-3 px-4 border border-primary rounded-md shadow-sm text-sm font-medium text-primary bg-surface hover:bg-primary-subtle transition-colors relative"
+                                title="将当前内容发布到多个账号"
+                            >
+                                <ExternalLink className="mr-2" size={18} />
+                                多账号分发
+                                {selectedAccountIds.size > 0 && !showBatchModal && (
+                                    <span className="absolute -top-1.5 -right-1.5 bg-primary text-primary-text text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
+                                        {selectedAccountIds.size}
+                                    </span>
+                                )}
                             </button>
                             
                             <div className="flex items-center justify-end space-x-4">
@@ -1416,16 +1700,150 @@ export default function ContentGeneration() {
           </div>
       )}
 
+      {/* 跨账号批量发布弹窗 */}
+      {showBatchModal && (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+              <div className="bg-surface rounded-lg shadow-xl max-w-lg w-full max-h-[80vh] overflow-y-auto">
+                  <div className="p-6">
+                      {/* Header */}
+                      <div className="flex justify-between items-start mb-4">
+                          <h3 className="text-lg font-bold text-text flex items-center">
+                              <ExternalLink className="mr-2 text-primary" size={20} />
+                              多账号分发
+                          </h3>
+                          <button
+                              onClick={() => setShowBatchModal(false)}
+                              className="text-text-tertiary hover:text-text-secondary"
+                          >
+                              <X size={20} />
+                          </button>
+                      </div>
+
+                      {/* 批量发布结果展示 */}
+                      {batchResult && (
+                          <div className={`mb-4 p-4 rounded-lg text-sm ${
+                              batchResult.success ? 'bg-success-subtle text-success' : 'bg-danger-subtle text-danger'
+                          }`}>
+                              <p className="font-semibold mb-2">{batchResult.message || (batchResult.success ? '提交成功' : '提交失败')}</p>
+                              {batchResult.tasks && batchResult.tasks.length > 0 && (
+                                  <p className="text-xs mt-1">已创建 {batchResult.tasks.length} 个任务</p>
+                              )}
+                              {batchResult.skipped && batchResult.skipped.length > 0 && (
+                                  <div className="mt-2">
+                                      <p className="text-xs font-medium text-warning">以下账号被跳过：</p>
+                                      {batchResult.skipped.map((s: any, i: number) => (
+                                          <p key={i} className="text-xs opacity-80">账号 #{s.accountId}: {s.reason}</p>
+                                      ))}
+                                  </div>
+                              )}
+                          </div>
+                      )}
+
+                      {/* 内容预览提示 */}
+                      <div className="bg-surface-muted p-3 rounded-lg mb-4 text-xs text-text-secondary">
+                          <span className="font-semibold">即将分发：</span>
+                          {result?.title?.slice(0, 40)}{result?.title && result.title.length > 40 ? '...' : ''}
+                      </div>
+
+                      {/* 账号选择列表 */}
+                      <div className="space-y-2 mb-6 max-h-[300px] overflow-y-auto">
+                          {allAccounts.length === 0 ? (
+                              <p className="text-sm text-text-tertiary text-center py-4">暂无可用账号</p>
+                          ) : (
+                              allAccounts.map((account: any) => (
+                                  <label
+                                      key={account.id}
+                                      className={`flex items-center p-3 rounded-lg border cursor-pointer transition-colors ${
+                                          selectedAccountIds.has(account.id)
+                                              ? 'border-primary bg-primary-subtle'
+                                              : 'border-border hover:bg-surface-muted'
+                                      }`}
+                                  >
+                                      <input
+                                          type="checkbox"
+                                          checked={selectedAccountIds.has(account.id)}
+                                          onChange={(e) => {
+                                              const newSet = new Set(selectedAccountIds);
+                                              if (e.target.checked) {
+                                                  newSet.add(account.id);
+                                              } else {
+                                                  newSet.delete(account.id);
+                                              }
+                                              setSelectedAccountIds(newSet);
+                                          }}
+                                          className="form-checkbox h-4 w-4 text-primary rounded border-strong focus:ring-primary mr-3"
+                                      />
+                                      <div className="flex-1">
+                                          <div className="flex items-center space-x-2">
+                                              <span className="text-sm font-medium text-text">
+                                                  {account.nickname || account.alias || `账号 #${account.id}`}
+                                              </span>
+                                              <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                                                  account.is_active
+                                                      ? 'bg-success-subtle text-success'
+                                                      : 'bg-surface-hover text-text-tertiary'
+                                              }`}>
+                                                  {account.is_active ? '活跃' : '未激活'}
+                                              </span>
+                                          </div>
+                                          <p className="text-xs text-text-tertiary mt-0.5">
+                                              状态: {account.status || '未知'}
+                                          </p>
+                                      </div>
+                                  </label>
+                              ))
+                          )}
+                      </div>
+
+                      {/* 选中计数 */}
+                      <div className="text-sm text-text-secondary mb-4">
+                          已选择 <span className="font-bold text-primary">{selectedAccountIds.size}</span> 个账号
+                      </div>
+
+                      {/* 操作按钮 */}
+                      <div className="flex justify-end gap-3">
+                          <button
+                              onClick={() => setShowBatchModal(false)}
+                              className="px-4 py-2 bg-surface-muted text-text-secondary rounded-md hover:bg-surface-hover text-sm font-medium"
+                          >
+                              取消
+                          </button>
+                          <button
+                              onClick={handleBatchPublish}
+                              disabled={isBatchPublishing || selectedAccountIds.size === 0}
+                              className={`px-4 py-2 bg-primary text-primary-text rounded-md text-sm font-medium flex items-center transition-colors ${
+                                  isBatchPublishing || selectedAccountIds.size === 0
+                                      ? 'opacity-50 cursor-not-allowed'
+                                      : 'hover:bg-primary-hover'
+                              }`}
+                          >
+                              {isBatchPublishing ? (
+                                  <>
+                                      <Loader2 size={16} className="mr-2 animate-spin" />
+                                      提交中...
+                                  </>
+                              ) : (
+                                  `确认分发 (${selectedAccountIds.size})`
+                              )}
+                          </button>
+                      </div>
+                  </div>
+              </div>
+          </div>
+      )}
+
       {/* Image Editor Modal */}
       {showImageEditor && (
-        <ImageEditor
-          imageUrl={editingImageUrl}
-          onClose={() => {
-            setShowImageEditor(false);
-            setEditingImageUrl('');
-          }}
-          onSave={handleSaveEditedImage}
-        />
+        <Suspense fallback={<div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center"><Loader2 className="animate-spin text-primary" size={32} /></div>}>
+          <ImageEditor
+            imageUrl={editingImageUrl}
+            onClose={() => {
+              setShowImageEditor(false);
+              setEditingImageUrl('');
+            }}
+            onSave={handleSaveEditedImage}
+          />
+        </Suspense>
       )}
     </div>
   );

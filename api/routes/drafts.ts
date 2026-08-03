@@ -46,6 +46,25 @@ const localizeImages = async (images: any[]) => {
     return localized;
 };
 
+/**
+ * 功能描述：获取已排期的草稿（内容日历用），按日期分组
+ *
+ * GET /api/drafts/scheduled
+ *
+ * 返回说明：
+ * - { scheduled: { date: string; drafts: { id, title, contentType, scheduledAt }[] }[] }
+ *
+ * NOTE: 必须在 /:id 路由之前注册，避免 'scheduled' 被当作 :id 参数匹配
+ */
+router.get('/scheduled', (_req, res) => {
+    try {
+        const scheduled = DraftService.getScheduledDrafts();
+        res.json({ scheduled });
+    } catch (_error) {
+        res.status(500).json({ error: 'Failed to fetch scheduled drafts' });
+    }
+});
+
 // Get all drafts
 router.get('/', (_req, res) => {
     try {

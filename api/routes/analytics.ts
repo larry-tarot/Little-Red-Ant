@@ -2,6 +2,9 @@ import { Router } from 'express';
 import * as XLSX from 'xlsx';
 import { enqueueTask } from '../services/queue.js';
 import { AnalyticsService } from '../services/core/AnalyticsService.js';
+import { AIReviewService } from '../services/ai/AIReviewService.js';
+import { GrowthInsightService } from '../services/ai/GrowthInsightService.js';
+import { AnomalyDetector } from '../services/core/AnomalyDetector.js';
 import { validateQuery } from '../middleware/validation.js';
 import { PaginationQuerySchema } from '../schemas/index.js';
 
@@ -118,6 +121,63 @@ router.get('/export', (_req, res) => {
     } catch (error: any) {
         console.error('Export failed:', error);
         res.status(500).json({ error: error.message });
+    }
+});
+
+// AI 复盘分析
+router.post('/review', async (req, res) => {
+    try {
+        const { period } = req.body || {};
+        const validPeriod = period === 'month' ? 'month' : 'week';
+        const result = await AIReviewService.generateReview(validPeriod);
+        res.json({ success: true, data: result });
+    } catch (error: any) {
+        console.error('Review generation failed:', error);
+        errorResponse(res, 500, error.message || 'Internal server error');
+    }
+});
+
+// 异常检测
+router.get('/anomalies', (_req, res) => {
+    try {
+        const anomalies = AnomalyDetector.runCheck();
+        res.json({ success: true, data: anomalies });
+    } catch (error: any) {
+        console.error('Anomaly detection failed:', error);
+        errorResponse(res, 500, error.message || 'Internal server error');
+    }
+});
+
+// 多账号汇总看板 - 各账号数据总览
+router.get('/all-summary', (_req, res) => {
+    try {
+        const summary = AnalyticsService.getSummaryAll();
+        res.json({ success: true, data: summary });
+    } catch (error: any) {
+        console.error('All summary fetch failed:', error);
+        errorResponse(res, 500, error.message || 'Internal server error');
+    }
+});
+
+// 多账号汇总看板 - 各账号历史趋势
+router.get('/all-history', (_req, res) => {
+    try {
+        const history = AnalyticsService.getHistoryAll();
+        res.json({ success: true, data: history });
+    } catch (error: any) {
+        console.error('All history fetch failed:', error);
+        errorResponse(res, 500, error.message || 'Internal server error');
+    }
+});
+
+// 成长洞察分析
+router.get('/growth-insight', async (_req, res) => {
+    try {
+        const insight = await GrowthInsightService.analyzeGrowth();
+        res.json({ success: true, data: insight });
+    } catch (error: any) {
+        console.error('Growth insight analysis failed:', error);
+        errorResponse(res, 500, error.message || 'Internal server error');
     }
 });
 

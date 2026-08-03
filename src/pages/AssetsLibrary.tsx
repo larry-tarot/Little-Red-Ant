@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from '@/lib/axios';
 import { 
-    Library, Music, Image as ImageIcon, Video, Upload, 
-    Trash2, Loader2, Play, Pause, AlertCircle
+    Library, Music, Image as ImageIcon, Video, Upload,
+    Trash2, Loader2, Play, Pause, AlertCircle, Filter
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import Modal from '../components/Modal';
@@ -17,18 +17,44 @@ interface Asset {
     created_at: string;
 }
 
+interface AccountOption {
+    id: number;
+    nickname: string;
+    alias: string;
+    is_active: boolean;
+}
+
 const AssetsLibrary: React.FC = () => {
     const [activeTab, setActiveTab] = useState<'audio' | 'image' | 'video'>('audio');
     const [playingId, setPlayingId] = useState<string | null>(null);
     const [deleteId, setDeleteId] = useState<string | null>(null);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
+    // 账号筛选状态
+    const [accounts, setAccounts] = useState<AccountOption[]>([]);
+    const [selectedAccountId, setSelectedAccountId] = useState<string>('');
+
+    /**
+     * 加载所有账号列表，用于素材账号筛选
+     */
+    useEffect(() => {
+        axios.get('/api/accounts')
+            .then(res => setAccounts(res.data || []))
+            .catch(() => {
+                /* 静默失败，账号筛选为可选功能 */
+            });
+    }, []);
+
     const { data: assets, loading, refresh, removeItem } = useListData<Asset, Record<string, never>>({
         fetcher: async () => {
-            const res = await axios.get(`/api/assets?type=${activeTab}`);
+            let url = `/api/assets?type=${activeTab}`;
+            if (selectedAccountId) {
+                url += `&accountId=${selectedAccountId}`;
+            }
+            const res = await axios.get(url);
             return { data: res.data.data, total: res.data.data.length };
         },
-        deps: [activeTab],
+        deps: [activeTab, selectedAccountId],
         errorMessage: 'Failed to load assets',
     });
 
@@ -107,28 +133,48 @@ const AssetsLibrary: React.FC = () => {
                 </div>
 
                 {/* Tabs */}
-                <div className="flex space-x-1 bg-surface p-1 rounded-xl shadow-sm border border-border mb-6 w-fit">
-                    <button 
-                        onClick={() => setActiveTab('audio')}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center transition-all
-                            ${activeTab === 'audio' ? 'bg-primary-subtle text-primary shadow-sm' : 'text-text-tertiary hover:bg-surface-muted'}`}
-                    >
-                        <Music size={16} className="mr-2" /> 音乐
-                    </button>
-                    <button 
-                        onClick={() => setActiveTab('image')}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center transition-all
-                            ${activeTab === 'image' ? 'bg-primary-subtle text-primary shadow-sm' : 'text-text-tertiary hover:bg-surface-muted'}`}
-                    >
-                        <ImageIcon size={16} className="mr-2" /> 图片
-                    </button>
-                    <button 
-                        onClick={() => setActiveTab('video')}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center transition-all
-                            ${activeTab === 'video' ? 'bg-primary-subtle text-primary shadow-sm' : 'text-text-tertiary hover:bg-surface-muted'}`}
-                    >
-                        <Video size={16} className="mr-2" /> 视频
-                    </button>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-6">
+                    <div className="flex space-x-1 bg-surface p-1 rounded-xl shadow-sm border border-border w-fit">
+                        <button 
+                            onClick={() => setActiveTab('audio')}
+                            className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center transition-all
+                                ${activeTab === 'audio' ? 'bg-primary-subtle text-primary shadow-sm' : 'text-text-tertiary hover:bg-surface-muted'}`}
+                        >
+                            <Music size={16} className="mr-2" /> 音乐
+                        </button>
+                        <button 
+                            onClick={() => setActiveTab('image')}
+                            className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center transition-all
+                                ${activeTab === 'image' ? 'bg-primary-subtle text-primary shadow-sm' : 'text-text-tertiary hover:bg-surface-muted'}`}
+                        >
+                            <ImageIcon size={16} className="mr-2" /> 图片
+                        </button>
+                        <button 
+                            onClick={() => setActiveTab('video')}
+                            className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center transition-all
+                                ${activeTab === 'video' ? 'bg-primary-subtle text-primary shadow-sm' : 'text-text-tertiary hover:bg-surface-muted'}`}
+                        >
+                            <Video size={16} className="mr-2" /> 视频
+                        </button>
+                    </div>
+
+                    {/* 账号筛选下拉框 */}
+                    <div className="flex items-center space-x-2">
+                        <Filter size={14} className="text-text-tertiary" />
+                        <select
+                            value={selectedAccountId}
+                            onChange={(e) => setSelectedAccountId(e.target.value)}
+                            className="text-sm border border-strong rounded-lg px-3 py-2 bg-surface text-text-secondary focus:ring-primary focus:border-primary cursor-pointer"
+                        >
+                            <option value="">全部账号</option>
+                            {accounts.map((account) => (
+                                <option key={account.id} value={account.id}>
+                                    {account.nickname || account.alias || `账号 #${account.id}`}
+                                    {account.is_active ? ' (活跃)' : ''}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
                 </div>
 
                 {/* Content */}

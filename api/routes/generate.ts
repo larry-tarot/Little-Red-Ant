@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { ContentService } from '../services/ai/ContentService.js';
+import { TitleOptimizer } from '../services/ai/TitleOptimizer.js';
 import { enqueueTask } from '../services/queue.js';
 import { AIFactory } from '../services/ai/AIFactory.js';
 import { validateBody } from '../middleware/validation.js';
@@ -96,6 +97,29 @@ router.post('/optimize-prompt', validateBody(OptimizePromptSchema), async (req, 
     } catch (error: any) {
         console.error('Optimize prompt error:', error);
         res.status(500).json({ error: error.message });
+    }
+});
+
+// 标题分析与评分
+router.post('/title-score', async (req, res) => {
+    try {
+        const { title, niche, noteType } = req.body;
+
+        // 参数验证：title 为必填项
+        if (!title || typeof title !== 'string' || title.trim().length === 0) {
+            return res.status(400).json({ error: '缺少必填参数 title' });
+        }
+
+        const analysis = await TitleOptimizer.analyzeTitle(
+            title.trim(),
+            niche,
+            noteType
+        );
+
+        res.json(analysis);
+    } catch (error: any) {
+        console.error('Title score analysis error:', error);
+        res.status(500).json({ error: error.message || '标题分析失败' });
     }
 });
 
