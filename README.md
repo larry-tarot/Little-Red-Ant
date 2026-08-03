@@ -7,7 +7,7 @@
 [![CI](https://github.com/magicCzc/Little-Red-Ant/actions/workflows/ci.yml/badge.svg)](https://github.com/magicCzc/Little-Red-Ant/actions)
 [![Docs](https://img.shields.io/badge/docs-mkdocs-blue)](https://magicCzc.github.io/Little-Red-Ant/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Node](https://img.shields.io/badge/node-20.13.1-brightgreen)](.nvmrc)
+[![Node](https://img.shields.io/badge/node-22-brightgreen)](.nvmrc)
 [![PRs](https://img.shields.io/badge/PRs-welcome-brightgreen)](https://github.com/magicCzc/Little-Red-Ant/pulls)
 
 </div>
