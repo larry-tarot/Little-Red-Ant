@@ -23,7 +23,7 @@
 - 🤖 **AI 创作**：阿里云通义 / DeepSeek 双供应商熔断，文案/封面/视频脚本一键生成
 - 🛰️ **RPA 自动化**：Playwright 真实浏览器，自动发布、定时发布、评论回复
 - 🪟 **Tauri 2 桌面端**：单文件安装包，Windows / macOS / Linux 三平台发布
-- 🛡️ **稳定可控**：统一共享 Zod schema、CI 全链路（48 单测 + 9 前端 + UX 25 + 业务 7）
+- 🛡️ **稳定可控**：统一共享 Zod schema、CI 全链路（64 单测 + 17 前端 + UX 25 + 业务 7）
 
 📘 **完整使用文档请前往 [📚 小红蚁文档站](https://magicCzc.github.io/Little-Red-Ant/)**（MkDocs 部署）
 🏗️ **系统架构**：[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
@@ -116,8 +116,8 @@ xiaohongyi.exe (Rust 主进程)
 ```bash
 npm run lint            # ESLint
 npm run check           # TypeScript --noEmit
-npm test                # 后端单元测试 (48 个)
-npm run test:frontend   # 前端单元测试 (9 个)
+npm test                # 后端单元测试 (64 个)
+npm run test:frontend   # 前端单元测试 (17 个)
 npm run build           # 生产构建（后端 esbuild + Tauri sidecar）
 npm run test:e2e:prod   # 生产构建端到端 (UX 25 + 业务闭环 7)
 npm run ci              # 串接以上所有步骤的本地 CI
@@ -126,8 +126,8 @@ npm run ci              # 串接以上所有步骤的本地 CI
 | 维度 | 当前指标 |
 | --- | --- |
 | ESLint / TypeScript | ✅ 通过 |
-| 单元测试 | 48 / 48 |
-| 前端测试 | 9 / 9 |
+| 单元测试 | 64 / 64 |
+| 前端测试 | 17 / 17 |
 | UX E2E | 25 / 25 |
 | 业务闭环 E2E | 7 / 7 |
 | 本地 CI 总耗时 | ≈ 7 分钟 |

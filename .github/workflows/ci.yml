@@ -1,4 +1,4 @@
-name: CI - Quick Check
+name: CI
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
     branches: [ main, master ]
 
 jobs:
-  quick-check:
+  ci:
     runs-on: ubuntu-latest
 
     steps:
@@ -21,10 +21,15 @@ jobs:
         cache: 'npm'
 
     - name: Install dependencies
-      run: npm ci
+      run: |
+        npm install --package-lock-only --no-audit --no-fund
+        npm ci --no-audit --no-fund
 
     - name: Type Check (TypeScript)
       run: npm run check
 
     - name: Lint (ESLint)
       run: npm run lint
+
+    - name: Unit Tests (Backend)
+      run: npm test

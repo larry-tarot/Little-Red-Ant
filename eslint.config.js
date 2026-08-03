@@ -23,8 +23,10 @@ export default tseslint.config(
         'warn',
         { allowConstantExport: true },
       ],
-      // Disable strict TypeScript rules for CI/CD
-      '@typescript-eslint/no-explicit-any': 'off',
+      // 类型安全：将 any 降级为 warn，允许构建通过但提示开发者渐进修复
+      '@typescript-eslint/no-explicit-any': 'warn',
+      // 日志规范：禁止 console.* 直接输出，统一使用 LoggerService
+      'no-console': 'warn',
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' }],
       '@typescript-eslint/no-empty-function': 'off',
       '@typescript-eslint/no-empty-object-type': 'off',
