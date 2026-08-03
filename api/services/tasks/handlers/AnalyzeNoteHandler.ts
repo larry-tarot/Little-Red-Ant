@@ -63,7 +63,12 @@ export class AnalyzeNoteHandler implements TaskHandler {
         Logger.info('Worker', `Content missing for ${noteId}, starting deep scrape...`);
         try {
             const noteInfo = TrendService.getNoteById(noteId);
-            const targetIdOrUrl = (noteInfo && noteInfo.note_url && noteInfo.note_url.includes('xsec_token')) ? noteInfo.note_url : noteId;
+            const hasTokenUrl = !!(noteInfo && noteInfo.note_url && noteInfo.note_url.includes('xsec_token'));
+            const targetIdOrUrl = hasTokenUrl ? noteInfo.note_url : noteId;
+            if (!hasTokenUrl) {
+                // 无 xsec_token 裸连必被 300031 安全重定向（见 crawl/test_results.md 实战测试）
+                Logger.warn('Worker', `Note ${noteId} has no xsec_token in DB, bare-id access may hit SEC_REDIRECT (300031)`);
+            }
             
             const activeAccount = db.prepare('SELECT id FROM accounts WHERE is_active = 1').get() as { id: number };
             const accountId = activeAccount ? activeAccount.id : undefined;
@@ -84,7 +89,7 @@ export class AnalyzeNoteHandler implements TaskHandler {
 
         } catch (scrapeError: any) {
             Logger.error('Worker', `Failed to scrape note ${noteId}:`, scrapeError);
-            if (scrapeError.message && (scrapeError.message.includes('ACCOUNT_BLOCKED') || scrapeError.message.includes('IP_BLOCKED') || scrapeError.message.includes('NOTE_UNAVAILABLE'))) {
+            if (scrapeError.message && (scrapeError.message.includes('ACCOUNT_BLOCKED') || scrapeError.message.includes('IP_BLOCKED') || scrapeError.message.includes('NOTE_UNAVAILABLE') || scrapeError.message.includes('SEC_REDIRECT'))) {
                 throw scrapeError;
             }
             throw new Error(`无法获取笔记详情: ${scrapeError.message}`);

@@ -17,15 +17,27 @@
 import { chromium } from 'playwright-extra';
 import { Browser, BrowserContext } from 'playwright';
 import stealthPlugin from 'puppeteer-extra-plugin-stealth';
+// @ts-ignore CJS evasion factory（无类型声明）
+import uaOverrideFactory from 'puppeteer-extra-plugin-stealth/evasions/user-agent-override/index.js';
 import path from 'path';
 import fs from 'fs';
 import { Logger } from '../../LoggerService.js';
 import { getCookies } from '../auth.js';
 import { EncryptionService } from '../../core/EncryptionService.js';
 import db from '../../../db.js';
+import { deriveFingerprint } from '../config/fingerprint.js';
 import type { IBrowserDriver, GetPageOptions, AuthenticatedPage } from '../interfaces/IBrowserDriver.js';
 
-chromium.use(stealthPlugin());
+// 指纹修复（依据 crawl/test_results.md 全部实验结论）：
+// - webgl.vendor: 伪装成 macOS GPU，与 Windows UA 自相矛盾 → 禁用，保留真实 GPU
+// - user-agent-override: 默认 locale=en-US 会压掉 context locale → 换自定义中文版
+// - navigator.hardwareConcurrency: 主页面改 4 核与 Worker 真实核数矛盾 → 禁用，显示真实值
+const stealth = stealthPlugin();
+stealth.enabledEvasions.delete('webgl.vendor');
+stealth.enabledEvasions.delete('user-agent-override');
+stealth.enabledEvasions.delete('navigator.hardwareConcurrency');
+chromium.use(stealth);
+chromium.use(uaOverrideFactory({ locale: 'zh-CN,zh' }));
 
 const USER_DATA_DIR = path.join(process.cwd(), 'browser_data');
 
@@ -194,17 +206,20 @@ export class PlaywrightDriver implements IBrowserDriver {
             `Launching Persistent Context for ${profileName} in ${userDataDir}`
         );
 
+        // 按账号派生指纹（同一 profile 恒定，不同 profile 互异），
+        // 不再硬编码 userAgent —— ua-override 使用真实 UA，
+        // 消除"自定义 UA 版本 vs 真实 Chrome 版本"矛盾
+        const fingerprint = deriveFingerprint(profileName);
+
         const context = await chromium.launchPersistentContext(userDataDir, {
             headless,
             channel: 'chrome',
-            viewport: { width: 1280, height: 800 },
-            userAgent:
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            viewport: fingerprint.viewport,
             locale: 'zh-CN',
-            timezoneId: 'Asia/Shanghai',
+            timezoneId: fingerprint.timezoneId,
             permissions: ['geolocation', 'clipboard-read', 'clipboard-write'],
-            geolocation: { longitude: 121.4737, latitude: 31.2304 },
-            deviceScaleFactor: 1,
+            geolocation: fingerprint.geolocation,
+            deviceScaleFactor: fingerprint.deviceScaleFactor,
             hasTouch: false,
             isMobile: false,
             javaScriptEnabled: true,
@@ -213,7 +228,7 @@ export class PlaywrightDriver implements IBrowserDriver {
                 '--disable-setuid-sandbox',
                 '--disable-blink-features=AutomationControlled',
                 '--disable-infobars',
-                '--window-size=1280,800',
+                `--window-size=${fingerprint.viewport.width},${fingerprint.viewport.height}`,
                 '--restore-last-session=false',
                 '--no-first-run',
                 '--no-default-browser-check',
@@ -246,6 +261,8 @@ export class PlaywrightDriver implements IBrowserDriver {
     ): Promise<AuthenticatedPage> {
         Logger.info('BrowserService', 'Launching ephemeral anonymous browser context');
 
+        const fingerprint = deriveFingerprint(profileName);
+
         const browser = await chromium.launch({
             headless,
             channel: 'chrome',
@@ -254,21 +271,19 @@ export class PlaywrightDriver implements IBrowserDriver {
                 '--disable-setuid-sandbox',
                 '--disable-blink-features=AutomationControlled',
                 '--disable-infobars',
-                '--window-size=1280,800',
+                `--window-size=${fingerprint.viewport.width},${fingerprint.viewport.height}`,
                 '--no-first-run',
                 '--no-default-browser-check',
             ],
         });
 
         const context = await browser.newContext({
-            viewport: { width: 1280, height: 800 },
-            userAgent:
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            viewport: fingerprint.viewport,
             locale: 'zh-CN',
-            timezoneId: 'Asia/Shanghai',
+            timezoneId: fingerprint.timezoneId,
             permissions: ['geolocation', 'clipboard-read', 'clipboard-write'],
-            geolocation: { longitude: 121.4737, latitude: 31.2304 },
-            deviceScaleFactor: 1,
+            geolocation: fingerprint.geolocation,
+            deviceScaleFactor: fingerprint.deviceScaleFactor,
             hasTouch: false,
             isMobile: false,
             javaScriptEnabled: true,

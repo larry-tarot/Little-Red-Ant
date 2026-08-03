@@ -108,7 +108,6 @@ desktop.ini
 
 dist-electron
 release/
-
 # Tauri 2 (桌面版 v2)
 src-tauri/target/
 src-tauri/resources/    # 运行时由 scripts/sync-tauri-resources.mjs 同步生成
@@ -131,3 +130,6 @@ tmp_*.cjs
 tmp_*.js
 tmp_*.py
 tmp_*.ts
+
+# 本地爬虫文档目录
+crawl/

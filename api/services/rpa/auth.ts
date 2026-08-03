@@ -228,9 +228,10 @@ function hasValidSessionCookies(storageState: any): boolean {
  */
 function hasMainSiteAuthCookies(cookies: any[]): boolean {
     if (!Array.isArray(cookies) || cookies.length === 0) return false;
-    // 只有真正的会话/认证 Cookie 才能证明已登录；
-    // webId/a1/gid 等是访客标识，未登录时也会存在，不能作为登录依据。
-    const authCookieNames = ['web_session', 'websectoken'];
+    // 只有真正的认证 Cookie 才能证明已登录（依据 crawls-test 实战数据对比）：
+    // - webId/a1/webBuild/web_session/websectoken：游客同样会下发，不能作为依据
+    // - id_token（httpOnly，真实登录后签发）、gid（登录后才出现）：可作登录凭证
+    const authCookieNames = ['id_token', 'gid'];
     return cookies.some((cookie) => authCookieNames.includes(cookie.name) && !!cookie.value);
 }
 
