@@ -134,3 +134,8 @@ debug_*.ts
 
 # 本地爬虫文档目录
 crawl/
+crawls-test/
+
+# Rust/Cargo 构建产物（glob_test 调试工具，Tauri 开发遗留）
+/Cargo.lock
+/target/
