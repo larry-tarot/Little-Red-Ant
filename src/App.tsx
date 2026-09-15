@@ -27,6 +27,7 @@ const CompetitorMonitor = lazy(() => import('@/pages/CompetitorMonitor'));
 const CompetitorAdd = lazy(() => import('@/pages/CompetitorAdd'));
 const CompetitorDetail = lazy(() => import('@/pages/CompetitorDetail'));
 const Login = lazy(() => import('@/pages/Login'));
+const OpportunityHub = lazy(() => import('@/pages/OpportunityHub'));
 const Notifications = lazy(() => import('@/pages/Notifications'));
 const UserManagement = lazy(() => import('@/pages/UserManagement'));
 const Profile = lazy(() => import('@/pages/Profile'));
@@ -156,6 +157,7 @@ function App() {
               <Route path="/notifications" element={<RequireAuth><Notifications /></RequireAuth>} />
               <Route path="/" element={<RequireAuth><Home /></RequireAuth>} />
               <Route path="/persona" element={<RequireAuth><PersonaSetup /></RequireAuth>} />
+              <Route path="/opportunities" element={<RequireAuth><OpportunityHub /></RequireAuth>} />
               <Route path="/generate" element={<RequireAuth><ContentGeneration /></RequireAuth>} />
               <Route path="/video-studio/:id" element={<RequireAuth><VideoStudio /></RequireAuth>} />
               <Route path="/video-projects" element={<RequireAuth><VideoProjectList /></RequireAuth>} />

@@ -399,6 +399,51 @@ export function initDB() {
     )
   `);
 
+  // Research Evidence & Content Opportunities (P1.2 需求雷达与内容机会卡)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS research_evidence (
+      id TEXT PRIMARY KEY,
+      account_id INTEGER NOT NULL,
+      source_type TEXT NOT NULL, -- 'COMMENT', 'DM', 'NOTE', 'MANUAL'
+      source_url TEXT,
+      raw_text TEXT NOT NULL,
+      pain_points TEXT, -- JSON Array
+      desires TEXT, -- JSON Array
+      author_nickname TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS content_opportunities (
+      id TEXT PRIMARY KEY,
+      account_id INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      target_audience TEXT NOT NULL,
+      scenario TEXT NOT NULL,
+      problem TEXT NOT NULL,
+      unique_angle TEXT NOT NULL,
+      content_format TEXT NOT NULL, -- 'CHECKLIST', 'CASE_STUDY', 'TUTORIAL', 'OPINION', 'COMPARISON', 'QA'
+      expected_outcome TEXT NOT NULL, -- 'FAVORITE', 'TRUST', 'INQUIRY', 'DISCUSSION', 'VALIDATION'
+      content_pillar TEXT,
+      status TEXT NOT NULL DEFAULT 'IDEA', -- 'IDEA', 'ACCEPTED', 'DEFERRED', 'REJECTED'
+      decision_reason TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS opportunity_evidence (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      opportunity_id TEXT NOT NULL,
+      evidence_id TEXT NOT NULL,
+      role TEXT DEFAULT 'PRIMARY',
+      FOREIGN KEY (opportunity_id) REFERENCES content_opportunities(id) ON DELETE CASCADE,
+      FOREIGN KEY (evidence_id) REFERENCES research_evidence(id) ON DELETE CASCADE
+    )
+  `);
+
   // Settings Table (Key-Value Store for Global Config)
   db.exec(`
     CREATE TABLE IF NOT EXISTS settings (

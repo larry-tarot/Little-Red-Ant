@@ -86,6 +86,43 @@ export const drafts = sqliteTable('drafts', {
     updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
 });
 
+// --- P1.2 需求雷达与内容机会卡 ---
+export const researchEvidence = sqliteTable('research_evidence', {
+    id: text('id').primaryKey(),
+    accountId: integer('account_id').notNull(),
+    sourceType: text('source_type').notNull(),
+    sourceUrl: text('source_url'),
+    rawText: text('raw_text').notNull(),
+    painPoints: text('pain_points'),
+    desires: text('desires'),
+    authorNickname: text('author_nickname'),
+    createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const contentOpportunities = sqliteTable('content_opportunities', {
+    id: text('id').primaryKey(),
+    accountId: integer('account_id').notNull(),
+    title: text('title').notNull(),
+    targetAudience: text('target_audience').notNull(),
+    scenario: text('scenario').notNull(),
+    problem: text('problem').notNull(),
+    uniqueAngle: text('unique_angle').notNull(),
+    contentFormat: text('content_format').notNull(),
+    expectedOutcome: text('expected_outcome').notNull(),
+    contentPillar: text('content_pillar'),
+    status: text('status').notNull().default('IDEA'),
+    decisionReason: text('decision_reason'),
+    createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const opportunityEvidence = sqliteTable('opportunity_evidence', {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    opportunityId: text('opportunity_id').notNull(),
+    evidenceId: text('evidence_id').notNull(),
+    role: text('role').default('PRIMARY'),
+});
+
 // --- Async Task Queue ---
 export const tasks = sqliteTable('tasks', {
     id: text('id').primaryKey(),
