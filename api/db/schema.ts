@@ -123,6 +123,38 @@ export const opportunityEvidence = sqliteTable('opportunity_evidence', {
     role: text('role').default('PRIMARY'),
 });
 
+export const contentPackageVersions = sqliteTable('content_package_versions', {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    packageId: text('package_id').notNull(),
+    versionNumber: integer('version_number').notNull(),
+    title: text('title').notNull(),
+    targetAudience: text('target_audience'),
+    coreValueProposition: text('core_value_proposition'),
+    keyPoints: text('key_points'),
+    bodyMarkdown: text('body_markdown').notNull(),
+    coverTitleOptions: text('cover_title_options'),
+    tags: text('tags'),
+    changeSummary: text('change_summary'),
+    createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const contentPackages = sqliteTable('content_packages', {
+    id: text('id').primaryKey(),
+    accountId: integer('account_id').notNull(),
+    opportunityId: text('opportunity_id'),
+    title: text('title').notNull(),
+    targetAudience: text('target_audience'),
+    coreValueProposition: text('core_value_proposition'),
+    keyPoints: text('key_points'),
+    bodyMarkdown: text('body_markdown').notNull(),
+    coverTitleOptions: text('cover_title_options'),
+    tags: text('tags'),
+    currentVersion: integer('current_version').notNull().default(1),
+    linkedDraftId: integer('linked_draft_id'),
+    createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
 // --- Async Task Queue ---
 export const tasks = sqliteTable('tasks', {
     id: text('id').primaryKey(),

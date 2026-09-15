@@ -35,6 +35,7 @@ export async function resetTestDb() {
     // Truncate each known table. The full list comes from api/db.ts:initDB().
     // We DELETE rather than DROP+CREATE so we don't have to re-run initDB().
     for (const t of [
+        'content_package_versions', 'content_packages',
         'opportunity_evidence', 'content_opportunities', 'research_evidence',
         'account_profiles', 'publish_attempts', 'tasks', 'note_stats', 'note_stats_history',
         'accounts', 'drafts', 'compliance_rules',

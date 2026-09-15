@@ -444,6 +444,44 @@ export function initDB() {
     )
   `);
 
+  // Content Packages Table (P1.3 内容包)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS content_packages (
+      id TEXT PRIMARY KEY,
+      account_id INTEGER NOT NULL,
+      opportunity_id TEXT,
+      title TEXT NOT NULL,
+      target_audience TEXT,
+      core_value_proposition TEXT,
+      key_points TEXT, -- JSON Array
+      body_markdown TEXT NOT NULL,
+      cover_title_options TEXT, -- JSON Array
+      tags TEXT, -- JSON Array
+      current_version INTEGER NOT NULL DEFAULT 1,
+      linked_draft_id INTEGER,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Content Package Versions Table (P1.3 内容包历史版本快照)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS content_package_versions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      package_id TEXT NOT NULL,
+      version_number INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      target_audience TEXT,
+      core_value_proposition TEXT,
+      key_points TEXT, -- JSON Array
+      body_markdown TEXT NOT NULL,
+      cover_title_options TEXT, -- JSON Array
+      tags TEXT, -- JSON Array
+      change_summary TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
   // Settings Table (Key-Value Store for Global Config)
   db.exec(`
     CREATE TABLE IF NOT EXISTS settings (
