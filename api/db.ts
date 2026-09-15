@@ -381,6 +381,24 @@ export function initDB() {
     ON publish_attempts (account_id, status)
   `);
 
+  // Account Business Profile Table (P1.1 账号经营档案)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS account_profiles (
+      account_id INTEGER PRIMARY KEY,
+      goals TEXT, -- JSON Array
+      target_audience TEXT, -- JSON Object { identity, painPoints, misconceptions }
+      unique_capabilities TEXT, -- JSON Array
+      content_pillars TEXT, -- JSON Array [{ name, description, targetRatio }]
+      expression_boundaries TEXT, -- JSON Array
+      tone_style TEXT,
+      brand_kit TEXT, -- JSON Object
+      is_complete BOOLEAN DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE
+    )
+  `);
+
   // Settings Table (Key-Value Store for Global Config)
   db.exec(`
     CREATE TABLE IF NOT EXISTS settings (

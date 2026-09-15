@@ -57,6 +57,20 @@ export const accounts = sqliteTable('accounts', {
     createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
 });
 
+export const accountProfiles = sqliteTable('account_profiles', {
+    accountId: integer('account_id').primaryKey(),
+    goals: text('goals'),
+    targetAudience: text('target_audience'),
+    uniqueCapabilities: text('unique_capabilities'),
+    contentPillars: text('content_pillars'),
+    expressionBoundaries: text('expression_boundaries'),
+    toneStyle: text('tone_style'),
+    brandKit: text('brand_kit'),
+    isComplete: integer('is_complete', { mode: 'boolean' }).default(false),
+    createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
 // --- Content & Drafts ---
 export const drafts = sqliteTable('drafts', {
     id: integer('id').primaryKey({ autoIncrement: true }),

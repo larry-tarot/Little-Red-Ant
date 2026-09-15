@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import axios from '@/lib/axios';
-import { Users, Plus, UserCheck, Loader2, AlertCircle, Edit3, Check, Link as LinkIcon, X, Save, RefreshCw } from 'lucide-react';
+import { Users, Plus, UserCheck, Loader2, AlertCircle, Edit3, Check, Link as LinkIcon, X, Save, RefreshCw, BookOpen, Target, ShieldAlert, Sparkles, Code2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Modal from '../components/Modal';
 import toast from 'react-hot-toast';
@@ -63,9 +63,30 @@ export default function AccountManagement() {
     const [deleteId, setDeleteId] = useState<number | null>(null);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
-    // 人设弹窗状态
+    // 人设与账号经营档案弹窗状态
     const [isPersonaModalOpen, setIsPersonaModalOpen] = useState(false);
     const [editingPersonaAccount, setEditingPersonaAccount] = useState<Account | null>(null);
+    const [personaTab, setPersonaTab] = useState<'profile' | 'prompt'>('profile');
+    const [promptContextPreview, setPromptContextPreview] = useState('');
+    const [businessProfile, setBusinessProfile] = useState<{
+        goals: string[];
+        targetAudience: {
+            identity: string;
+            painPoints: string[];
+            misconceptions: string[];
+        };
+        uniqueCapabilities: string[];
+        contentPillars: { name: string; description: string; targetRatio?: number }[];
+        expressionBoundaries: string[];
+        toneStyle: string;
+    }>({
+        goals: [],
+        targetAudience: { identity: '', painPoints: [], misconceptions: [] },
+        uniqueCapabilities: [],
+        contentPillars: [],
+        expressionBoundaries: [],
+        toneStyle: ''
+    });
     const [personaForm, setPersonaForm] = useState({
         niche: '',
         desc: '',
@@ -334,8 +355,9 @@ export default function AccountManagement() {
         }
     };
 
-    const handleOpenPersonaModal = (account: Account) => {
+    const handleOpenPersonaModal = async (account: Account) => {
         setEditingPersonaAccount(account);
+        setPersonaTab('profile');
         setPersonaForm({
             niche: account.persona?.niche || '',
             desc: account.persona?.desc || '',
@@ -343,20 +365,50 @@ export default function AccountManagement() {
             sample: account.persona?.sample || '',
             image_url: account.persona?.image_url || ''
         });
+
+        try {
+            const [profileRes, promptRes] = await Promise.all([
+                axios.get(`/api/accounts/${account.id}/business-profile`),
+                axios.get(`/api/accounts/${account.id}/prompt-context`)
+            ]);
+
+            const p = profileRes.data;
+            setBusinessProfile({
+                goals: p.goals || [],
+                targetAudience: p.targetAudience || { identity: '', painPoints: [], misconceptions: [] },
+                uniqueCapabilities: p.uniqueCapabilities || [],
+                contentPillars: p.contentPillars || [],
+                expressionBoundaries: p.expressionBoundaries || [],
+                toneStyle: p.toneStyle || account.persona?.tone || ''
+            });
+            setPromptContextPreview(promptRes.data?.promptContext || '');
+        } catch (_e) {
+            console.warn('获取账号经营档案失败，初始化为默认结构');
+        }
+
         setIsPersonaModalOpen(true);
     };
 
     const handleSavePersona = async () => {
         if (!editingPersonaAccount) return;
         try {
-            await axios.put(`/api/accounts/${editingPersonaAccount.id}/persona`, {
-                niche: personaForm.niche,
-                persona_desc: personaForm.desc,
-                tone: personaForm.tone,
-                writing_sample: personaForm.sample,
-                persona_image_url: personaForm.image_url
-            });
-            toast.success('人设配置已保存');
+            // 同步更新 P1.1 账号经营档案与原基础人设字段
+            await Promise.all([
+                axios.put(`/api/accounts/${editingPersonaAccount.id}/business-profile`, businessProfile),
+                axios.put(`/api/accounts/${editingPersonaAccount.id}/persona`, {
+                    niche: businessProfile.contentPillars[0]?.name || personaForm.niche,
+                    persona_desc: businessProfile.targetAudience.identity || personaForm.desc,
+                    tone: businessProfile.toneStyle || personaForm.tone,
+                    writing_sample: personaForm.sample,
+                    persona_image_url: personaForm.image_url
+                })
+            ]);
+
+            // 重新获取最新导出的 prompt context
+            const promptRes = await axios.get(`/api/accounts/${editingPersonaAccount.id}/prompt-context`);
+            setPromptContextPreview(promptRes.data?.promptContext || '');
+
+            toast.success('账号经营档案与人设配置已保存');
             setIsPersonaModalOpen(false);
             fetchAccounts();
         } catch (_e) {
@@ -607,7 +659,7 @@ export default function AccountManagement() {
                                             </Button>
                                         )}
                                         <Button variant="secondary" size="sm" onClick={() => handleOpenPersonaModal(account)}>
-                                            人设
+                                            经营档案
                                         </Button>
                                         <Button variant="ghost" size="sm" className="text-danger hover:text-danger hover:bg-danger-subtle" onClick={() => confirmDelete(account.id)}>
                                             删除
@@ -642,11 +694,11 @@ export default function AccountManagement() {
                     </div>
                 </Modal>
 
-                {/* 人设配置弹窗 */}
+                {/* 账号经营档案弹窗 (P1.1 核心交付) */}
                 <Modal
                     isOpen={isPersonaModalOpen}
                     onClose={() => setIsPersonaModalOpen(false)}
-                    title={`人设配置 - ${editingPersonaAccount?.alias || editingPersonaAccount?.nickname}`}
+                    title={`账号经营档案 - ${editingPersonaAccount?.alias || editingPersonaAccount?.nickname}`}
                     footer={
                         <div className="flex justify-between w-full">
                             <div className="relative">
@@ -683,94 +735,228 @@ export default function AccountManagement() {
                                 <Button variant="secondary" size="sm" onClick={() => setIsPersonaModalOpen(false)}>取消</Button>
                                 <Button size="sm" onClick={handleSavePersona}>
                                     <Save size={16} className="mr-2" />
-                                    保存配置
+                                    保存经营档案
                                 </Button>
                             </div>
                         </div>
                     }
                 >
-                    <div className="space-y-4 p-2">
-                        <div>
-                            <label className="block text-sm font-medium text-text-secondary mb-1">专注领域 (Niche)</label>
-                            <Input
-                                value={personaForm.niche}
-                                onChange={e => setPersonaForm({ ...personaForm, niche: e.target.value })}
-                                placeholder="例如：美妆护肤、科技数码、职场干货"
-                            />
+                    <div className="space-y-4 p-2 max-h-[75vh] overflow-y-auto">
+                        {/* Tab 导航：档案编辑 / 导出提示词上下文预览 */}
+                        <div className="flex border-b border-border mb-2">
+                            <button
+                                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
+                                    personaTab === 'profile'
+                                        ? 'border-primary text-primary'
+                                        : 'border-transparent text-text-secondary hover:text-text'
+                                }`}
+                                onClick={() => setPersonaTab('profile')}
+                            >
+                                <Target size={14} />
+                                经营定位与人设
+                            </button>
+                            <button
+                                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
+                                    personaTab === 'prompt'
+                                        ? 'border-primary text-primary'
+                                        : 'border-transparent text-text-secondary hover:text-text'
+                                }`}
+                                onClick={async () => {
+                                    if (editingPersonaAccount) {
+                                        const res = await axios.get(`/api/accounts/${editingPersonaAccount.id}/prompt-context`);
+                                        setPromptContextPreview(res.data?.promptContext || '');
+                                    }
+                                    setPersonaTab('prompt');
+                                }}
+                            >
+                                <Sparkles size={14} />
+                                AI 上下文预览
+                            </button>
                         </div>
-                        <div>
-                            <label className="block text-sm font-medium text-text-secondary mb-1">人设描述 (Character)</label>
-                            <textarea
-                                className="w-full px-3 py-2 border border-border rounded-lg bg-surface text-text text-sm h-20 focus:outline-none focus:ring-2 focus:ring-ring/30 focus:border-ring transition-colors"
-                                placeholder="例如：25岁大厂程序员，喜欢各种黑科技，说话幽默风趣..."
-                                value={personaForm.desc}
-                                onChange={e => setPersonaForm({ ...personaForm, desc: e.target.value })}
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-text-secondary mb-1">语气风格 (Tone)</label>
-                            <Input
-                                value={personaForm.tone}
-                                onChange={e => setPersonaForm({ ...personaForm, tone: e.target.value })}
-                                placeholder="例如：专业严谨、亲切邻家、犀利吐槽"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-text-secondary mb-1">视觉定妆照 (Visual Persona)</label>
-                            <div className="flex items-start gap-4">
-                                <div className="w-24 h-24 bg-surface-muted rounded-lg border border-border flex items-center justify-center overflow-hidden relative group">
-                                    {personaForm.image_url ? (
-                                        <>
-                                            <img src={personaForm.image_url} alt="Persona" className="w-full h-full object-cover" />
-                                            <button
-                                                onClick={() => setPersonaForm(prev => ({ ...prev, image_url: '' }))}
-                                                className="absolute top-1 right-1 bg-black/50 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
-                                            >
-                                                <X size={12} />
-                                            </button>
-                                        </>
-                                    ) : (
-                                        <Users size={32} className="text-text-tertiary" />
-                                    )}
+
+                        {personaTab === 'prompt' ? (
+                            <div className="space-y-3">
+                                <div className="bg-surface-muted p-3 rounded-lg border border-border">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className="text-xs font-semibold text-text-secondary flex items-center gap-1">
+                                            <Code2 size={13} /> 导出的结构化提示词 (供AI创作与审核使用)
+                                        </span>
+                                        <Badge variant="primary" className="text-[10px]">系统自动注入</Badge>
+                                    </div>
+                                    <pre className="text-xs font-mono text-text whitespace-pre-wrap leading-relaxed">
+                                        {promptContextPreview || '（保存经营档案后自动生成）'}
+                                    </pre>
                                 </div>
-                                <div className="flex-1">
-                                    <p className="text-xs text-text-secondary mb-2">
-                                        上传一张该账号的固定人物形象（定妆照）。AI 生成配图时将优先参考此图，保持人物一致性。
-                                    </p>
-                                    <div className="flex gap-2">
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => personaImageInputRef.current?.click()}
-                                        >
-                                            <LinkIcon size={12} className="mr-1" /> 上传照片
-                                        </Button>
-                                        <input
-                                            type="file"
-                                            ref={personaImageInputRef}
-                                            className="hidden"
-                                            accept="image/*"
-                                            onChange={handlePersonaImageUpload}
+                                <p className="text-xs text-text-tertiary">
+                                    此段文字将在生成选题、撰写文案与发布审核时作为高优先级约束注入大模型，无需反复输入账号背景。
+                                </p>
+                            </div>
+                        ) : (
+                            <>
+                                {/* 1. 经营目标与受众画像 */}
+                                <div className="bg-surface-muted/30 p-3 rounded-lg border border-border space-y-3">
+                                    <h4 className="text-xs font-bold text-text flex items-center gap-1">
+                                        <Target size={13} className="text-primary" /> 1. 经营目标与目标受众
+                                    </h4>
+                                    <div>
+                                        <label className="block text-xs font-medium text-text-secondary mb-1">
+                                            核心经营目标 (多个用中文顿号或逗号分隔)
+                                        </label>
+                                        <Input
+                                            value={businessProfile.goals.join('、')}
+                                            onChange={e => setBusinessProfile({
+                                                ...businessProfile,
+                                                goals: e.target.value.split(/[、,，]/).map(s => s.trim()).filter(Boolean)
+                                            })}
+                                            placeholder="例如：建立技术信任、引流私域咨询、验证付费需求"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-text-secondary mb-1">
+                                            目标受众身份 (明确对谁说话)
+                                        </label>
+                                        <Input
+                                            value={businessProfile.targetAudience.identity}
+                                            onChange={e => setBusinessProfile({
+                                                ...businessProfile,
+                                                targetAudience: { ...businessProfile.targetAudience, identity: e.target.value }
+                                            })}
+                                            placeholder="例如：第一次装修的年轻业主、电赛视觉开发学生"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-text-secondary mb-1">
+                                            受众核心痛点 (你帮他们解决什么真实困扰)
+                                        </label>
+                                        <Input
+                                            value={businessProfile.targetAudience.painPoints.join('；')}
+                                            onChange={e => setBusinessProfile({
+                                                ...businessProfile,
+                                                targetAudience: {
+                                                    ...businessProfile.targetAudience,
+                                                    painPoints: e.target.value.split(/[;；]/).map(s => s.trim()).filter(Boolean)
+                                                }
+                                            })}
+                                            placeholder="例如：报价单总被加钱；算法跑不满帧率；找不到现成开源底座"
                                         />
                                     </div>
                                 </div>
-                            </div>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-text-secondary mb-1">文风样例 (Writing Sample)</label>
-                            <textarea
-                                className="w-full px-3 py-2 border border-border rounded-lg bg-surface-muted text-text text-sm h-24 font-mono focus:outline-none focus:ring-2 focus:ring-ring/30 focus:border-ring transition-colors"
-                                placeholder="在此粘贴一段符合该人设的典型文案，AI将模仿其用词习惯..."
-                                value={personaForm.sample}
-                                onChange={e => setPersonaForm({ ...personaForm, sample: e.target.value })}
-                            />
-                        </div>
-                        <div className="bg-primary-subtle/50 p-3 rounded-lg border border-primary/10 flex items-start">
-                            <AlertCircle size={16} className="text-primary mt-0.5 mr-2 flex-shrink-0" />
-                            <p className="text-xs text-primary">
-                                提示：配置好人设后，在“智能创作”和“视频工程”中选择该账号，AI将自动调用这些信息来生成内容，无需重复输入。
-                            </p>
-                        </div>
+
+                                {/* 2. 账号独特资产与能力 */}
+                                <div className="bg-surface-muted/30 p-3 rounded-lg border border-border space-y-3">
+                                    <h4 className="text-xs font-bold text-text flex items-center gap-1">
+                                        <BookOpen size={13} className="text-primary" /> 2. 你的独特资产与能讲的内容 (区分于泛化AI的根本)
+                                    </h4>
+                                    <div>
+                                        <label className="block text-xs font-medium text-text-secondary mb-1">
+                                            真实能力与背书 (经历、设备、已验证的数据或真实案例)
+                                        </label>
+                                        <textarea
+                                            className="w-full px-3 py-2 border border-border rounded-lg bg-surface text-text text-xs h-16 focus:outline-none focus:ring-1 focus:ring-primary"
+                                            placeholder="例如：拥有5年工业视觉项目交付经验；亲自踩坑过20款国产芯片；持有多套真实户型硬装清单..."
+                                            value={businessProfile.uniqueCapabilities.join('\n')}
+                                            onChange={e => setBusinessProfile({
+                                                ...businessProfile,
+                                                uniqueCapabilities: e.target.value.split('\n').map(s => s.trim()).filter(Boolean)
+                                            })}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-text-secondary mb-1">
+                                            核心内容栏目 (每行一个：栏目名称|栏目定位说明)
+                                        </label>
+                                        <textarea
+                                            className="w-full px-3 py-2 border border-border rounded-lg bg-surface text-text text-xs h-16 font-mono focus:outline-none focus:ring-1 focus:ring-primary"
+                                            placeholder={"硬件避坑|真实芯片与传感器踩坑经历\n工程实战|高精度调优与代码拆解\n行业锐评|客观评测与技术选型"}
+                                            value={businessProfile.contentPillars.map(c => `${c.name}|${c.description}`).join('\n')}
+                                            onChange={e => {
+                                                const lines = e.target.value.split('\n').filter(Boolean);
+                                                const pillars = lines.map(line => {
+                                                    const [name, desc] = line.split('|');
+                                                    return { name: (name || '').trim(), description: (desc || name || '').trim() };
+                                                });
+                                                setBusinessProfile({ ...businessProfile, contentPillars: pillars });
+                                            }}
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* 3. 表达红线与视觉调性 */}
+                                <div className="bg-surface-muted/30 p-3 rounded-lg border border-border space-y-3">
+                                    <h4 className="text-xs font-bold text-text flex items-center gap-1">
+                                        <ShieldAlert size={13} className="text-warning" /> 3. 表达禁区与红线 (前置风险拦截)
+                                    </h4>
+                                    <div>
+                                        <label className="block text-xs font-medium text-text-secondary mb-1">
+                                            禁止承诺或触碰的禁区 (每行一条)
+                                        </label>
+                                        <textarea
+                                            className="w-full px-3 py-2 border border-border rounded-lg bg-surface text-text text-xs h-14 focus:outline-none focus:ring-1 focus:ring-primary"
+                                            placeholder={"不宣称100%零封号或诱导封号行为\n不抄袭搬运竞品原句\n涉及未实测内容必须明确声明"}
+                                            value={businessProfile.expressionBoundaries.join('\n')}
+                                            onChange={e => setBusinessProfile({
+                                                ...businessProfile,
+                                                expressionBoundaries: e.target.value.split('\n').map(s => s.trim()).filter(Boolean)
+                                            })}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-text-secondary mb-1">
+                                            语言基调 (Tone)
+                                        </label>
+                                        <Input
+                                            value={businessProfile.toneStyle}
+                                            onChange={e => {
+                                                setBusinessProfile({ ...businessProfile, toneStyle: e.target.value });
+                                                setPersonaForm({ ...personaForm, tone: e.target.value });
+                                            }}
+                                            placeholder="例如：技术严谨、客观实用、拒绝空洞形容词"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* 4. 定妆照 (保持向后兼容) */}
+                                <div>
+                                    <label className="block text-xs font-medium text-text-secondary mb-1">视觉定妆照 (Visual Persona)</label>
+                                    <div className="flex items-start gap-4">
+                                        <div className="w-20 h-20 bg-surface-muted rounded-lg border border-border flex items-center justify-center overflow-hidden relative group">
+                                            {personaForm.image_url ? (
+                                                <>
+                                                    <img src={personaForm.image_url} alt="Persona" className="w-full h-full object-cover" />
+                                                    <button
+                                                        onClick={() => setPersonaForm(prev => ({ ...prev, image_url: '' }))}
+                                                        className="absolute top-1 right-1 bg-black/50 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                    >
+                                                        <X size={12} />
+                                                    </button>
+                                                </>
+                                            ) : (
+                                                <Users size={28} className="text-text-tertiary" />
+                                            )}
+                                        </div>
+                                        <div className="flex-1">
+                                            <p className="text-[11px] text-text-secondary mb-2">
+                                                上传该账号的固定人物/产品主体照片。AI 生图时将保持特征连续性。
+                                            </p>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => personaImageInputRef.current?.click()}
+                                            >
+                                                <LinkIcon size={12} className="mr-1" /> 上传定妆照
+                                            </Button>
+                                            <input
+                                                type="file"
+                                                ref={personaImageInputRef}
+                                                className="hidden"
+                                                accept="image/*"
+                                                onChange={handlePersonaImageUpload}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            </>
+                        )}
                     </div>
                 </Modal>
             </div>

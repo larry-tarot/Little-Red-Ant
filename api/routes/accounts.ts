@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { AccountService } from '../services/core/AccountService.js';
+import { AccountBusinessProfileService } from '../services/core/AccountBusinessProfileService.js';
 import { startCreatorLogin, startMainSiteLogin, getLoginState, openNoteInBrowser, refreshQrCode } from '../services/rpa/xiaohongshu.js';
 import { enqueueTask } from '../services/queue.js';
 import { validateBody, validateParams } from '../middleware/validation.js';
@@ -170,6 +171,46 @@ router.delete('/:id', validateParams(IdParamSchema), (req, res) => {
   } catch (error: any) {
     console.error('Delete account error:', error);
     res.status(500).json({ error: `Failed to delete account: ${error.message}` });
+  }
+});
+
+// --- P1.1 账号经营档案（Account Business Profile）接口 ---
+
+// 获取指定账号的完整经营档案
+router.get('/:id/business-profile', validateParams(IdParamSchema), (req, res) => {
+  try {
+    const accountId = Number(req.params.id);
+    const profile = AccountBusinessProfileService.getProfile(accountId);
+    res.json(profile);
+  } catch (error: any) {
+    res.status(500).json({ error: `获取经营档案失败: ${error.message}` });
+  }
+});
+
+// 保存/更新指定账号的经营档案
+router.put('/:id/business-profile', validateParams(IdParamSchema), (req, res) => {
+  try {
+    const accountId = Number(req.params.id);
+    const body = req.body || {};
+    AccountBusinessProfileService.saveProfile({
+      ...body,
+      accountId
+    });
+    const updated = AccountBusinessProfileService.getProfile(accountId);
+    res.json({ success: true, profile: updated });
+  } catch (error: any) {
+    res.status(500).json({ error: `保存经营档案失败: ${error.message}` });
+  }
+});
+
+// 导出指定账号的结构化上下文提示词
+router.get('/:id/prompt-context', validateParams(IdParamSchema), (req, res) => {
+  try {
+    const accountId = Number(req.params.id);
+    const promptContext = AccountBusinessProfileService.exportPromptContext(accountId);
+    res.json({ accountId, promptContext });
+  } catch (error: any) {
+    res.status(500).json({ error: `导出提示词上下文失败: ${error.message}` });
   }
 });
 
