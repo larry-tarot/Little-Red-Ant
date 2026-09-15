@@ -165,6 +165,57 @@ describe('PublishHandler — closed-loop writeback', () => {
         expect(rpaSpy).not.toHaveBeenCalled();
     });
 
+    it('returns the first confirmed result instead of invoking RPA again for an identical publish', async () => {
+        const db = getTestDbSync();
+        setupAccountAndDraft();
+        const rpaSpy = vi.fn().mockResolvedValue({
+            success: true,
+            noteId: 'deduplicated-note',
+            noteUrl: 'https://www.xiaohongshu.com/explore/deduplicated-note',
+        });
+        Object.defineProperty(rpaPublish, 'openPublishPageWithContent', {
+            configurable: true,
+            writable: true,
+            value: rpaSpy,
+        });
+        const { PublishHandler } = await import('../../api/services/tasks/handlers/PublishHandler.js');
+        const payload = {
+            title: '同一篇草稿', content: '同一篇正文', tags: [], accountId: 1,
+            draftId: 42, autoPublish: true, confirmedByUser: true,
+        };
+
+        const first = await new PublishHandler().handle({ id: 'task-dedupe-1', type: 'PUBLISH', payload });
+        const second = await new PublishHandler().handle({ id: 'task-dedupe-2', type: 'PUBLISH', payload });
+
+        expect(first).toMatchObject({ success: true, noteId: 'deduplicated-note' });
+        expect(second).toMatchObject({ success: true, noteId: 'deduplicated-note', deduplicated: true });
+        expect(rpaSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('releases a failed publish claim so a later retry can execute once the browser error clears', async () => {
+        const db = getTestDbSync();
+        setupAccountAndDraft();
+        const rpaSpy = vi.fn()
+            .mockRejectedValueOnce(new Error('temporary browser failure'))
+            .mockResolvedValueOnce({ success: true, noteId: 'retry-note' });
+        Object.defineProperty(rpaPublish, 'openPublishPageWithContent', {
+            configurable: true,
+            writable: true,
+            value: rpaSpy,
+        });
+        const { PublishHandler } = await import('../../api/services/tasks/handlers/PublishHandler.js');
+        const payload = {
+            title: '可重试草稿', content: '浏览器错误恢复后应允许再试。', tags: [], accountId: 1,
+            draftId: 42, autoPublish: true, confirmedByUser: true,
+        };
+
+        await expect(new PublishHandler().handle({ id: 'task-retry-1', type: 'PUBLISH', payload })).rejects.toThrow('temporary browser failure');
+        const retry = await new PublishHandler().handle({ id: 'task-retry-2', type: 'PUBLISH', payload });
+
+        expect(retry).toMatchObject({ success: true, noteId: 'retry-note' });
+        expect(rpaSpy).toHaveBeenCalledTimes(2);
+    });
+
     it('blocks publish when compliance BLOCK keyword matches', async () => {
         const db = getTestDbSync();
         setupAccountAndDraft();

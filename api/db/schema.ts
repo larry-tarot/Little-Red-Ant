@@ -84,11 +84,25 @@ export const tasks = sqliteTable('tasks', {
     progress: integer('progress').default(0),
     scheduledAt: text('scheduled_at'),
     priority: integer('priority').default(0),
+    publishAttemptId: text('publish_attempt_id'),
     createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
     updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
 }, (table) => ({
     statusIdx: index('idx_tasks_status').on(table.status),
     scheduledIdx: index('idx_tasks_scheduled').on(table.scheduledAt),
+}));
+
+export const publishAttempts = sqliteTable('publish_attempts', {
+    id: text('id').primaryKey(),
+    accountId: integer('account_id').notNull(),
+    idempotencyKey: text('idempotency_key').notNull().unique(),
+    taskId: text('task_id'),
+    status: text('status').notNull(),
+    result: text('result'),
+    createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+    accountStatusIdx: index('idx_publish_attempts_account_status').on(table.accountId, table.status),
 }));
 
 // --- Key-Value Settings ---

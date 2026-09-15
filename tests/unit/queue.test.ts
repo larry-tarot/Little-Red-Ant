@@ -112,6 +112,18 @@ describe('queue.ts', () => {
         expect(scheduled2 - now).toBeLessThan(130_000);
     });
 
+    it('does not retry a publish that requires human review after an unknown result', async () => {
+        const db = getTestDbSync();
+        const { enqueueTask, failTask } = await import('../../api/services/queue.js');
+        const id = enqueueTask('PUBLISH', { title: '未知发布结果' });
+
+        failTask(id, 'PUBLISH_REVIEW_REQUIRED:submitted_unconfirmed');
+
+        const row = db.prepare('SELECT status, attempts FROM tasks WHERE id = ?').get(id) as any;
+        expect(row.status).toBe('FAILED');
+        expect(row.attempts).toBe(0);
+    });
+
     it('failTask exhausts retries and marks FAILED on 4th attempt', async () => {
         const _db = getTestDbSync();
         const { enqueueTask, failTask, getTask } = await import('../../api/services/queue.js');

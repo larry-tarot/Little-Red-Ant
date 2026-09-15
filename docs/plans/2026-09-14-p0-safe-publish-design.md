@@ -26,8 +26,7 @@
 
 - `types.ts`：发布请求、审查结果、状态、适配器接口。
 - `SafePublishOrchestrator.ts`：唯一编排入口。
-- `InMemoryAccountLock.ts`：每个账号单进程互斥锁；后续换为数据库/文件锁。
-- `InMemoryIdempotencyStore.ts`：以 `accountId + draftVersionId + contentHash` 去重；后续换为 SQLite。
+- `PersistentPublishGuard.ts`：SQLite 持久化的每账号互斥与幂等记录；以 `accountId + draftVersionId + contentHash` 去重，进程重启后仍保留已提交或未知结果。测试双仍保留内存实现。
 - `SafePublishPreflight.ts`：纯本地、确定性预审；拦截空标题、空正文、无媒体、风险词和无人工确认。
 - `PublishAdapter.ts`：适配器端口。P0 使用测试双（fake adapter），不触发真实浏览器和账号写入。
 
@@ -45,8 +44,9 @@
 2. 所有正文、标题和媒体校验在账号锁之前完成，以减少锁占用。
 3. 确认后，编排器检查幂等记录；相同已确认或未知提交请求返回原始记录，不再触发适配器。
 4. 同一账号同时请求时，后一个请求返回 `blocked` / `account_busy`。
-5. `submitted_unconfirmed` 与 `captcha_blocked` 都写入幂等记录，禁止盲目重新提交。
-6. P0 的风险词规则仅用于示例预检；生产应由版本化规则集和人工审核补充。
+5. `submitted_unconfirmed` 与 `captcha_blocked` 都写入 SQLite 幂等记录，禁止盲目重新提交；`confirmed` 会缓存带 noteId 的真实回执。
+6. 浏览器在提交前抛出异常时，记录会释放给队列的有限重试；一旦进入未知提交、验证码或确认成功状态，绝不自动释放。
+7. P0 的风险词规则仅用于示例预检；生产应由版本化规则集和人工审核补充。
 
 ## HTTP 接入
 

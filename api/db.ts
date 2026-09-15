@@ -345,9 +345,41 @@ export function initDB() {
           console.log('Migrating tasks table: Adding priority...');
           db.prepare("ALTER TABLE tasks ADD COLUMN priority INTEGER DEFAULT 0").run();
       }
+      if (!columnNames.includes('publish_attempt_id')) {
+          console.log('Migrating tasks table: Adding publish_attempt_id...');
+          db.prepare("ALTER TABLE tasks ADD COLUMN publish_attempt_id TEXT").run();
+      }
   } catch (e) {
       console.error('Migration tasks failed:', e);
   }
+
+  // Publish attempts are durable idempotency records. A unique account/content key
+  // prevents the queue, a restart, or an unknown outcome from blindly re-submitting.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS publish_attempts (
+      id TEXT PRIMARY KEY,
+      account_id INTEGER NOT NULL,
+      idempotency_key TEXT NOT NULL UNIQUE,
+      task_id TEXT,
+      status TEXT NOT NULL,
+      result TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  try {
+    const columns = db.prepare("PRAGMA table_info(publish_attempts)").all() as any[];
+    if (!columns.some(column => column.name === 'result')) {
+      console.log('Migrating publish_attempts table: Adding result...');
+      db.prepare('ALTER TABLE publish_attempts ADD COLUMN result TEXT').run();
+    }
+  } catch (e) {
+    console.error('Migration publish_attempts failed:', e);
+  }
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_publish_attempts_account_status
+    ON publish_attempts (account_id, status)
+  `);
 
   // Settings Table (Key-Value Store for Global Config)
   db.exec(`

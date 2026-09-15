@@ -284,7 +284,7 @@ export function failTask(id: string, error: string) {
     errorLog.push({ timestamp: new Date().toISOString(), error });
 
     // 不可重试错误：配置/登录问题重试也无意义，直接失败并通知用户
-    const nonRetryablePattern = /NO_ACTIVE_ACCOUNT|COOKIE_EXPIRED|LOGIN_REQUIRED|API_KEY_INVALID|BROWSER_ERROR/i;
+    const nonRetryablePattern = /NO_ACTIVE_ACCOUNT|COOKIE_EXPIRED|LOGIN_REQUIRED|API_KEY_INVALID|BROWSER_ERROR|PUBLISH_REVIEW_REQUIRED|PUBLISH_ACCOUNT_BUSY|CAPTCHA/i;
     const shouldRetry = (task.attempts || 0) < maxRetries && !nonRetryablePattern.test(error);
 
     if (shouldRetry) {

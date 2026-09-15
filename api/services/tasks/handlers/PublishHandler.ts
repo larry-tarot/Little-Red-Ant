@@ -1,6 +1,8 @@
 
+import crypto from 'node:crypto';
 import db from '../../../db.js';
 import { openPublishPageWithContent } from '../../rpa/publish.js';
+import { PersistentPublishGuard } from '../../publish/PersistentPublishGuard.js';
 import { VideoProjectService } from '../../video/VideoProjectService.js';
 import { TaskHandler, TaskProgressEvent } from '../TaskHandler.js';
 
@@ -75,22 +77,58 @@ export class PublishHandler implements TaskHandler {
             }
         }
 
-        // 3. Execute RPA — the heavy lift; the RPA layer itself logs screenshots but doesn't
+        // 3. Durable account lock + idempotency claim. This is intentionally
+        // after validation and daily-limit checks, but before any browser write.
+        const contentHash = crypto.createHash('sha256').update(JSON.stringify({
+            title: publishPayload.title,
+            content: publishPayload.content,
+            tags: publishPayload.tags ?? [],
+            imageData: publishPayload.imageData ?? [],
+            videoPath: publishPayload.videoPath ?? null,
+        })).digest('hex');
+        const publishGuard = new PersistentPublishGuard();
+        const claim = publishGuard.claim({
+            accountId: Number(publishPayload.accountId),
+            draftVersionId: String(publishPayload.draftId ?? `task:${task.id}`),
+            contentHash,
+            taskId: task.id,
+        });
+
+        if (claim.kind === 'account_busy') {
+            throw new Error('PUBLISH_ACCOUNT_BUSY: another publish is already processing for this account.');
+        }
+        if (claim.kind === 'existing') {
+            if (claim.status === 'confirmed' && claim.result && typeof claim.result === 'object') {
+                return { ...(claim.result as Record<string, unknown>), deduplicated: true };
+            }
+            throw new Error(`PUBLISH_REVIEW_REQUIRED:${claim.status}`);
+        }
+
+        // 4. Execute RPA — the heavy lift; the RPA layer itself logs screenshots but doesn't
         //    expose fine-grained progress, so we bracket it with coarse milestones.
         report(10, '合规检查通过 · 准备发布');
-        const result = await openPublishPageWithContent(publishPayload, task.id, (stage) => {
-            // Map RPA sub-stages to roughly 10–90% so the UI bar moves smoothly.
-            const stageMap: Record<string, number> = {
-                '打开创作中心': 20,
-                '上传图片': 40,
-                '填写标题': 55,
-                '填写正文': 65,
-                '提交发布': 80,
-                '等待发布回执': 90,
-            };
-            const pct = stageMap[stage] ?? 60;
-            report(pct, stage);
-        });
+        let result: any;
+        try {
+            result = await openPublishPageWithContent(publishPayload, task.id, (stage) => {
+                // Map RPA sub-stages to roughly 10–90% so the UI bar moves smoothly.
+                const stageMap: Record<string, number> = {
+                    '打开创作中心': 20,
+                    '上传图片': 40,
+                    '填写标题': 55,
+                    '填写正文': 65,
+                    '提交发布': 80,
+                    '等待发布回执': 90,
+                };
+                const pct = stageMap[stage] ?? 60;
+                report(pct, stage);
+            });
+        } catch (error) {
+            // An exception before a submit receipt is retryable. Remove the claim
+            // so the queue can perform its bounded retry rather than deadlocking.
+            publishGuard.recordOutcome(claim.attemptId, 'failed');
+            publishGuard.releaseForRetry(claim.attemptId);
+            throw error;
+        }
         report(95, '回写发布结果');
 
         // 4. Post-Publish Updates (P0 Closed-Loop Writeback)
@@ -99,8 +137,10 @@ export class PublishHandler implements TaskHandler {
         // — we threw the original error upstream, but if we somehow got past that,
         // do not crash here trying to read result.success.
         if (!result) {
-            Logger.warn('PublishHandler', 'RPA returned no result; skipping writeback');
-            return { success: false, warning: 'RPA returned no result' };
+            Logger.warn('PublishHandler', 'RPA returned no result; marking outcome as unknown');
+            const unknownResult = { success: false, warning: 'RPA returned no result' };
+            publishGuard.recordOutcome(claim.attemptId, 'submitted_unconfirmed', unknownResult);
+            return unknownResult;
         }
         if (result.success && result.noteId) {
             // 4a. Update Draft with published note_id / url
@@ -145,8 +185,17 @@ export class PublishHandler implements TaskHandler {
             }
         }
 
-        // 5. Update Video Project Status (General)
-        if (publishPayload.projectId) {
+        // Confirmed means there is explicit platform evidence (the RPA layer
+        // returns noteId only after network/UI confirmation). Any other return is
+        // preserved as unknown and requires review rather than automatic replay.
+        if (result.success && result.noteId) {
+            publishGuard.recordOutcome(claim.attemptId, 'confirmed', result);
+        } else {
+            publishGuard.recordOutcome(claim.attemptId, 'submitted_unconfirmed', result);
+        }
+
+        // 5. Update Video Project Status only after a confirmed publication.
+        if (publishPayload.projectId && result.success && result.noteId) {
             VideoProjectService.updateProjectStatus(publishPayload.projectId, 'COMPLETED', undefined, 'PUBLISHED');
         }
 
