@@ -121,6 +121,8 @@ const VideoStudio: React.FC = () => {
                 title: publishData.title,
                 content: publishData.content,
                 tags: project.tags || [],
+                confirmedByUser: true,
+                accountId: activeAccount.id,
                 videoPath: project.final_video_url, // Backend will resolve this
                 autoPublish: publishData.autoPublish,
                 scheduledAt: publishData.scheduledTime ? new Date(publishData.scheduledTime).toISOString() : undefined

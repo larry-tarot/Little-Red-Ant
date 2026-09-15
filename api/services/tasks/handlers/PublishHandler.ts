@@ -17,7 +17,13 @@ export class PublishHandler implements TaskHandler {
         const report = (progress: number, stage: string) =>
             onProgress?.({ taskId: task.id, progress, stage });
 
-        // 0. Compliance Check (The Gatekeeper)
+        // 0. Explicit human confirmation is a hard write boundary.
+        // Queueing or generating a draft must never itself authorize account writes.
+        if (publishPayload.confirmedByUser !== true) {
+            throw new Error('Explicit user confirmation is required before publishing.');
+        }
+
+        // 1. Compliance Check (The Gatekeeper)
         // Ensure content is safe before proceeding
         const fullText = `${publishPayload.title}\n${publishPayload.content}`;
         const complianceResult = ComplianceService.check(fullText);

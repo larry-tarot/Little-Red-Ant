@@ -74,6 +74,7 @@ describe('PublishHandler — closed-loop writeback', () => {
                 accountId: 1,
                 draftId: 42,
                 autoPublish: true,
+                confirmedByUser: true,
             },
         });
 
@@ -107,7 +108,7 @@ describe('PublishHandler — closed-loop writeback', () => {
         await new PublishHandler().handle({
             id: 'task-2',
             type: 'PUBLISH',
-            payload: { title: 't', content: 'c', tags: [], accountId: 1, draftId: 42, autoPublish: true },
+            payload: { title: 't', content: 'c', tags: [], accountId: 1, draftId: 42, autoPublish: true, confirmedByUser: true },
         });
 
         // Should have updated, not inserted
@@ -125,7 +126,7 @@ describe('PublishHandler — closed-loop writeback', () => {
         const result = await new PublishHandler().handle({
             id: 'task-3',
             type: 'PUBLISH',
-            payload: { title: 't', content: 'c', tags: [], accountId: 1, draftId: 42, autoPublish: true },
+            payload: { title: 't', content: 'c', tags: [], accountId: 1, draftId: 42, autoPublish: true, confirmedByUser: true },
         });
 
         const draft = db.prepare('SELECT published_note_id FROM drafts WHERE id = 42').get() as any;
@@ -134,6 +135,34 @@ describe('PublishHandler — closed-loop writeback', () => {
         const stat = db.prepare('SELECT id FROM note_stats WHERE draft_id = 42').get();
         expect(stat).toBeUndefined();
         return result;
+    });
+
+    it('blocks a task lacking explicit publish confirmation before invoking RPA', async () => {
+        const db = getTestDbSync();
+        setupAccountAndDraft();
+        const rpaSpy = vi.fn().mockResolvedValue({ success: true, noteId: 'must-not-publish' });
+        Object.defineProperty(rpaPublish, 'openPublishPageWithContent', {
+            configurable: true,
+            writable: true,
+            value: rpaSpy,
+        });
+
+        const { PublishHandler } = await import('../../api/services/tasks/handlers/PublishHandler.js');
+        await expect(new PublishHandler().handle({
+            id: 'task-unconfirmed',
+            type: 'PUBLISH',
+            payload: {
+                title: '草稿标题',
+                content: '草稿内容',
+                tags: [],
+                accountId: 1,
+                draftId: 42,
+                autoPublish: true,
+                confirmedByUser: false,
+            },
+        })).rejects.toThrow(/explicit user confirmation/i);
+
+        expect(rpaSpy).not.toHaveBeenCalled();
     });
 
     it('blocks publish when compliance BLOCK keyword matches', async () => {
@@ -155,6 +184,7 @@ describe('PublishHandler — closed-loop writeback', () => {
                 accountId: 1,
                 draftId: 42,
                 autoPublish: true,
+                confirmedByUser: true,
             },
         })).rejects.toThrow(/blocked by Compliance/);
     });

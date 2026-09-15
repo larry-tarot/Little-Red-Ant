@@ -109,6 +109,7 @@ export default function Drafts() {
               content: draft.content,
               tags: draft.tags,
               autoPublish: true, // Force Auto Publish
+              confirmedByUser: true,
               imageData: draft.images || [], // Use stored images
               scheduledAt,
               contentType: draft.content_type || 'note', // Pass content type

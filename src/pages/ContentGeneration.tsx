@@ -429,6 +429,7 @@ export default function ContentGeneration() {
         tags: result.tags,
         imageData: imagePayload,
         autoPublish,
+        confirmedByUser: true,
         scheduledAt: scheduledTime ? new Date(scheduledTime).toISOString() : undefined,
         contentType: contentType,
         accountId: activeAccount?.id // Explicitly pass accountId
@@ -526,6 +527,7 @@ export default function ContentGeneration() {
               content: result.options?.[selectedOptionIndex]?.content || '',
               tags: result.tags,
               imageData: imagePayload,
+              confirmedByUser: true,
               accountIds: Array.from(selectedAccountIds),
               draftId: draftId || undefined
           });

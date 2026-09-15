@@ -18,11 +18,15 @@ const COOKIE_PATH = path.join(__dirname, '../../data/xhs_cookies.json');
 /*
  * 跨账号批量发布的校验 schema
  */
-const BatchPublishSchema = z.object({
+export const BatchPublishSchema = z.object({
     title: z.string().min(1, '标题不能为空').max(100, '标题过长'),
     content: z.string().min(1, '内容不能为空'),
     tags: z.array(z.string()).optional(),
     imageData: z.array(z.string()).optional(),
+    // Batch fan-out still needs one explicit user confirmation at submission time.
+    confirmedByUser: z.literal(true, {
+        error: '发布前需要明确人工确认',
+    }),
     accountIds: z.array(z.number()).min(1, '至少选择一个账号'),
     draftId: z.number().optional(),
 });
@@ -51,7 +55,7 @@ router.post('/login', async (_req, res) => {
 
 // Trigger Publish (Async Task Queue)
 router.post('/publish', validateBody(PublishSchema), async (req, res) => {
-  const { title, content, tags, imageData, videoPath, autoPublish, scheduledAt, accountId, projectId, draftId, contentType } = req.body;
+  const { title, content, tags, imageData, videoPath, autoPublish, confirmedByUser, scheduledAt, accountId, projectId, draftId, contentType } = req.body;
   
   // Validation handled by middleware
   
@@ -98,6 +102,7 @@ router.post('/publish', validateBody(PublishSchema), async (req, res) => {
         imageData,
         videoPath: resolvedVideoPath, // Pass resolved absolute path
         autoPublish, // Pass boolean
+        confirmedByUser, // Explicit human approval for this account write
         accountId, // Pass target account
         projectId, // Pass projectId for status update
         draftId, // Pass draftId for status update
@@ -139,7 +144,7 @@ router.post('/batch', async (req, res) => {
             });
         }
 
-        const { title, content, tags, imageData, accountIds, draftId } = parsed.data;
+        const { title, content, tags, imageData, confirmedByUser, accountIds, draftId } = parsed.data;
 
         // 逐个验证账号是否存在且为活跃状态
         const accountStatuses: { accountId: number; valid: boolean; reason?: string }[] = [];
@@ -170,6 +175,7 @@ router.post('/batch', async (req, res) => {
                 content,
                 tags,
                 imageData,
+                confirmedByUser,
                 accountId,
                 draftId
             });

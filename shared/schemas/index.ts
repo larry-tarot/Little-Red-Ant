@@ -71,6 +71,11 @@ export const PublishSchema = z.object({
     imageData: z.array(z.string()).optional(),
     videoPath: z.string().optional(),
     autoPublish: z.boolean().optional(),
+    // A queue request must carry an explicit user confirmation; draft generation
+    // and scheduling alone never authorize a real account write.
+    confirmedByUser: z.literal(true, {
+        error: 'Explicit user confirmation is required before publishing',
+    }),
     scheduledAt: z.string().datetime({ offset: true }).optional(),
     accountId: AccountIdSchema,
     projectId: z.string().optional(),
