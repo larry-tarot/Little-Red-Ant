@@ -482,6 +482,21 @@ export function initDB() {
     )
   `);
 
+  // Demand Radar Keyword Watches (P2.1 需求雷达关键词监控表)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS demand_radar_watches (
+      id TEXT PRIMARY KEY,
+      account_id INTEGER NOT NULL,
+      keyword TEXT NOT NULL,
+      category TEXT,
+      target_audience TEXT,
+      min_likes_threshold INTEGER DEFAULT 50,
+      is_active BOOLEAN DEFAULT 1,
+      last_synced_at TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
   // Settings Table (Key-Value Store for Global Config)
   db.exec(`
     CREATE TABLE IF NOT EXISTS settings (

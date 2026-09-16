@@ -38,6 +38,7 @@ import workbenchRoutes from './routes/workbench.js'
 import aiHealthRoutes from './routes/ai-health.js'
 import researchRoutes from './routes/research.js'
 import packagesRoutes from './routes/packages.js'
+import radarRoutes from './routes/radar.js'
 import db, { initDB } from './db.js'
 import { authenticateToken } from './middleware/auth.js'
 import { errorHandler } from './middleware/errorHandler.js'
@@ -197,6 +198,7 @@ app.use('/api/workbench', authenticateToken, workbenchRoutes)
 app.use('/api/ai-health', authenticateToken, aiHealthRoutes)
 app.use('/api/research', authenticateToken, researchRoutes)
 app.use('/api/packages', authenticateToken, packagesRoutes)
+app.use('/api/radar', authenticateToken, radarRoutes)
 
 // Temporarily expose these for debugging/stability (or maybe user token is missing in frontend request?)
 // Actually, let's keep auth but ensure the routes are mounted correctly.

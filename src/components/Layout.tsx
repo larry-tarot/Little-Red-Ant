@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Menu, X, LogOut, Home, PenTool, Layout as LayoutIcon,
-  MessageSquare, Target, FileText, BarChart, PlayCircle, Settings, ShieldCheck, Bell, ChevronLeft, ChevronRight, Flame, Database, Library, Search, Lightbulb, Layers
+  MessageSquare, Target, FileText, BarChart, PlayCircle, Settings, ShieldCheck, Bell, ChevronLeft, ChevronRight, Flame, Database, Library, Search, Lightbulb, Layers, Radio
 } from 'lucide-react';
 import { useAuthStore } from '../store/useAuthStore';
 import axios from '@/lib/axios';
@@ -59,6 +59,7 @@ export default function Layout({ children }: LayoutProps) {
       title: '创作中心',
       items: [
         { title: '首页', icon: Home, path: '/' },
+        { title: '需求雷达', icon: Radio, path: '/radar' },
         { title: '选题机会池', icon: Lightbulb, path: '/opportunities' },
         { title: '内容包工作台', icon: Layers, path: '/packages' },
         { title: '智能创作', icon: PenTool, path: '/generate' },

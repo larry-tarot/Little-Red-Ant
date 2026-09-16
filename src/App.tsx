@@ -28,6 +28,7 @@ const CompetitorAdd = lazy(() => import('@/pages/CompetitorAdd'));
 const CompetitorDetail = lazy(() => import('@/pages/CompetitorDetail'));
 const Login = lazy(() => import('@/pages/Login'));
 const OpportunityHub = lazy(() => import('@/pages/OpportunityHub'));
+const DemandRadarPage = lazy(() => import('@/pages/DemandRadarPage'));
 const PackageEditor = lazy(() => import('@/pages/PackageEditor'));
 const Notifications = lazy(() => import('@/pages/Notifications'));
 const UserManagement = lazy(() => import('@/pages/UserManagement'));
@@ -159,6 +160,7 @@ function App() {
               <Route path="/" element={<RequireAuth><Home /></RequireAuth>} />
               <Route path="/persona" element={<RequireAuth><PersonaSetup /></RequireAuth>} />
               <Route path="/opportunities" element={<RequireAuth><OpportunityHub /></RequireAuth>} />
+              <Route path="/radar" element={<RequireAuth><DemandRadarPage /></RequireAuth>} />
               <Route path="/packages" element={<RequireAuth><PackageEditor /></RequireAuth>} />
               <Route path="/generate" element={<RequireAuth><ContentGeneration /></RequireAuth>} />
               <Route path="/video-studio/:id" element={<RequireAuth><VideoStudio /></RequireAuth>} />
