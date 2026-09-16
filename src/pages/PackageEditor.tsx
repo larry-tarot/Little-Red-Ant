@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from '@/lib/axios';
 import { useAccount } from '@/context/AccountContext';
-import { Layers, Plus, History, Send, Check, AlertCircle, FileEdit, Sparkles, Tag, Eye } from 'lucide-react';
+import { Layers, Plus, History, Send, Check, AlertCircle, FileEdit, Sparkles, Tag, Eye, Image as ImageIcon, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
 interface ContentPackageVersion {
@@ -64,6 +64,12 @@ export default function PackageEditor() {
     // 新建弹窗
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [newPkgTitle, setNewPkgTitle] = useState('');
+
+    // P1.4 图文分页预览抽屉/弹窗状态
+    const [isSlidesModalOpen, setIsSlidesModalOpen] = useState(false);
+    const [previewSlides, setPreviewSlides] = useState<any[]>([]);
+    const [slideTheme, setSlideTheme] = useState<'clean' | 'warm' | 'dark'>('clean');
+    const [generatingSlides, setGeneratingSlides] = useState(false);
 
     useEffect(() => {
         if (!accountId) return;
@@ -170,6 +176,26 @@ export default function PackageEditor() {
         }
     };
 
+    const handleOpenSlidesPreview = async () => {
+        if (!activePackageId) return;
+        setGeneratingSlides(true);
+        try {
+            const keyPoints = form.keyPointsText.split('\n').map(s => s.trim()).filter(Boolean);
+            const res = await axios.post(`/api/packages/${activePackageId}/slides`, {
+                title: form.title,
+                targetAudience: form.targetAudience,
+                keyPoints,
+                bodyMarkdown: form.bodyMarkdown
+            });
+            setPreviewSlides(res.data.slides || []);
+            setIsSlidesModalOpen(true);
+        } catch (e: any) {
+            toast.error(e.response?.data?.error || '生成图文切页失败');
+        } finally {
+            setGeneratingSlides(false);
+        }
+    };
+
     return (
         <div className="p-6 max-w-7xl mx-auto space-y-6">
             {/* Header */}
@@ -192,13 +218,23 @@ export default function PackageEditor() {
                         新建内容包
                     </button>
                     {activePkg && (
-                        <button
-                            onClick={handleExportDraft}
-                            className="px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 text-sm font-medium flex items-center gap-1.5 border transition-colors"
-                        >
-                            <Send className="w-4 h-4" />
-                            {activePkg.linkedDraftId ? `同步更新草稿 (#${activePkg.linkedDraftId})` : '导出到发布草稿箱'}
-                        </button>
+                        <>
+                            <button
+                                onClick={handleOpenSlidesPreview}
+                                disabled={generatingSlides}
+                                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm font-medium flex items-center gap-1.5 transition-colors shadow-sm"
+                            >
+                                <ImageIcon className="w-4 h-4" />
+                                {generatingSlides ? '切页中...' : '图文分页预览 (3:4)'}
+                            </button>
+                            <button
+                                onClick={handleExportDraft}
+                                className="px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 text-sm font-medium flex items-center gap-1.5 border transition-colors"
+                            >
+                                <Send className="w-4 h-4" />
+                                {activePkg.linkedDraftId ? `同步更新草稿 (#${activePkg.linkedDraftId})` : '导出到发布草稿箱'}
+                            </button>
+                        </>
                     )}
                 </div>
             </div>
@@ -500,6 +536,153 @@ export default function PackageEditor() {
                             >
                                 立即创建
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* Modal: P1.4 图文切页预览 (3:4 卡片瀑布流) */}
+            {isSlidesModalOpen && (
+                <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+                    <div className="bg-white dark:bg-gray-900 rounded-2xl max-w-5xl w-full p-6 space-y-5 border shadow-2xl max-h-[92vh] flex flex-col">
+                        <div className="flex items-center justify-between border-b pb-3">
+                            <div className="flex items-center gap-3">
+                                <h2 className="text-lg font-bold flex items-center gap-2">
+                                    <ImageIcon className="w-5 h-5 text-purple-600" />
+                                    图文切页与发布包预览 (3:4 Slides)
+                                </h2>
+                                <span className="text-xs bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded-full font-bold">
+                                    共 {previewSlides.length} 页
+                                </span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                {/* 配色切换 */}
+                                <div className="flex items-center gap-1 text-xs border rounded-lg p-0.5">
+                                    <button
+                                        onClick={() => setSlideTheme('clean')}
+                                        className={`px-2 py-1 rounded font-medium ${slideTheme === 'clean' ? 'bg-gray-200 dark:bg-gray-700' : ''}`}
+                                    >
+                                        简约白
+                                    </button>
+                                    <button
+                                        onClick={() => setSlideTheme('warm')}
+                                        className={`px-2 py-1 rounded font-medium ${slideTheme === 'warm' ? 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200' : ''}`}
+                                    >
+                                        治愈暖
+                                    </button>
+                                    <button
+                                        onClick={() => setSlideTheme('dark')}
+                                        className={`px-2 py-1 rounded font-medium ${slideTheme === 'dark' ? 'bg-gray-900 text-white' : ''}`}
+                                    >
+                                        极客黑
+                                    </button>
+                                </div>
+                                <button
+                                    onClick={() => setIsSlidesModalOpen(false)}
+                                    className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500"
+                                >
+                                    <X className="w-5 h-5" />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* 3:4 卡片水平横滑展示 */}
+                        <div className="flex-1 overflow-x-auto py-4">
+                            <div className="flex items-stretch gap-5 min-w-max px-2">
+                                {previewSlides.map((slide: any, idx: number) => (
+                                    <div
+                                        key={idx}
+                                        className={`w-64 h-[340px] rounded-2xl p-5 flex flex-col justify-between shadow-md border relative transition-transform hover:-translate-y-1 ${
+                                            slideTheme === 'clean'
+                                                ? 'bg-white text-gray-900 border-gray-200'
+                                                : slideTheme === 'warm'
+                                                ? 'bg-amber-50 text-amber-950 border-amber-200'
+                                                : 'bg-gray-900 text-gray-100 border-gray-800'
+                                        }`}
+                                    >
+                                        {/* Card Top: Badge */}
+                                        <div className="flex items-center justify-between">
+                                            <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full tracking-wider uppercase ${
+                                                slide.type === 'COVER'
+                                                    ? 'bg-red-600 text-white'
+                                                    : slide.type === 'CTA'
+                                                    ? 'bg-green-600 text-white'
+                                                    : 'bg-purple-600 text-white'
+                                            }`}>
+                                                {slide.badge || slide.type}
+                                            </span>
+                                            <span className="text-[10px] font-mono opacity-50">
+                                                {slide.slideNumber} / {previewSlides.length}
+                                            </span>
+                                        </div>
+
+                                        {/* Card Center: Headline & Body */}
+                                        <div className="space-y-3 my-auto">
+                                            <h3 className={`font-bold leading-tight ${
+                                                slide.type === 'COVER' ? 'text-lg text-red-600 dark:text-red-400' : 'text-sm'
+                                            }`}>
+                                                {slide.headline}
+                                            </h3>
+
+                                            {slide.subheadline && (
+                                                <p className="text-xs opacity-75 leading-relaxed">
+                                                    {slide.subheadline}
+                                                </p>
+                                            )}
+
+                                            {slide.points && slide.points.length > 0 && (
+                                                <div className="space-y-1.5 text-xs opacity-90">
+                                                    {slide.points.map((p: string, pIdx: number) => (
+                                                        <div key={pIdx} className="flex items-start gap-1.5">
+                                                            <span className="text-red-500 font-bold">•</span>
+                                                            <span className="leading-snug">{p}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+
+                                            {slide.body && (
+                                                <p className="text-xs opacity-80 line-clamp-6 leading-relaxed whitespace-pre-wrap">
+                                                    {slide.body}
+                                                </p>
+                                            )}
+                                        </div>
+
+                                        {/* Card Footer */}
+                                        <div className="pt-2 border-t border-current/10 flex items-center justify-between text-[10px] opacity-60 font-medium">
+                                            <span>@{activeAccount?.nickname || '赤兔创作者'}</span>
+                                            <span>XHS-CHIMERA</span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* 底部发布合规与发布包确认条 */}
+                        <div className="bg-gray-50 dark:bg-gray-800/60 p-4 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-3 border text-xs">
+                            <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300">
+                                <AlertCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
+                                <span>
+                                    发布包已满足规范：强制要求人工核实（<code className="text-red-600 font-bold">confirmedByUser: true</code>），无静默发布隐患。
+                                </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => setIsSlidesModalOpen(false)}
+                                    className="px-4 py-2 rounded-lg border hover:bg-gray-100 dark:hover:bg-gray-700"
+                                >
+                                    返回编辑
+                                </button>
+                                <button
+                                    onClick={async () => {
+                                        setIsSlidesModalOpen(false);
+                                        await handleExportDraft();
+                                    }}
+                                    className="px-4 py-2 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 shadow-sm flex items-center gap-1.5"
+                                >
+                                    <Send className="w-3.5 h-3.5" />
+                                    固化发布包并同步至草稿箱
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

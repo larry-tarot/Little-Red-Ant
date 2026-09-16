@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { ContentPackageService } from '../services/core/ContentPackageService.js';
+import { CardPaginationService } from '../services/core/CardPaginationService.js';
 
 const router = Router();
 
@@ -108,6 +109,58 @@ router.post('/:id/export-draft', (req, res) => {
         res.json({ success: true, draftId });
     } catch (error: any) {
         res.status(500).json({ error: `同步草稿箱失败: ${error.message}` });
+    }
+});
+
+// 计算并预览内容包的图文切页 (Slides)
+router.post('/:id/slides', (req, res) => {
+    try {
+        const pkg = ContentPackageService.getPackage(req.params.id);
+        if (!pkg) return res.status(404).json({ error: '内容包未找到' });
+
+        const slides = CardPaginationService.splitIntoSlides({
+            title: req.body.title || pkg.title,
+            targetAudience: req.body.targetAudience || pkg.targetAudience,
+            keyPoints: req.body.keyPoints || pkg.keyPoints,
+            bodyMarkdown: req.body.bodyMarkdown || pkg.bodyMarkdown,
+            tags: req.body.tags || pkg.tags,
+            includeCta: req.body.includeCta
+        });
+
+        res.json({ success: true, slides });
+    } catch (error: any) {
+        res.status(500).json({ error: `计算分页失败: ${error.message}` });
+    }
+});
+
+// 组装最终待发布包 (Release Bundle)
+router.post('/:id/release-bundle', (req, res) => {
+    try {
+        const pkg = ContentPackageService.getPackage(req.params.id);
+        if (!pkg) return res.status(404).json({ error: '内容包未找到' });
+
+        const slides = CardPaginationService.splitIntoSlides({
+            title: pkg.title,
+            targetAudience: pkg.targetAudience,
+            keyPoints: pkg.keyPoints,
+            bodyMarkdown: pkg.bodyMarkdown,
+            tags: pkg.tags
+        });
+
+        const bundle = CardPaginationService.buildReleaseBundle({
+            accountId: pkg.accountId,
+            packageId: pkg.id,
+            versionNumber: pkg.currentVersion,
+            title: pkg.title,
+            bodyMarkdown: pkg.bodyMarkdown,
+            tags: pkg.tags,
+            slides,
+            imageUrls: req.body.imageUrls || []
+        });
+
+        res.json({ success: true, bundle });
+    } catch (error: any) {
+        res.status(500).json({ error: `组装发布包失败: ${error.message}` });
     }
 });
 
