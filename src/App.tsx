@@ -31,6 +31,7 @@ const OpportunityHub = lazy(() => import('@/pages/OpportunityHub'));
 const DemandRadarPage = lazy(() => import('@/pages/DemandRadarPage'));
 const PackageEditor = lazy(() => import('@/pages/PackageEditor'));
 const NoteReviewPage = lazy(() => import('@/pages/NoteReviewPage'));
+const ContentSeriesPage = lazy(() => import('@/pages/ContentSeriesPage'));
 const Notifications = lazy(() => import('@/pages/Notifications'));
 const UserManagement = lazy(() => import('@/pages/UserManagement'));
 const Profile = lazy(() => import('@/pages/Profile'));
@@ -163,6 +164,7 @@ function App() {
               <Route path="/opportunities" element={<RequireAuth><OpportunityHub /></RequireAuth>} />
               <Route path="/radar" element={<RequireAuth><DemandRadarPage /></RequireAuth>} />
               <Route path="/packages" element={<RequireAuth><PackageEditor /></RequireAuth>} />
+              <Route path="/series" element={<RequireAuth><ContentSeriesPage /></RequireAuth>} />
               <Route path="/generate" element={<RequireAuth><ContentGeneration /></RequireAuth>} />
               <Route path="/video-studio/:id" element={<RequireAuth><VideoStudio /></RequireAuth>} />
               <Route path="/video-projects" element={<RequireAuth><VideoProjectList /></RequireAuth>} />

@@ -520,6 +520,32 @@ export function initDB() {
     )
   `);
 
+  // Content Series & Series-Package Mapping (P3.2 系列专栏表)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS content_series (
+      id TEXT PRIMARY KEY,
+      account_id INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT,
+      target_pillar TEXT,
+      planned_count INTEGER DEFAULT 5,
+      status TEXT DEFAULT 'ACTIVE', -- 'PLANNING' | 'ACTIVE' | 'COMPLETED'
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS series_packages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      series_id TEXT NOT NULL,
+      package_id TEXT NOT NULL,
+      order_index INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(series_id, package_id)
+    )
+  `);
+
   // Settings Table (Key-Value Store for Global Config)
   db.exec(`
     CREATE TABLE IF NOT EXISTS settings (

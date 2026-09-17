@@ -40,6 +40,7 @@ import researchRoutes from './routes/research.js'
 import packagesRoutes from './routes/packages.js'
 import radarRoutes from './routes/radar.js'
 import reviewsRoutes from './routes/reviews.js'
+import seriesRoutes from './routes/series.js'
 import db, { initDB } from './db.js'
 import { authenticateToken } from './middleware/auth.js'
 import { errorHandler } from './middleware/errorHandler.js'
@@ -201,6 +202,7 @@ app.use('/api/research', authenticateToken, researchRoutes)
 app.use('/api/packages', authenticateToken, packagesRoutes)
 app.use('/api/radar', authenticateToken, radarRoutes)
 app.use('/api/reviews', authenticateToken, reviewsRoutes)
+app.use('/api/series', authenticateToken, seriesRoutes)
 
 // Temporarily expose these for debugging/stability (or maybe user token is missing in frontend request?)
 // Actually, let's keep auth but ensure the routes are mounted correctly.
