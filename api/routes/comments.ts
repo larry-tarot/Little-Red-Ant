@@ -3,6 +3,7 @@ import { replyToComment } from '../services/rpa/comments.js';
 import { enqueueTask } from '../services/queue.js';
 import { CommentService } from '../services/core/CommentService.js';
 import { CommentAnalysisService } from '../services/ai/CommentAnalysisService.js';
+import { NoteFeedbackSyncService } from '../services/core/NoteFeedbackSyncService.js';
 import { validateQuery, validateBody, validateParams } from '../middleware/validation.js';
 import {
     CommentListQuerySchema,
@@ -75,6 +76,18 @@ router.post('/reply', validateBody(CommentReplyBodySchema), async (req, res) => 
         res.json(result);
     } catch (error: any) {
         res.status(500).json({ error: error.message });
+    }
+});
+
+// 将特定评论一键转换为 P1.2 研究证据 (Research Evidence)
+router.post('/:id/convert-to-evidence', (req, res) => {
+    try {
+        const commentId = req.params.id;
+        const accountId = Number(req.body.accountId || 1);
+        const evidence = NoteFeedbackSyncService.convertCommentToEvidence(commentId, accountId);
+        res.status(201).json({ success: true, evidence });
+    } catch (error: any) {
+        res.status(500).json({ error: `转换证据失败: ${error.message}` });
     }
 });
 

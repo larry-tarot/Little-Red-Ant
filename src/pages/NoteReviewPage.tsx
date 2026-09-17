@@ -24,13 +24,27 @@ interface NoteReview {
     createdAt?: string;
 }
 
+interface SyncableNote {
+    noteId: string;
+    title: string;
+    views: number;
+    likes: number;
+    collects: number;
+    comments: number;
+    publishDate?: string;
+    hasReview: boolean;
+    reviewId?: string;
+}
+
 export default function NoteReviewPage() {
     const { activeAccount } = useAccount();
     const accountId = activeAccount?.id;
     const navigate = useNavigate();
 
     const [reviews, setReviews] = useState<NoteReview[]>([]);
+    const [syncableNotes, setSyncableNotes] = useState<SyncableNote[]>([]);
     const [loading, setLoading] = useState(false);
+    const [autoCreating, setAutoCreating] = useState(false);
 
     // 新增复盘弹窗
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -58,12 +72,33 @@ export default function NoteReviewPage() {
         if (!accountId) return;
         setLoading(true);
         try {
-            const res = await axios.get(`/api/reviews?accountId=${accountId}`);
-            setReviews(res.data);
+            const [revRes, syncRes] = await Promise.all([
+                axios.get(`/api/reviews?accountId=${accountId}`),
+                axios.get(`/api/reviews/syncable-notes?accountId=${accountId}`)
+            ]);
+            setReviews(revRes.data);
+            setSyncableNotes(syncRes.data?.notes || []);
         } catch (e: any) {
             toast.error(e.response?.data?.error || '加载复盘列表失败');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleAutoCreate = async (noteId: string) => {
+        if (!accountId) return;
+        setAutoCreating(true);
+        try {
+            await axios.post('/api/reviews/auto-create', {
+                accountId,
+                noteId
+            });
+            toast.success('已自动同步指标并生成复盘记录！');
+            loadReviews();
+        } catch (e: any) {
+            toast.error(e.response?.data?.error || '自动生成复盘失败');
+        } finally {
+            setAutoCreating(false);
         }
     };
 
@@ -152,6 +187,61 @@ export default function NoteReviewPage() {
                 <div className="p-4 bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 rounded-lg flex items-center gap-3 text-yellow-800 dark:text-yellow-200 text-sm">
                     <AlertCircle className="w-5 h-5 flex-shrink-0" />
                     <span>请在系统顶部选择要操作的目标账号。</span>
+                </div>
+            )}
+
+            {/* P3.1 已同步笔记待复盘池 */}
+            {syncableNotes.length > 0 && (
+                <div className="bg-surface-muted/50 p-4 rounded-xl border border-border space-y-3">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <Sparkles className="w-4 h-4 text-emerald-600" />
+                            <h3 className="text-xs font-bold text-text">
+                                已同步发布笔记（P3.1 自动拉取阅读/互动指标，免去人工填数字）
+                            </h3>
+                        </div>
+                        <span className="text-[11px] text-text-tertiary">
+                            共 {syncableNotes.length} 篇已同步笔记
+                        </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        {syncableNotes.map(n => (
+                            <div
+                                key={n.noteId}
+                                className="p-3 bg-white dark:bg-gray-900 rounded-lg border border-border flex flex-col justify-between shadow-xs text-xs space-y-2"
+                            >
+                                <div>
+                                    <div className="flex items-center justify-between text-[10px] text-gray-400 mb-1">
+                                        <span>发布: {n.publishDate?.slice(0, 10) || '近期'}</span>
+                                        {n.hasReview ? (
+                                            <span className="text-emerald-600 font-bold">已复盘</span>
+                                        ) : (
+                                            <span className="text-amber-600 font-bold">待复盘</span>
+                                        )}
+                                    </div>
+                                    <h4 className="font-bold text-gray-800 dark:text-gray-200 line-clamp-1">{n.title}</h4>
+                                    <div className="flex items-center gap-3 text-[11px] text-gray-500 mt-1">
+                                        <span>阅读: <b className="text-text">{n.views}</b></span>
+                                        <span>赞: <b className="text-text">{n.likes}</b></span>
+                                        <span>藏: <b className="text-emerald-600">{n.collects}</b></span>
+                                        <span>评: <b className="text-text">{n.comments}</b></span>
+                                    </div>
+                                </div>
+
+                                {!n.hasReview && (
+                                    <button
+                                        onClick={() => handleAutoCreate(n.noteId)}
+                                        disabled={autoCreating}
+                                        className="w-full py-1.5 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 rounded font-semibold hover:bg-emerald-100 flex items-center justify-center gap-1 transition-colors"
+                                    >
+                                        <Sparkles size={12} />
+                                        {autoCreating ? '同步中...' : '一键智能预填复盘'}
+                                    </button>
+                                )}
+                            </div>
+                        ))}
+                    </div>
                 </div>
             )}
 

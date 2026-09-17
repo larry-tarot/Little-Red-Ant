@@ -83,4 +83,38 @@ describe('Note Reviews API Routes (HTTP)', () => {
         expect(deriveData.opportunity.title).toContain('镜头卡口与转接环避坑清单');
         expect(deriveData.opportunity.status).toBe('IDEA');
     });
+
+    it('GET /api/reviews/syncable-notes 与 POST /api/reviews/auto-create 支持自动拉取笔记指标并生成复盘', async () => {
+        const db = getTestDbSync();
+        db.prepare(`
+            INSERT INTO note_stats (
+                id, note_id, title, views, likes, collects, comments, account_id, publish_date
+            ) VALUES (
+                20, 'note_auto_1', '单片机死区时间调测记录', 6000, 320, 480, 20, 1, '2026-09-13 10:00:00'
+            )
+        `).run();
+
+        // 1. 查询可同步笔记
+        const listRes = await fetch(`${baseUrl}/api/reviews/syncable-notes?accountId=1`);
+        expect(listRes.status).toBe(200);
+        const listData = await listRes.json();
+        expect(listData.notes.some((n: any) => n.noteId === 'note_auto_1')).toBe(true);
+
+        // 2. 自动根据笔记指标创建复盘
+        const autoRes = await fetch(`${baseUrl}/api/reviews/auto-create`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                accountId: 1,
+                noteId: 'note_auto_1'
+            })
+        });
+
+        expect(autoRes.status).toBe(201);
+        const autoData = await autoRes.json();
+        expect(autoData.success).toBe(true);
+        expect(autoData.review.title).toBe('单片机死区时间调测记录');
+        expect(autoData.review.views).toBe(6000);
+        expect(autoData.review.collects).toBe(480);
+    });
 });
