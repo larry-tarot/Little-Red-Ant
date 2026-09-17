@@ -30,6 +30,7 @@ const Login = lazy(() => import('@/pages/Login'));
 const OpportunityHub = lazy(() => import('@/pages/OpportunityHub'));
 const DemandRadarPage = lazy(() => import('@/pages/DemandRadarPage'));
 const PackageEditor = lazy(() => import('@/pages/PackageEditor'));
+const NoteReviewPage = lazy(() => import('@/pages/NoteReviewPage'));
 const Notifications = lazy(() => import('@/pages/Notifications'));
 const UserManagement = lazy(() => import('@/pages/UserManagement'));
 const Profile = lazy(() => import('@/pages/Profile'));
@@ -169,6 +170,7 @@ function App() {
               <Route path="/drafts" element={<RequireAuth><Drafts /></RequireAuth>} />
               <Route path="/accounts" element={<RequireAuth><AccountManagement /></RequireAuth>} />
               <Route path="/analytics" element={<RequireAuth><Analytics /></RequireAuth>} />
+              <Route path="/reviews" element={<RequireAuth><NoteReviewPage /></RequireAuth>} />
               <Route path="/notes" element={<RequireAuth><NoteManagement /></RequireAuth>} />
               <Route path="/knowledge" element={<RequireAuth><ViralKnowledgePage /></RequireAuth>} />
               <Route path="/prompt-optimizer" element={<RequireAuth><PromptOptimizer /></RequireAuth>} />

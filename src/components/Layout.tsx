@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Menu, X, LogOut, Home, PenTool, Layout as LayoutIcon,
-  MessageSquare, Target, FileText, BarChart, PlayCircle, Settings, ShieldCheck, Bell, ChevronLeft, ChevronRight, Flame, Database, Library, Search, Lightbulb, Layers, Radio
+  MessageSquare, Target, FileText, BarChart, PlayCircle, Settings, ShieldCheck, Bell, ChevronLeft, ChevronRight, Flame, Database, Library, Search, Lightbulb, Layers, Radio, RotateCcw
 } from 'lucide-react';
 import { useAuthStore } from '../store/useAuthStore';
 import axios from '@/lib/axios';
@@ -80,6 +80,7 @@ export default function Layout({ children }: LayoutProps) {
       title: '运营分析',
       items: [
         { title: '笔记管理', icon: FileText, path: '/notes' },
+        { title: '复盘闭环', icon: RotateCcw, path: '/reviews' },
         { title: '竞品监控', icon: Target, path: '/competitor' },
         { title: '数据看板', icon: BarChart, path: '/analytics' },
         { title: '互动中心', icon: MessageSquare, path: '/engagement' },

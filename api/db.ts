@@ -497,6 +497,29 @@ export function initDB() {
     )
   `);
 
+  // Note Reviews Table (P2.4 笔记复盘与反馈信号表)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS note_reviews (
+      id TEXT PRIMARY KEY,
+      account_id INTEGER NOT NULL,
+      note_id TEXT,
+      title TEXT NOT NULL,
+      published_at TEXT,
+      views INTEGER DEFAULT 0,
+      likes INTEGER DEFAULT 0,
+      collects INTEGER DEFAULT 0,
+      comments INTEGER DEFAULT 0,
+      ctr_assessment TEXT, -- 'HIGH' | 'NORMAL' | 'LOW'
+      interaction_assessment TEXT, -- 'HIGH' | 'NORMAL' | 'LOW'
+      what_worked TEXT,
+      what_failed TEXT,
+      feedback_signals TEXT, -- JSON Array
+      next_action_ideas TEXT, -- JSON Array
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
   // Settings Table (Key-Value Store for Global Config)
   db.exec(`
     CREATE TABLE IF NOT EXISTS settings (
