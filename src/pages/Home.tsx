@@ -4,7 +4,7 @@ import {
     MessageCircle, AlertCircle, Clock, CheckCircle, ChevronDown,
     RefreshCw, User, ArrowUp, ArrowDown, Star, LayoutGrid, Hand,
     Zap, Users, AlertTriangle, Lightbulb, Calendar, Bell, Target,
-    FileText, ExternalLink
+    FileText, ExternalLink, Layers, Radio, ArrowRight
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
@@ -53,12 +53,33 @@ interface TrendData {
  * 紧急任务条目类型
  */
 interface UrgentTask {
-    type: 'reply_comments' | 'anomaly_burst' | 'competitor_alert' | 'task_failed';
+    type: 'reply_comments' | 'anomaly_burst' | 'competitor_alert' | 'task_failed' | 'opportunity_pending' | 'draft_review';
     priority: 'high' | 'medium' | 'low';
     title: string;
     description: string;
     action_link: string;
     count: number;
+}
+
+/**
+ * 今日行动流类型
+ */
+interface TodayActions {
+    pending_opportunities: Array<{
+        id: string;
+        title: string;
+        targetAudience: string;
+        problem: string;
+        createdAt?: string;
+    }>;
+    in_progress_packages: Array<{
+        id: string;
+        title: string;
+        currentVersion: number;
+        updatedAt?: string;
+    }>;
+    ready_to_publish_count: number;
+    active_radar_watches_count: number;
 }
 
 /**
@@ -99,6 +120,7 @@ interface Suggestion {
  */
 interface WorkbenchData {
     urgent_tasks: UrgentTask[];
+    today_actions?: TodayActions;
     summary: WorkbenchSummary | null;
     calendar_preview: CalendarPreview;
     suggestions: Suggestion[];
@@ -122,6 +144,10 @@ const getTaskIcon = (type: UrgentTask['type']) => {
             return Users;
         case 'task_failed':
             return AlertTriangle;
+        case 'opportunity_pending':
+            return Lightbulb;
+        case 'draft_review':
+            return FileText;
         default:
             return Bell;
     }
@@ -236,7 +262,10 @@ export default function Home() {
      */
     const fetchWorkbenchData = async (signal?: AbortSignal) => {
         try {
-            const res = await axios.get('/api/workbench/today', { signal });
+            const url = activeAccount?.id 
+                ? `/api/workbench/today?accountId=${activeAccount.id}`
+                : '/api/workbench/today';
+            const res = await axios.get(url, { signal });
             setWorkbenchData(res.data?.data ?? null);
         } catch (error: any) {
             if (axios.isCancel(error)) return;
@@ -568,6 +597,134 @@ export default function Home() {
                                     />
                                 </button>
                             </div>
+                        </div>
+                    </div>
+
+                    {/* ================================================ */}
+                    {/* 1.5 核心行动流主路径 (Today Actions) */}
+                    {/* ================================================ */}
+                    <div className="bg-surface rounded-2xl p-5 border border-border shadow-sm space-y-4">
+                        <div className="flex items-center justify-between border-b border-border pb-3">
+                            <div className="flex items-center gap-2">
+                                <Activity className="text-primary w-5 h-5" />
+                                <h2 className="text-base font-bold text-text">今日主行动流 (Today Actions)</h2>
+                                <span className="text-xs text-text-tertiary">按照“雷达痛点 &rarr; 选题决策 &rarr; 内容版本 &rarr; 人工发审”单兵闭环推进</span>
+                            </div>
+                            <span className="text-xs font-semibold px-2 py-0.5 rounded bg-primary-subtle text-primary">
+                                P2.2 闭环工作台
+                            </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            {/* 1. 待决策选题卡 */}
+                            <Link
+                                to="/opportunities"
+                                className="p-4 rounded-xl border border-border bg-surface-muted hover:bg-surface-hover hover:border-warning/50 transition-all flex flex-col justify-between group"
+                            >
+                                <div>
+                                    <div className="flex items-center justify-between mb-2">
+                                        <div className="w-8 h-8 rounded-lg bg-warning-subtle text-warning flex items-center justify-center">
+                                            <Lightbulb size={18} />
+                                        </div>
+                                        <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-warning-subtle text-warning">
+                                            {workbenchData?.today_actions?.pending_opportunities.length ?? 0} 个待决策
+                                        </span>
+                                    </div>
+                                    <h3 className="text-sm font-bold text-text group-hover:text-primary transition-colors line-clamp-1">
+                                        {workbenchData?.today_actions?.pending_opportunities[0]?.title || '暂无待决策选题'}
+                                    </h3>
+                                    <p className="text-xs text-text-tertiary mt-1 line-clamp-2">
+                                        {workbenchData?.today_actions?.pending_opportunities[0]?.problem || '来自用户真实痛点与评论区原话提取'}
+                                    </p>
+                                </div>
+                                <div className="pt-3 mt-2 border-t border-border flex items-center justify-between text-xs text-warning font-medium">
+                                    <span>去选题池决策</span>
+                                    <ArrowRight size={14} className="group-hover:translate-x-0.5 transition-transform" />
+                                </div>
+                            </Link>
+
+                            {/* 2. 制作中内容包 */}
+                            <Link
+                                to="/packages"
+                                className="p-4 rounded-xl border border-border bg-surface-muted hover:bg-surface-hover hover:border-danger/50 transition-all flex flex-col justify-between group"
+                            >
+                                <div>
+                                    <div className="flex items-center justify-between mb-2">
+                                        <div className="w-8 h-8 rounded-lg bg-danger-subtle text-danger flex items-center justify-center">
+                                            <Layers size={18} />
+                                        </div>
+                                        <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-danger-subtle text-danger">
+                                            {workbenchData?.today_actions?.in_progress_packages.length ?? 0} 个内容包
+                                        </span>
+                                    </div>
+                                    <h3 className="text-sm font-bold text-text group-hover:text-primary transition-colors line-clamp-1">
+                                        {workbenchData?.today_actions?.in_progress_packages[0]?.title || '暂无活跃内容包'}
+                                    </h3>
+                                    <p className="text-xs text-text-tertiary mt-1 line-clamp-2">
+                                        {workbenchData?.today_actions?.in_progress_packages[0]
+                                            ? `当前版本 v${workbenchData.today_actions.in_progress_packages[0].currentVersion} · 包含论点卡与脚本`
+                                            : '多维结构化稿件与版本历史树'}
+                                    </p>
+                                </div>
+                                <div className="pt-3 mt-2 border-t border-border flex items-center justify-between text-xs text-danger font-medium">
+                                    <span>去版本工作台</span>
+                                    <ArrowRight size={14} className="group-hover:translate-x-0.5 transition-transform" />
+                                </div>
+                            </Link>
+
+                            {/* 3. 待发布确认包 */}
+                            <Link
+                                to="/drafts"
+                                className="p-4 rounded-xl border border-border bg-surface-muted hover:bg-surface-hover hover:border-primary/50 transition-all flex flex-col justify-between group"
+                            >
+                                <div>
+                                    <div className="flex items-center justify-between mb-2">
+                                        <div className="w-8 h-8 rounded-lg bg-primary-subtle text-primary flex items-center justify-center">
+                                            <FileText size={18} />
+                                        </div>
+                                        <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-primary-subtle text-primary">
+                                            {workbenchData?.today_actions?.ready_to_publish_count ?? 0} 篇待核验
+                                        </span>
+                                    </div>
+                                    <h3 className="text-sm font-bold text-text group-hover:text-primary transition-colors line-clamp-1">
+                                        待人工确认草稿
+                                    </h3>
+                                    <p className="text-xs text-text-tertiary mt-1 line-clamp-2">
+                                        P0 安全发布门禁：强制人工核验（confirmedByUser: true），杜绝盲目重发
+                                    </p>
+                                </div>
+                                <div className="pt-3 mt-2 border-t border-border flex items-center justify-between text-xs text-primary font-medium">
+                                    <span>去草稿箱发审</span>
+                                    <ArrowRight size={14} className="group-hover:translate-x-0.5 transition-transform" />
+                                </div>
+                            </Link>
+
+                            {/* 4. 活跃需求雷达 */}
+                            <Link
+                                to="/radar"
+                                className="p-4 rounded-xl border border-border bg-surface-muted hover:bg-surface-hover hover:border-indigo-500/50 transition-all flex flex-col justify-between group"
+                            >
+                                <div>
+                                    <div className="flex items-center justify-between mb-2">
+                                        <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-300 flex items-center justify-center">
+                                            <Radio size={18} />
+                                        </div>
+                                        <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-300">
+                                            {workbenchData?.today_actions?.active_radar_watches_count ?? 0} 个监控项
+                                        </span>
+                                    </div>
+                                    <h3 className="text-sm font-bold text-text group-hover:text-primary transition-colors line-clamp-1">
+                                        需求雷达监听中
+                                    </h3>
+                                    <p className="text-xs text-text-tertiary mt-1 line-clamp-2">
+                                        持续监听全网高频求助、客诉与竞品吐槽，自动合成高胜率机会
+                                    </p>
+                                </div>
+                                <div className="pt-3 mt-2 border-t border-border flex items-center justify-between text-xs text-indigo-600 dark:text-indigo-400 font-medium">
+                                    <span>去雷达工作台</span>
+                                    <ArrowRight size={14} className="group-hover:translate-x-0.5 transition-transform" />
+                                </div>
+                            </Link>
                         </div>
                     </div>
 

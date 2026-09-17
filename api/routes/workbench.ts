@@ -20,9 +20,10 @@ const router = Router();
  * - calendar_preview: 内容日历预览
  * - suggestions: 运营建议
  */
-router.get('/today', (_req, res) => {
+router.get('/today', (req, res) => {
     try {
-        const data = WorkbenchService.getTodayWorkbench();
+        const accountId = req.query.accountId ? Number(req.query.accountId) : undefined;
+        const data = WorkbenchService.getTodayWorkbench(accountId);
         res.json({ success: true, data });
     } catch (error: any) {
         console.error('[WorkbenchRoute] Failed to get today workbench:', error);
