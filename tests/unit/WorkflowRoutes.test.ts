@@ -83,4 +83,26 @@ describe('Workflow and Derivation API Routes (HTTP)', () => {
         expect(callData.success).toBe(true);
         expect(callData.result.content[0].text).toContain('"accountId": 1');
     });
+
+    it('POST /api/workflows/convert-to-video-project 能够一键创建视频工坊工程', async () => {
+        const { ContentPackageService } = await import('../../api/services/core/ContentPackageService.js');
+        const pkg = ContentPackageService.createPackage({
+            accountId: 1,
+            title: '405nm滤光片视频工程转化测试',
+            bodyMarkdown: '正文测试...',
+            keyPoints: ['滤光片选型', '户外日光实测']
+        });
+
+        const res = await fetch(`${baseUrl}/api/workflows/convert-to-video-project`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ packageId: pkg.id })
+        });
+
+        expect(res.status).toBe(200);
+        const data = await res.json();
+        expect(data.success).toBe(true);
+        expect(data.project.id).toBeDefined();
+        expect(data.project.title).toContain('405nm滤光片视频工程转化测试');
+    });
 });

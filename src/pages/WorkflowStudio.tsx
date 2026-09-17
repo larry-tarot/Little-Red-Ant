@@ -46,6 +46,7 @@ export default function WorkflowStudio() {
 
     const [derived, setDerived] = useState<DerivedContent | null>(null);
     const [deriving, setDeriving] = useState(false);
+    const [converting, setConverting] = useState(false);
     const [copied, setCopied] = useState(false);
 
     // MCP tab
@@ -101,6 +102,22 @@ export default function WorkflowStudio() {
         setCopied(true);
         toast.success('已复制到剪贴板');
         setTimeout(() => setCopied(false), 2000);
+    };
+
+    const handleConvertToVideoProject = async () => {
+        if (!selectedPackageId) return;
+        setConverting(true);
+        try {
+            const res = await axios.post('/api/workflows/convert-to-video-project', {
+                packageId: selectedPackageId
+            });
+            toast.success('视频工程已创建，正在进入视频工坊...');
+            navigate(`/video-studio/${res.data.project.id}`);
+        } catch (e: any) {
+            toast.error(e.response?.data?.error || '转换视频工程失败');
+        } finally {
+            setConverting(false);
+        }
     };
 
     const selectedPkg = packages.find(p => p.id === selectedPackageId);
@@ -270,13 +287,25 @@ export default function WorkflowStudio() {
                                 )}
                             </div>
                             {derived && (
-                                <button
-                                    onClick={handleCopy}
-                                    className="px-3 py-1.5 bg-violet-50 dark:bg-violet-950 text-violet-700 dark:text-violet-300 rounded-lg text-xs font-semibold flex items-center gap-1 hover:bg-violet-100 transition-colors"
-                                >
-                                    {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                                    {copied ? '已复制' : '复制文案'}
-                                </button>
+                                <div className="flex items-center gap-2">
+                                    {derived.platform === 'VIDEO_SCRIPT' && (
+                                        <button
+                                            onClick={handleConvertToVideoProject}
+                                            disabled={converting}
+                                            className="px-3 py-1.5 bg-purple-600 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 hover:bg-purple-700 transition-colors shadow-sm disabled:opacity-50"
+                                        >
+                                            <Play className="w-3.5 h-3.5" />
+                                            {converting ? '正在创建工程...' : '一键转为视频工程 (进入工坊)'}
+                                        </button>
+                                    )}
+                                    <button
+                                        onClick={handleCopy}
+                                        className="px-3 py-1.5 bg-violet-50 dark:bg-violet-950 text-violet-700 dark:text-violet-300 rounded-lg text-xs font-semibold flex items-center gap-1 hover:bg-violet-100 transition-colors"
+                                    >
+                                        {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                                        {copied ? '已复制' : '复制文案'}
+                                    </button>
+                                </div>
                             )}
                         </div>
 

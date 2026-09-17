@@ -64,8 +64,8 @@ export class VideoProjectService {
                 uuidv4(),
                 id,
                 index,
-                scene.visual || '',
-                scene.audio || '',
+                scene.visual || scene.visualDescription || '',
+                scene.audio || scene.narration || '',
             );
         });
 

@@ -1,6 +1,7 @@
 import { ContentPackageService, ContentPackage } from './ContentPackageService.js';
 import { AccountBusinessProfileService } from './AccountBusinessProfileService.js';
 import { ResearchOpportunityService } from './ResearchOpportunityService.js';
+import { VideoProjectService, VideoProject } from '../video/VideoProjectService.js';
 
 export type PlatformTarget = 'WECHAT_ARTICLE' | 'VIDEO_SCRIPT' | 'WEIBO_POST';
 
@@ -146,6 +147,33 @@ export class WorkflowDerivationService {
             tags: pkg.tags,
             createdAt: new Date().toISOString()
         };
+    }
+
+    /**
+     * P3.4 视频流水线联动：将内容包派生的短视频分镜脚本直接转化为视频工坊工程 (VideoProject)
+     */
+    static convertScriptToVideoProject(packageId: string, createdBy?: number): VideoProject {
+        const pkg = ContentPackageService.getPackage(packageId);
+        if (!pkg) {
+            throw new Error(`内容包不存在: ${packageId}`);
+        }
+
+        const derivedVideo = this.deriveVideoScript(pkg);
+        const scenesForProject = (derivedVideo.scenes || []).map(s => ({
+            visualDescription: s.visualDescription,
+            narration: s.narration,
+            audio: s.narration,
+            visual: s.visualDescription
+        }));
+
+        return VideoProjectService.createProject(
+            pkg.title,
+            { scenes: scenesForProject },
+            pkg.coreValueProposition,
+            pkg.tags,
+            `由内容包 [${pkg.title}] 一键派生视频工程`,
+            createdBy
+        );
     }
 
     /**

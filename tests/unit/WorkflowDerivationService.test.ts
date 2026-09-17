@@ -94,4 +94,25 @@ describe('WorkflowDerivationService (P3.3 跨平台派生与MCP能力)', () => {
             confirmedByUser: false
         })).rejects.toThrow('强制安全门禁');
     });
+
+    it('P3.4 联动：能够将派生的短视频分镜脚本一键转化为系统视频工坊项目（VideoProject与VideoScenes）', async () => {
+        const { WorkflowDerivationService } = await import('../../api/services/core/WorkflowDerivationService.js');
+        const { ContentPackageService } = await import('../../api/services/core/ContentPackageService.js');
+        const { VideoProjectService } = await import('../../api/services/video/VideoProjectService.js');
+
+        const pkgs = ContentPackageService.listPackages(1);
+        const pkgId = pkgs[0].id;
+
+        const videoProject = WorkflowDerivationService.convertScriptToVideoProject(pkgId, 1);
+        expect(videoProject.id).toBeDefined();
+        expect(videoProject.title).toContain('无刷电机抗日光调试与防烧实战');
+
+        // 验证分镜已自动初始化进数据库
+        const projectFromDb = VideoProjectService.getProject(videoProject.id);
+        expect(projectFromDb).not.toBeNull();
+        expect(projectFromDb!.scenes).toBeDefined();
+        expect(projectFromDb!.scenes!.length).toBeGreaterThanOrEqual(3);
+        expect(projectFromDb!.scenes![0].script_visual).toBeDefined();
+        expect(projectFromDb!.scenes![0].script_audio).toBeDefined();
+    });
 });

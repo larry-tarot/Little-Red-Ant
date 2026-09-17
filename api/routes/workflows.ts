@@ -20,6 +20,21 @@ router.post('/derive', (req, res) => {
     }
 });
 
+// P3.4 视频流水线联动：将内容包直接转化为视频工坊工程
+router.post('/convert-to-video-project', (req: any, res) => {
+    try {
+        const { packageId } = req.body;
+        if (!packageId) {
+            return res.status(400).json({ error: '缺少必要参数: packageId' });
+        }
+
+        const project = WorkflowDerivationService.convertScriptToVideoProject(packageId, req.user?.id);
+        res.json({ success: true, project });
+    } catch (error: any) {
+        res.status(500).json({ error: `创建视频工程失败: ${error.message}` });
+    }
+});
+
 // --- MCP (Model Context Protocol) 开放能力 ---
 
 // 获取 MCP 工具声明清单
