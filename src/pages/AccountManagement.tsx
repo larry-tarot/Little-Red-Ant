@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import axios from '@/lib/axios';
-import { Users, Plus, UserCheck, Loader2, AlertCircle, Edit3, Check, Link as LinkIcon, X, Save, RefreshCw, BookOpen, Target, ShieldAlert, Sparkles, Code2 } from 'lucide-react';
+import { Users, Plus, UserCheck, Loader2, AlertCircle, Edit3, Check, Link as LinkIcon, X, Save, RefreshCw, BookOpen, Target, ShieldAlert, Sparkles, Code2, Palette, CheckCircle2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Modal from '../components/Modal';
 import toast from 'react-hot-toast';
@@ -66,7 +66,7 @@ export default function AccountManagement() {
     // 人设与账号经营档案弹窗状态
     const [isPersonaModalOpen, setIsPersonaModalOpen] = useState(false);
     const [editingPersonaAccount, setEditingPersonaAccount] = useState<Account | null>(null);
-    const [personaTab, setPersonaTab] = useState<'profile' | 'prompt'>('profile');
+    const [personaTab, setPersonaTab] = useState<'profile' | 'brand' | 'prompt'>('profile');
     const [promptContextPreview, setPromptContextPreview] = useState('');
     const [businessProfile, setBusinessProfile] = useState<{
         goals: string[];
@@ -86,6 +86,27 @@ export default function AccountManagement() {
         contentPillars: [],
         expressionBoundaries: [],
         toneStyle: ''
+    });
+    // P2.3 品牌视觉资产状态
+    const [brandKit, setBrandKit] = useState<{
+        primaryColor: string;
+        accentColor: string;
+        backgroundColor: string;
+        textColor: string;
+        fontFamily: 'sans' | 'serif' | 'mono';
+        watermarkText: string;
+        coverLayout: 'BOLD_MINIMAL' | 'MAGAZINE' | 'SPLIT_HEADER' | 'CARD_BADGE';
+        isApproved: boolean;
+        approvedSampleUrl?: string;
+    }>({
+        primaryColor: '#FF2442',
+        accentColor: '#F59E0B',
+        backgroundColor: '#FFFFFF',
+        textColor: '#1E293B',
+        fontFamily: 'sans',
+        watermarkText: '',
+        coverLayout: 'BOLD_MINIMAL',
+        isApproved: false
     });
     const [personaForm, setPersonaForm] = useState({
         niche: '',
@@ -367,9 +388,10 @@ export default function AccountManagement() {
         });
 
         try {
-            const [profileRes, promptRes] = await Promise.all([
+            const [profileRes, promptRes, brandRes] = await Promise.all([
                 axios.get(`/api/accounts/${account.id}/business-profile`),
-                axios.get(`/api/accounts/${account.id}/prompt-context`)
+                axios.get(`/api/accounts/${account.id}/prompt-context`),
+                axios.get(`/api/accounts/${account.id}/brand-kit`)
             ]);
 
             const p = profileRes.data;
@@ -382,8 +404,23 @@ export default function AccountManagement() {
                 toneStyle: p.toneStyle || account.persona?.tone || ''
             });
             setPromptContextPreview(promptRes.data?.promptContext || '');
+
+            if (brandRes.data?.brandKit) {
+                const bk = brandRes.data.brandKit;
+                setBrandKit({
+                    primaryColor: bk.primaryColor || '#FF2442',
+                    accentColor: bk.accentColor || '#F59E0B',
+                    backgroundColor: bk.backgroundColor || '#FFFFFF',
+                    textColor: bk.textColor || '#1E293B',
+                    fontFamily: bk.fontFamily || 'sans',
+                    watermarkText: bk.watermarkText || `@${account.nickname}`,
+                    coverLayout: bk.coverLayout || 'BOLD_MINIMAL',
+                    isApproved: Boolean(bk.isApproved),
+                    approvedSampleUrl: bk.approvedSampleUrl
+                });
+            }
         } catch (_e) {
-            console.warn('获取账号经营档案失败，初始化为默认结构');
+            console.warn('获取账号经营档案或视觉规范失败，初始化为默认结构');
         }
 
         setIsPersonaModalOpen(true);
@@ -392,9 +429,10 @@ export default function AccountManagement() {
     const handleSavePersona = async () => {
         if (!editingPersonaAccount) return;
         try {
-            // 同步更新 P1.1 账号经营档案与原基础人设字段
+            // 同步更新 P1.1 账号经营档案与原基础人设字段及 P2.3 品牌视觉规范
             await Promise.all([
                 axios.put(`/api/accounts/${editingPersonaAccount.id}/business-profile`, businessProfile),
+                axios.put(`/api/accounts/${editingPersonaAccount.id}/brand-kit`, brandKit),
                 axios.put(`/api/accounts/${editingPersonaAccount.id}/persona`, {
                     niche: businessProfile.contentPillars[0]?.name || personaForm.niche,
                     persona_desc: businessProfile.targetAudience.identity || personaForm.desc,
@@ -408,11 +446,22 @@ export default function AccountManagement() {
             const promptRes = await axios.get(`/api/accounts/${editingPersonaAccount.id}/prompt-context`);
             setPromptContextPreview(promptRes.data?.promptContext || '');
 
-            toast.success('账号经营档案与人设配置已保存');
+            toast.success('账号经营档案与视觉规范已保存');
             setIsPersonaModalOpen(false);
             fetchAccounts();
         } catch (_e) {
             toast.error('保存失败');
+        }
+    };
+
+    const handleApproveBrandKit = async () => {
+        if (!editingPersonaAccount) return;
+        try {
+            const res = await axios.post(`/api/accounts/${editingPersonaAccount.id}/brand-kit/approve`);
+            setBrandKit(res.data.brandKit);
+            toast.success('已正式核准并固化为官方视觉标准！');
+        } catch (_e) {
+            toast.error('核准失败');
         }
     };
 
@@ -757,6 +806,17 @@ export default function AccountManagement() {
                             </button>
                             <button
                                 className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
+                                    personaTab === 'brand'
+                                        ? 'border-primary text-primary'
+                                        : 'border-transparent text-text-secondary hover:text-text'
+                                }`}
+                                onClick={() => setPersonaTab('brand')}
+                            >
+                                <Palette size={14} />
+                                品牌视觉资产 (P2.3)
+                            </button>
+                            <button
+                                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
                                     personaTab === 'prompt'
                                         ? 'border-primary text-primary'
                                         : 'border-transparent text-text-secondary hover:text-text'
@@ -790,6 +850,261 @@ export default function AccountManagement() {
                                 <p className="text-xs text-text-tertiary">
                                     此段文字将在生成选题、撰写文案与发布审核时作为高优先级约束注入大模型，无需反复输入账号背景。
                                 </p>
+                            </div>
+                        ) : personaTab === 'brand' ? (
+                            <div className="space-y-4">
+                                {/* 顶部核准状态条 */}
+                                <div className="bg-surface-muted p-3.5 rounded-xl border border-border flex items-center justify-between">
+                                    <div className="flex items-center gap-2.5">
+                                        <Palette className="w-5 h-5 text-primary flex-shrink-0" />
+                                        <div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-xs font-bold text-text">视觉规范核准状态:</span>
+                                                {brandKit.isApproved ? (
+                                                    <span className="text-[11px] font-extrabold px-2 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300 border border-green-200 flex items-center gap-1">
+                                                        <CheckCircle2 size={12} /> 已核准官方标准 (APPROVED)
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300 border border-amber-200">
+                                                        待审核确认 (PENDING)
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <p className="text-[11px] text-text-tertiary mt-0.5">
+                                                {brandKit.isApproved
+                                                    ? '已锁定为主图/内页标准配色与版式，后续图文生成将严格对齐此规范，杜绝风格漂移。'
+                                                    : '调整参数后，请在下方预览 3:4 样图，确认无误后点击“核准为标准规范”。'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <Button size="sm" onClick={handleApproveBrandKit} variant={brandKit.isApproved ? 'secondary' : 'primary'}>
+                                        <Check size={14} className="mr-1" />
+                                        {brandKit.isApproved ? '重新核准样图' : '核准为官方标准'}
+                                    </Button>
+                                </div>
+
+                                {/* 规范配置区 (双列) */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-surface-muted/30 p-4 rounded-xl border border-border">
+                                    {/* 色彩规范 */}
+                                    <div className="space-y-3">
+                                        <h4 className="text-xs font-bold text-text flex items-center gap-1">
+                                            <Palette size={13} className="text-primary" /> 核心色彩规范
+                                        </h4>
+                                        <div className="grid grid-cols-2 gap-2 text-xs">
+                                            <div>
+                                                <label className="block text-[11px] font-medium text-text-secondary mb-1">主品牌色 (Primary)</label>
+                                                <div className="flex items-center gap-2">
+                                                    <input
+                                                        type="color"
+                                                        value={brandKit.primaryColor}
+                                                        onChange={e => setBrandKit({ ...brandKit, primaryColor: e.target.value, isApproved: false })}
+                                                        className="w-8 h-8 rounded border cursor-pointer bg-transparent"
+                                                    />
+                                                    <Input
+                                                        value={brandKit.primaryColor}
+                                                        onChange={e => setBrandKit({ ...brandKit, primaryColor: e.target.value, isApproved: false })}
+                                                        className="h-8 text-xs font-mono"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label className="block text-[11px] font-medium text-text-secondary mb-1">强调辅色 (Accent)</label>
+                                                <div className="flex items-center gap-2">
+                                                    <input
+                                                        type="color"
+                                                        value={brandKit.accentColor}
+                                                        onChange={e => setBrandKit({ ...brandKit, accentColor: e.target.value, isApproved: false })}
+                                                        className="w-8 h-8 rounded border cursor-pointer bg-transparent"
+                                                    />
+                                                    <Input
+                                                        value={brandKit.accentColor}
+                                                        onChange={e => setBrandKit({ ...brandKit, accentColor: e.target.value, isApproved: false })}
+                                                        className="h-8 text-xs font-mono"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label className="block text-[11px] font-medium text-text-secondary mb-1">背景底色 (Background)</label>
+                                                <div className="flex items-center gap-2">
+                                                    <input
+                                                        type="color"
+                                                        value={brandKit.backgroundColor}
+                                                        onChange={e => setBrandKit({ ...brandKit, backgroundColor: e.target.value, isApproved: false })}
+                                                        className="w-8 h-8 rounded border cursor-pointer bg-transparent"
+                                                    />
+                                                    <Input
+                                                        value={brandKit.backgroundColor}
+                                                        onChange={e => setBrandKit({ ...brandKit, backgroundColor: e.target.value, isApproved: false })}
+                                                        className="h-8 text-xs font-mono"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label className="block text-[11px] font-medium text-text-secondary mb-1">文字主色 (Text)</label>
+                                                <div className="flex items-center gap-2">
+                                                    <input
+                                                        type="color"
+                                                        value={brandKit.textColor}
+                                                        onChange={e => setBrandKit({ ...brandKit, textColor: e.target.value, isApproved: false })}
+                                                        className="w-8 h-8 rounded border cursor-pointer bg-transparent"
+                                                    />
+                                                    <Input
+                                                        value={brandKit.textColor}
+                                                        onChange={e => setBrandKit({ ...brandKit, textColor: e.target.value, isApproved: false })}
+                                                        className="h-8 text-xs font-mono"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* 字体与版式 */}
+                                    <div className="space-y-3">
+                                        <h4 className="text-xs font-bold text-text flex items-center gap-1">
+                                            <BookOpen size={13} className="text-primary" /> 版式与签名规范
+                                        </h4>
+                                        <div className="space-y-2 text-xs">
+                                            <div>
+                                                <label className="block text-[11px] font-medium text-text-secondary mb-1">字体偏好 (Font Family)</label>
+                                                <select
+                                                    value={brandKit.fontFamily}
+                                                    onChange={e => setBrandKit({ ...brandKit, fontFamily: e.target.value as any, isApproved: false })}
+                                                    className="w-full px-2.5 py-1.5 text-xs border border-border rounded-lg bg-surface text-text"
+                                                >
+                                                    <option value="sans">现代无衬线 (Sans - 科技/时尚/干货推荐)</option>
+                                                    <option value="serif">人文衬线体 (Serif - 文学/家居/质感生活)</option>
+                                                    <option value="mono">硬核等宽体 (Mono - 极客/代码/工业工程)</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="block text-[11px] font-medium text-text-secondary mb-1">封面版式偏好 (Cover Layout)</label>
+                                                <select
+                                                    value={brandKit.coverLayout}
+                                                    onChange={e => setBrandKit({ ...brandKit, coverLayout: e.target.value as any, isApproved: false })}
+                                                    className="w-full px-2.5 py-1.5 text-xs border border-border rounded-lg bg-surface text-text"
+                                                >
+                                                    <option value="BOLD_MINIMAL">大字冲击 (极简突出核心主标题)</option>
+                                                    <option value="MAGAZINE">杂志排版 (注重留白与专业副标题)</option>
+                                                    <option value="SPLIT_HEADER">分屏对比 (上下/左右色块分割)</option>
+                                                    <option value="CARD_BADGE">标签卡片 (突出避坑/清单角标)</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="block text-[11px] font-medium text-text-secondary mb-1">固定水印/签名 (Watermark)</label>
+                                                <Input
+                                                    value={brandKit.watermarkText}
+                                                    onChange={e => setBrandKit({ ...brandKit, watermarkText: e.target.value, isApproved: false })}
+                                                    placeholder="例如：@极客硬件实验室"
+                                                    className="h-8 text-xs"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* 动态 3:4 样图预览 */}
+                                <div className="space-y-2">
+                                    <h4 className="text-xs font-bold text-text flex items-center justify-between">
+                                        <span>实时标准 3:4 样图预览 (Live Sample Previews)</span>
+                                        <span className="text-[10px] text-text-tertiary">基于当前色彩与版式即时渲染</span>
+                                    </h4>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                        {/* 样图 1: 封面 */}
+                                        <div
+                                            style={{
+                                                backgroundColor: brandKit.backgroundColor,
+                                                color: brandKit.textColor,
+                                                borderColor: brandKit.primaryColor
+                                            }}
+                                            className="h-56 rounded-xl p-4 flex flex-col justify-between border-2 shadow-sm"
+                                        >
+                                            <div className="flex items-center justify-between">
+                                                <span
+                                                    style={{ backgroundColor: brandKit.primaryColor }}
+                                                    className="text-[9px] text-white font-extrabold px-1.5 py-0.5 rounded uppercase"
+                                                >
+                                                    {brandKit.coverLayout}
+                                                </span>
+                                                <span className="text-[10px] opacity-60">1 / 3</span>
+                                            </div>
+                                            <div className="my-auto space-y-1">
+                                                <h5 style={{ color: brandKit.primaryColor }} className="font-extrabold text-sm leading-tight">
+                                                    标准主图样张展示
+                                                </h5>
+                                                <p className="text-[10px] opacity-75">
+                                                    3步建立专业心智 · 视觉风格统一
+                                                </p>
+                                            </div>
+                                            <div className="pt-2 border-t border-current/10 flex items-center justify-between text-[9px] opacity-60">
+                                                <span>{brandKit.watermarkText || '@' + (editingPersonaAccount?.nickname || '博主')}</span>
+                                                <span style={{ color: brandKit.accentColor }} className="font-bold">STANDARD</span>
+                                            </div>
+                                        </div>
+
+                                        {/* 样图 2: 论点卡 */}
+                                        <div
+                                            style={{
+                                                backgroundColor: brandKit.backgroundColor,
+                                                color: brandKit.textColor
+                                            }}
+                                            className="h-56 rounded-xl p-4 flex flex-col justify-between border shadow-sm"
+                                        >
+                                            <div className="flex items-center justify-between">
+                                                <span
+                                                    style={{ backgroundColor: brandKit.accentColor }}
+                                                    className="text-[9px] text-white font-extrabold px-1.5 py-0.5 rounded uppercase"
+                                                >
+                                                    POINT 01
+                                                </span>
+                                                <span className="text-[10px] opacity-60">2 / 3</span>
+                                            </div>
+                                            <div className="my-auto space-y-1">
+                                                <h5 className="font-bold text-xs leading-snug">
+                                                    核心论点与避坑排查展示
+                                                </h5>
+                                                <p className="text-[10px] opacity-80 line-clamp-3 leading-relaxed">
+                                                    统一规范确保每一篇笔记的字号、行距、主辅色保持一致，打造高识别度品牌辨识度。
+                                                </p>
+                                            </div>
+                                            <div className="pt-2 border-t border-current/10 flex items-center justify-between text-[9px] opacity-60">
+                                                <span>{brandKit.watermarkText || '@' + (editingPersonaAccount?.nickname || '博主')}</span>
+                                                <span>CHIMERA</span>
+                                            </div>
+                                        </div>
+
+                                        {/* 样图 3: 尾页 CTA */}
+                                        <div
+                                            style={{
+                                                backgroundColor: brandKit.backgroundColor,
+                                                color: brandKit.textColor
+                                            }}
+                                            className="h-56 rounded-xl p-4 flex flex-col justify-between border shadow-sm"
+                                        >
+                                            <div className="flex items-center justify-between">
+                                                <span
+                                                    style={{ backgroundColor: brandKit.primaryColor }}
+                                                    className="text-[9px] text-white font-extrabold px-1.5 py-0.5 rounded uppercase"
+                                                >
+                                                    SUMMARY
+                                                </span>
+                                                <span className="text-[10px] opacity-60">3 / 3</span>
+                                            </div>
+                                            <div className="my-auto space-y-1 text-center">
+                                                <h5 className="font-bold text-xs">
+                                                    点赞与互动收尾
+                                                </h5>
+                                                <p className="text-[10px] opacity-75">
+                                                    关注作者获取更多硬核干货
+                                                </p>
+                                            </div>
+                                            <div className="pt-2 border-t border-current/10 flex items-center justify-between text-[9px] opacity-60">
+                                                <span>{brandKit.watermarkText || '@' + (editingPersonaAccount?.nickname || '博主')}</span>
+                                                <span className="font-bold" style={{ color: brandKit.accentColor }}>★ 收藏</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         ) : (
                             <>

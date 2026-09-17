@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { ContentPackageService } from '../services/core/ContentPackageService.js';
 import { CardPaginationService } from '../services/core/CardPaginationService.js';
+import { BrandKitService } from '../services/core/BrandKitService.js';
 
 const router = Router();
 
@@ -127,7 +128,9 @@ router.post('/:id/slides', (req, res) => {
             includeCta: req.body.includeCta
         });
 
-        res.json({ success: true, slides });
+        const brandKit = BrandKitService.getBrandKit(pkg.accountId);
+
+        res.json({ success: true, slides, brandKit });
     } catch (error: any) {
         res.status(500).json({ error: `计算分页失败: ${error.message}` });
     }

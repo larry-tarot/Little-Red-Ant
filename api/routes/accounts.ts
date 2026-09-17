@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { AccountService } from '../services/core/AccountService.js';
 import { AccountBusinessProfileService } from '../services/core/AccountBusinessProfileService.js';
+import { BrandKitService } from '../services/core/BrandKitService.js';
 import { startCreatorLogin, startMainSiteLogin, getLoginState, openNoteInBrowser, refreshQrCode } from '../services/rpa/xiaohongshu.js';
 import { enqueueTask } from '../services/queue.js';
 import { validateBody, validateParams } from '../middleware/validation.js';
@@ -211,6 +212,44 @@ router.get('/:id/prompt-context', validateParams(IdParamSchema), (req, res) => {
     res.json({ accountId, promptContext });
   } catch (error: any) {
     res.status(500).json({ error: `导出提示词上下文失败: ${error.message}` });
+  }
+});
+
+// --- P2.3 品牌视觉资产与样图确认 (Brand Kit & Sample Approval) ---
+
+// 查询账号品牌视觉规范及当前标准样图
+router.get('/:id/brand-kit', validateParams(IdParamSchema), (req, res) => {
+  try {
+    const accountId = Number(req.params.id);
+    const brandKit = BrandKitService.getBrandKit(accountId);
+    const samplePreviews = BrandKitService.renderSamplePreviews(brandKit);
+    res.json({ accountId, brandKit, samplePreviews });
+  } catch (error: any) {
+    res.status(500).json({ error: `获取品牌视觉规范失败: ${error.message}` });
+  }
+});
+
+// 更新账号品牌视觉规范（修改后状态将重置为待审核）
+router.put('/:id/brand-kit', validateParams(IdParamSchema), (req, res) => {
+  try {
+    const accountId = Number(req.params.id);
+    const brandKit = BrandKitService.updateBrandKit(accountId, req.body || {});
+    const samplePreviews = BrandKitService.renderSamplePreviews(brandKit);
+    res.json({ success: true, brandKit, samplePreviews });
+  } catch (error: any) {
+    res.status(500).json({ error: `更新品牌视觉规范失败: ${error.message}` });
+  }
+});
+
+// 创作者人工审批并固化为官方批准标准 (Approve)
+router.post('/:id/brand-kit/approve', validateParams(IdParamSchema), (req, res) => {
+  try {
+    const accountId = Number(req.params.id);
+    const { sampleSnapshotUrl } = req.body || {};
+    const brandKit = BrandKitService.approveBrandKit(accountId, sampleSnapshotUrl);
+    res.json({ success: true, brandKit });
+  } catch (error: any) {
+    res.status(500).json({ error: `批准品牌视觉规范失败: ${error.message}` });
   }
 });
 
