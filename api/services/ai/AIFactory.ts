@@ -2,6 +2,7 @@ import { AIProvider } from './interfaces/AIProvider.js';
 import { AudioProvider } from './interfaces/AudioProvider.js';
 import { DeepSeekProvider } from './providers/DeepSeekProvider.js';
 import { AliyunProvider } from './providers/AliyunProvider.js';
+import { CustomOpenAIProvider } from './providers/CustomOpenAIProvider.js';
 import { CompositeProvider } from './providers/CompositeProvider.js';
 
 export class AIFactory {
@@ -9,11 +10,18 @@ export class AIFactory {
     private static imageProvider: AIProvider;
     private static audioProvider: AudioProvider;
 
+    static resetProviders(): void {
+        this.textProvider = null as any;
+        this.imageProvider = null as any;
+        this.audioProvider = null as any;
+    }
+
     static getTextProvider(): AIProvider {
         if (!this.textProvider) {
-            // Priority: DeepSeek -> Aliyun
-            // This ensures if DeepSeek is down/out of credits, we fall back to Aliyun Qwen
+            // Priority: CustomOpenAI -> DeepSeek -> Aliyun
+            // 用户配置自定义 API 时优先使用，其次 DeepSeek，最后阿里通义千问
             this.textProvider = new CompositeProvider('TextService', [
+                new CustomOpenAIProvider(),
                 new DeepSeekProvider(),
                 new AliyunProvider()
             ]);
@@ -23,8 +31,9 @@ export class AIFactory {
 
     static getImageProvider(): AIProvider {
         if (!this.imageProvider) {
-            // Priority: Aliyun (Wanx/Qwen) -> DeepSeek (Currently no image support, but kept for future)
+            // Priority: CustomOpenAI -> Aliyun (Wanx/Qwen) -> DeepSeek
             this.imageProvider = new CompositeProvider('ImageService', [
+                new CustomOpenAIProvider(),
                 new AliyunProvider(),
                 new DeepSeekProvider()
             ]);

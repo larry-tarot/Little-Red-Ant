@@ -44,12 +44,12 @@ router.post('/', requireAdmin, validateBody(SettingsUpdateSchema), async (req, r
 router.post('/test-connection', validateBody(SettingsTestConnectionSchema), async (req, res) => {
     try {
         const { key } = req.body;
-        if (!key || !['aliyun_api_key', 'deepseek_api_key'].includes(key)) {
+        if (!key || !['aliyun_api_key', 'deepseek_api_key', 'custom_api_key'].includes(key)) {
             return res.status(400).json({ success: false, message: 'Invalid key type' });
         }
 
-        // Get the API key from settings or env
-        const apiKey = await SettingsService.get(key) || process.env[key.toUpperCase()] || '';
+        // Get the API key from request, settings or env
+        const apiKey = req.body.apiKey || await SettingsService.get(key) || process.env[key.toUpperCase()] || '';
         if (!apiKey) {
             return res.json({ success: false, message: 'API Key 未配置' });
         }
@@ -96,6 +96,35 @@ router.post('/test-connection', validateBody(SettingsTestConnectionSchema), asyn
 
             if (response.ok) {
                 res.json({ success: true, message: '连接成功' });
+            } else {
+                const body = await response.text().catch(() => '');
+                res.json({ success: false, message: body || 'API 返回错误' });
+            }
+        } else if (key === 'custom_api_key') {
+            const fetch = (await import('node-fetch')).default;
+            const baseUrl = req.body.baseUrl || (await SettingsService.get('custom_base_url')) || 'https://api.openai.com/v1';
+            const model = req.body.model || (await SettingsService.get('custom_model')) || 'gpt-4o';
+            const trimmedBase = baseUrl.replace(/\/+$/, '');
+            const targetUrl = trimmedBase.endsWith('/chat/completions') ? trimmedBase : `${trimmedBase}/chat/completions`;
+
+            const startTime = Date.now();
+            const response = await fetch(targetUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`,
+                },
+                body: JSON.stringify({
+                    model,
+                    messages: [{ role: 'user', content: 'Hi' }],
+                    max_tokens: 5
+                }),
+                timeout: 10000,
+            });
+            const latency = Date.now() - startTime;
+
+            if (response.ok) {
+                res.json({ success: true, message: `连接成功 (模型: ${model}, 延迟: ${latency}ms)` });
             } else {
                 const body = await response.text().catch(() => '');
                 res.json({ success: false, message: body || 'API 返回错误' });

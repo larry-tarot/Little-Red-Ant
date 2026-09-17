@@ -390,9 +390,12 @@ export const SettingsUpdateSchema = z.record(z.string(), z.string(), {
 });
 
 export const SettingsTestConnectionSchema = z.object({
-    key: z.enum(['aliyun_api_key', 'deepseek_api_key'], {
-        error: 'key 必须是 aliyun_api_key 或 deepseek_api_key',
+    key: z.enum(['aliyun_api_key', 'deepseek_api_key', 'custom_api_key'], {
+        error: 'key 必须是 aliyun_api_key、deepseek_api_key 或 custom_api_key',
     }),
+    apiKey: z.string().optional(),
+    baseUrl: z.string().optional(),
+    model: z.string().optional(),
 });
 
 // --- Trends Routes ---

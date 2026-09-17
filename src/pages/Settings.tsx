@@ -177,17 +177,22 @@ export default function SettingsPage() {
     setSettings(prev => ({ ...prev, [key]: value }));
   };
 
-  const testConnection = async (key: string) => {
+  const testConnection = async (key: string, payload?: { apiKey?: string; baseUrl?: string; model?: string }) => {
       setTesting(key);
       try {
-        const res = await axios.post('/api/settings/test-connection', { key });
+        const res = await axios.post('/api/settings/test-connection', {
+            key,
+            apiKey: payload?.apiKey ?? settings[key],
+            baseUrl: payload?.baseUrl ?? (key === 'custom_api_key' ? settings.custom_base_url : undefined),
+            model: payload?.model ?? (key === 'custom_api_key' ? settings.custom_model : undefined),
+        });
         if (res.data.success) {
-          toast.success(`✅ ${key} 连接成功`);
+          toast.success(`✅ ${res.data.message || `${key} 连接成功`}`);
         } else {
-          toast.error(`❌ ${key}: ${res.data.message || '连接失败'}`);
+          toast.error(`❌ ${res.data.message || '连接失败'}`);
         }
       } catch (e: any) {
-        toast.error(`❌ ${key}: ${e.response?.data?.message || e.message || '无法连接到服务器'}`);
+        toast.error(`❌ ${e.response?.data?.message || e.message || '无法连接到服务器'}`);
       } finally {
         setTesting(null);
       }
@@ -687,6 +692,108 @@ export default function SettingsPage() {
                         ))}
                     </div>
                   </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Custom OpenAI-Compatible Provider Configuration */}
+          <div className="bg-surface shadow-sm rounded-lg border border-primary/40 overflow-hidden ring-1 ring-primary/20">
+            <div className="px-6 py-4 border-b border-border bg-primary/5 flex items-center justify-between">
+              <div className="flex items-center">
+                <Cpu className="text-primary mr-2" size={20} />
+                <div>
+                  <h2 className="text-lg font-medium text-text flex items-center gap-2">
+                    自定义 API 运营商接入 (OpenAI 兼容协议)
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-bold">最高优先级主力</span>
+                  </h2>
+                  <p className="text-xs text-text-tertiary mt-0.5">
+                    支持硅基流动 (SiliconFlow)、MiniMax、Groq、Ollama、OneAPI/NewAPI 或任意兼容 OpenAI 格式的服务商。
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-text-secondary mb-1">
+                  API Key (CUSTOM_API_KEY)
+                </label>
+                <div className="relative">
+                    <Key className="absolute left-3 top-1/2 transform -translate-y-1/2 text-text-tertiary" size={16} />
+                    <input
+                      type="password"
+                      value={settings.custom_api_key || ''}
+                      onChange={(e) => handleChange('custom_api_key', e.target.value)}
+                      placeholder="sk-..."
+                      className="pl-10 block w-full rounded-md border-border-strong shadow-sm focus:border-primary focus:ring-primary sm:text-sm h-10 border px-3"
+                    />
+                    <button
+                      onClick={() => testConnection('custom_api_key')}
+                      disabled={testing === 'custom_api_key'}
+                      className="absolute right-2 top-1/2 transform -translate-y-1/2 text-xs text-primary hover:text-primary-hover disabled:text-text-tertiary px-2 py-1 rounded"
+                    >
+                      {testing === 'custom_api_key' ? '测试中...' : '测试连接'}
+                    </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-text-secondary mb-1">
+                  接口地址 Base URL (CUSTOM_BASE_URL)
+                </label>
+                <input
+                  type="text"
+                  value={settings.custom_base_url || ''}
+                  onChange={(e) => handleChange('custom_base_url', e.target.value)}
+                  placeholder="https://api.siliconflow.cn/v1"
+                  className="block w-full rounded-md border-border-strong shadow-sm focus:border-primary focus:ring-primary sm:text-sm h-10 border px-3"
+                />
+                <div className="mt-2 flex gap-2 flex-wrap">
+                    {[
+                        { label: '硅基流动', url: 'https://api.siliconflow.cn/v1' },
+                        { label: 'MiniMax', url: 'https://api.minimax.chat/v1' },
+                        { label: 'Groq', url: 'https://api.groq.com/openai/v1' },
+                        { label: 'Ollama本地', url: 'http://localhost:11434/v1' },
+                        { label: 'OpenAI官方', url: 'https://api.openai.com/v1' }
+                    ].map(p => (
+                        <button
+                            key={p.label}
+                            onClick={() => handleChange('custom_base_url', p.url)}
+                            className="text-xs bg-surface-muted hover:bg-surface-hover text-text-secondary px-2 py-1 rounded transition-colors"
+                        >
+                            {p.label}
+                        </button>
+                    ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-text-secondary mb-1">
+                  模型名称 (CUSTOM_MODEL)
+                </label>
+                <input
+                  type="text"
+                  value={settings.custom_model || ''}
+                  onChange={(e) => handleChange('custom_model', e.target.value)}
+                  placeholder="deepseek-ai/DeepSeek-V3"
+                  className="block w-full rounded-md border-border-strong shadow-sm focus:border-primary focus:ring-primary sm:text-sm h-10 border px-3"
+                />
+                <div className="mt-2 flex gap-2 flex-wrap">
+                    {[
+                        'deepseek-ai/DeepSeek-V3',
+                        'deepseek-ai/DeepSeek-R1',
+                        'Qwen/Qwen2.5-72B-Instruct',
+                        'gpt-4o',
+                        'claude-3-5-sonnet'
+                    ].map(m => (
+                        <button
+                            key={m}
+                            onClick={() => handleChange('custom_model', m)}
+                            className="text-xs bg-surface-muted hover:bg-surface-hover text-text-secondary px-2 py-1 rounded transition-colors"
+                        >
+                            {m}
+                        </button>
+                    ))}
+                </div>
               </div>
             </div>
           </div>
